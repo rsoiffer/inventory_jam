@@ -1,20 +1,26 @@
 use crate::GameState;
+use crate::config::{NetworkSession, default_join_server_addr};
 use crate::loading::TextureAssets;
 use bevy::prelude::*;
 
 pub struct MenuPlugin;
 
-/// This plugin is responsible for the game menu (containing only one button...)
-/// The menu is only drawn during the State `GameState::Menu` and is removed when that state is exited
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Menu), setup_menu)
-            .add_systems(Update, click_play_button.run_if(in_state(GameState::Menu)))
+        app.register_type::<ButtonColors>()
+            .register_type::<Menu>()
+            .register_type::<MenuAction>()
+            .register_type::<OpenLink>()
+            .add_systems(OnEnter(GameState::Menu), setup_menu)
+            .add_systems(Update, menu_button_colors.run_if(in_state(GameState::Menu)))
+            .add_systems(Update, menu_action_buttons.run_if(in_state(GameState::Menu)))
+            .add_systems(Update, menu_link_buttons.run_if(in_state(GameState::Menu)))
             .add_systems(OnExit(GameState::Menu), cleanup_menu);
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 struct ButtonColors {
     normal: Color,
     hovered: Color,
@@ -29,12 +35,19 @@ impl Default for ButtonColors {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
 struct Menu;
 
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+enum MenuAction {
+    Host,
+    Join,
+}
+
 fn setup_menu(mut commands: Commands, textures: Res<TextureAssets>) {
-    info!("menu");
-    commands.spawn((Camera2d, Msaa::Off));
+    commands.spawn(Camera2d);
     commands
         .spawn((
             Node {
@@ -43,34 +56,15 @@ fn setup_menu(mut commands: Commands, textures: Res<TextureAssets>) {
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
+                row_gap: Val::Px(12.0),
                 ..default()
             },
             Menu,
         ))
         .with_children(|children| {
-            let button_colors = ButtonColors::default();
-            children
-                .spawn((
-                    Button,
-                    Node {
-                        width: Val::Px(140.0),
-                        height: Val::Px(50.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        ..Default::default()
-                    },
-                    BackgroundColor(button_colors.normal),
-                    button_colors,
-                    ChangeState(GameState::Playing),
-                ))
-                .with_child((
-                    Text::new("Play"),
-                    TextFont {
-                        font_size: FontSize::Px(40.0),
-                        ..default()
-                    },
-                    TextColor(Color::linear_rgb(0.9, 0.9, 0.9)),
-                ));
+            #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
+            spawn_action_button(children, "Host", MenuAction::Host);
+            spawn_action_button(children, "Join", MenuAction::Join);
         });
     commands
         .spawn((
@@ -162,42 +156,73 @@ fn setup_menu(mut commands: Commands, textures: Res<TextureAssets>) {
         });
 }
 
-#[derive(Component)]
-struct ChangeState(GameState);
+fn spawn_action_button(parent: &mut ChildSpawnerCommands, label: &str, action: MenuAction) {
+    let button_colors = ButtonColors::default();
+    parent
+        .spawn((
+            Button,
+            Node {
+                width: Val::Px(140.0),
+                height: Val::Px(50.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            BackgroundColor(button_colors.normal),
+            button_colors,
+            action,
+        ))
+        .with_child((
+            Text::new(label),
+            TextFont {
+                font_size: FontSize::Px(32.0),
+                ..default()
+            },
+            TextColor(Color::linear_rgb(0.9, 0.9, 0.9)),
+        ));
+}
 
-#[derive(Component)]
-struct OpenLink(&'static str);
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+struct OpenLink(#[reflect(ignore)] &'static str);
 
-fn click_play_button(
-    mut next_state: ResMut<NextState<GameState>>,
-    mut interaction_query: Query<
-        (
-            &Interaction,
-            &mut BackgroundColor,
-            &ButtonColors,
-            Option<&ChangeState>,
-            Option<&OpenLink>,
-        ),
-        (Changed<Interaction>, With<Button>),
-    >,
+fn menu_button_colors(
+    mut buttons: Query<(&Interaction, &mut BackgroundColor, &ButtonColors), With<Button>>,
 ) {
-    for (interaction, mut color, button_colors, change_state, open_link) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
-                if let Some(state) = change_state {
-                    next_state.set(state.0.clone());
-                } else if let Some(link) = open_link
-                    && let Err(error) = webbrowser::open(link.0)
-                {
-                    warn!("Failed to open link {error:?}");
-                }
-            }
-            Interaction::Hovered => {
-                *color = button_colors.hovered.into();
-            }
-            Interaction::None => {
-                *color = button_colors.normal.into();
-            }
+    for (interaction, mut color, button_colors) in buttons.iter_mut() {
+        *color = match *interaction {
+            Interaction::Hovered | Interaction::Pressed => button_colors.hovered,
+            Interaction::None => button_colors.normal,
+        }
+        .into();
+    }
+}
+
+fn menu_action_buttons(
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+    buttons: Query<(&Interaction, &MenuAction), With<Button>>,
+) {
+    for (interaction, action) in buttons.iter() {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        let client_id = rand::random();
+        let session = match action {
+            MenuAction::Host => NetworkSession::host(client_id),
+            MenuAction::Join => NetworkSession::join(default_join_server_addr(), client_id),
+        };
+        commands.insert_resource(session);
+        next_state.set(GameState::Playing);
+    }
+}
+
+fn menu_link_buttons(buttons: Query<(&Interaction, &OpenLink), With<Button>>) {
+    for (interaction, link) in buttons.iter() {
+        if *interaction == Interaction::Pressed
+            && let Err(error) = webbrowser::open(link.0)
+        {
+            warn!("Failed to open link {error:?}");
         }
     }
 }

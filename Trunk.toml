@@ -1,5 +1,6 @@
 [build]
 public_url = "./"
+features = ["client"]
 
 [serve]
 port = 8080

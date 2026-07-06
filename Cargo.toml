@@ -1,5 +1,5 @@
 [package]
-name = "rust_jam"
+name = "inventory_jam"
 version = "0.1.0"
 publish = false
 authors = ["PIGSquad Rustaceans"]
@@ -28,13 +28,16 @@ codegen-units = 1
 strip = true
 
 [features]
+default = ["client", "server"]
+client = []
+server = []
 dev = [
     "bevy/dynamic_linking",
 ]
 
 # All of Bevy's default features exept for the audio related ones (bevy_audio, vorbis), since they clash with bevy_kira_audio
 [dependencies]
-bevy = { version = "0.19", default-features = false, features = [
+bevy = { version = "0.19.0", default-features = false, features = [
     "default_app",
     "2d_api",
     "2d_bevy_render",
@@ -55,6 +58,19 @@ bevy_kira_audio = { version = "0.26" }
 bevy_asset_loader = { version = "0.27" }
 rand = { version = "0.9" }
 webbrowser = { version = "1", features = ["hardened"] }
+lightyear = { version = "0.28.0", default-features = false, features = [
+    "client",
+    "server",
+    "replication",
+    "prediction",
+    "interpolation",
+    "frame_interpolation",
+    "input_native",
+    "netcode",
+    "webtransport",
+] }
+serde = { version = "1.0.228", features = ["derive"] }
+bevy-inspector-egui = { version = "0.37", default-features = false, features = ["2d"] }
 
 # keep the following in sync with Bevy's dependencies
 winit = { version = "0.30", default-features = false }
@@ -62,10 +78,21 @@ image = { version = "0.25", default-features = false }
 ## This greatly improves WGPU's performance due to its heavy use of trace! calls
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clap = { version = "4", features = ["derive"] }
+async-compat = "0.2"
+
 # Required to make `rand`/`getrandom` work on wasm.
 # Backend is selected via `.cargo/config.toml` rustflags for the wasm32-unknown-unknown target.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
+getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+web-sys = { version = "0.3", features = ["Window", "Location"] }
 
 [build-dependencies]
 embed-resource = "1"
+
+[package.metadata.trunk]
+[package.metadata.trunk.build]
+features = ["client"]

@@ -1,2 +1,13 @@
 [target.wasm32-unknown-unknown]
-rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
+rustflags = [
+    '--cfg', 'getrandom_backend="wasm_js"',
+    '--cfg', 'web_sys_unstable_apis',
+]
+
+# Faster linking on Windows (https://bevy.org/learn/quick-start/getting-started/setup/)
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+
+[alias]
+run-dev = "run --features dev"
+check-dev = "check --features dev"
