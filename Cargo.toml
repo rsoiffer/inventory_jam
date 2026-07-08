@@ -31,7 +31,7 @@ strip = true
 dev = [
     "bevy/dynamic_linking",
 ]
-default = ["client", "gui", "server", "netcode", "dev"]
+default = ["client", "gui", "server", "netcode", "udp", "dev"]
 client = ["lightyear/client", "lightyear_examples_common/client"]
 gui = ["lightyear_examples_common/gui2d"]
 server = [

@@ -85,15 +85,9 @@ pub struct Direction {
     pub(crate) right: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Reflect)]
-pub enum Inputs {
-    Direction(Direction),
-}
-
-impl Default for Inputs {
-    fn default() -> Self {
-        Self::Direction(Direction::default())
-    }
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone, Reflect)]
+pub struct Inputs {
+    pub(crate) direction: Direction,
 }
 
 impl MapEntities for Inputs {

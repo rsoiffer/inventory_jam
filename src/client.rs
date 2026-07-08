@@ -5,13 +5,24 @@
 //! - applying inputs to the locally predicted player (for prediction to work, inputs have to be applied to both the
 //!   predicted entity and the server entity)
 
-use crate::protocol::*;
+use crate::protocol::{Direction, Inputs, Message1, PlayerColor, PlayerId, PlayerPosition};
 use crate::shared;
-use bevy::prelude::*;
+use bevy::prelude::{
+    Add, App, Color, Commands, Entity, FixedPreUpdate, FixedUpdate, Hsva, IntoScheduleConfigs,
+    KeyCode, On, Plugin, Query, Reflect, Res, Single, Startup, Update, With, Without, info, trace,
+};
+use leafwing_input_manager::Actionlike;
+use leafwing_input_manager::input_map::InputMap;
+use leafwing_input_manager::prelude::ActionState as LeafwingActionState;
+use leafwing_input_manager::prelude::InputManagerPlugin;
 use lightyear::prelude::client::input::*;
 use lightyear::prelude::client::{InputDelayConfig, InputTimelineConfig};
-use lightyear::prelude::input::native::*;
-use lightyear::prelude::*;
+use lightyear::prelude::input::native::ActionState as LightyearActionState;
+use lightyear::prelude::input::native::InputMarker;
+use lightyear::prelude::{
+    Client, Controlled, ControlledBy, InputTimeline, Interpolated, IsSynced, LocalTimeline,
+    MessageReceiver, Predicted,
+};
 
 pub struct ExampleClientPlugin;
 
@@ -29,7 +40,16 @@ impl Plugin for ExampleClientPlugin {
         app.add_observer(handle_predicted_spawn);
         app.add_observer(handle_controlled_spawn);
         app.add_observer(handle_interpolated_spawn);
+        app.add_plugins(InputManagerPlugin::<Action>::default());
     }
+}
+
+#[derive(Actionlike, PartialEq, Eq, Hash, Clone, Copy, Debug, Reflect)]
+enum Action {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 fn configure_input_delay(client: Single<Entity, With<Client>>, mut commands: Commands) {
@@ -46,38 +66,41 @@ fn configure_input_delay(client: Single<Entity, With<Client>>, mut commands: Com
 /// `InputPlugin`, which contains more features.
 fn buffer_input(
     timeline: Res<LocalTimeline>,
-    mut query: Query<&mut ActionState<Inputs>, With<InputMarker<Inputs>>>,
-    keypress: Option<Res<ButtonInput<KeyCode>>>,
+    mut query: Query<
+        (
+            &mut LightyearActionState<Inputs>,
+            &LeafwingActionState<Action>,
+        ),
+        With<InputMarker<Inputs>>,
+    >,
 ) {
-    if let Ok(mut action_state) = query.single_mut() {
+    if let Ok((mut lightyear_action, leaf_action)) = query.single_mut() {
         let current_tick = timeline.tick();
         let mut direction = Direction::default();
 
-        if let Some(keypress) = keypress {
-            if keypress.pressed(KeyCode::KeyW) || keypress.pressed(KeyCode::ArrowUp) {
-                direction.up = true;
-            }
-            if keypress.pressed(KeyCode::KeyS) || keypress.pressed(KeyCode::ArrowDown) {
-                direction.down = true;
-            }
-            if keypress.pressed(KeyCode::KeyA) || keypress.pressed(KeyCode::ArrowLeft) {
-                direction.left = true;
-            }
-            if keypress.pressed(KeyCode::KeyD) || keypress.pressed(KeyCode::ArrowRight) {
-                direction.right = true;
-            }
+        if leaf_action.pressed(&Action::Up) {
+            direction.up = true;
+        }
+        if leaf_action.pressed(&Action::Down) {
+            direction.down = true;
+        }
+        if leaf_action.pressed(&Action::Left) {
+            direction.left = true;
+        }
+        if leaf_action.pressed(&Action::Right) {
+            direction.right = true;
         }
 
         // we always set the value. Setting it to None means that the input was missing, it's not the same
         // as saying that the input was 'no keys pressed'
-        action_state.0 = Inputs::Direction(direction);
+        lightyear_action.0 = Inputs { direction };
         trace!(
             target: "lightyear_debug::simple_box",
             kind = "simple_box_client_input",
             schedule = "FixedPreUpdate",
             sample_point = "FixedPreUpdate",
             local_tick = current_tick.0,
-            input = ?action_state.0,
+            input = ?lightyear_action.0,
             "selected simple_box client input"
         );
     }
@@ -89,7 +112,10 @@ fn buffer_input(
 fn player_movement(
     synced_client: Query<(), (With<Client>, With<IsSynced<InputTimeline>>)>,
     // timeline: Single<&LocalTimeline>,
-    mut position_query: Query<(&mut PlayerPosition, &ActionState<Inputs>), With<Predicted>>,
+    mut position_query: Query<
+        (&mut PlayerPosition, &LightyearActionState<Inputs>),
+        With<Predicted>,
+    >,
 ) {
     if synced_client.is_empty() {
         return;
@@ -147,8 +173,15 @@ fn handle_controlled_spawn(
         return;
     }
     info!("Adding InputMarker to controlled player {entity:?} {player_id:?}");
+    let input_map = InputMap::new([
+        (Action::Up, KeyCode::ArrowUp),
+        (Action::Down, KeyCode::ArrowDown),
+        (Action::Left, KeyCode::ArrowLeft),
+        (Action::Right, KeyCode::ArrowRight),
+    ]);
     commands
         .entity(entity)
+        .insert(input_map)
         .insert(InputMarker::<Inputs>::default());
 }
 
