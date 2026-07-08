@@ -43,6 +43,11 @@ server = [
 netcode = ["lightyear_examples_common/netcode"]
 udp = ["lightyear_examples_common/udp", "lightyear/std", "lightyear/udp"]
 steam = ["lightyear_examples_common/steam"]
+webtransport = [
+  "lightyear/webtransport",
+  "lightyear/webtransport_self_signed",
+  "lightyear/webtransport_dangerous_configuration",
+]
 
 # All of Bevy's default features exept for the audio related ones (bevy_audio, vorbis), since they clash with bevy_kira_audio
 [dependencies]
@@ -80,7 +85,14 @@ lightyear = { version = "0.28.0", features = [
     "input_native",
 ] }
 lightyear_examples_common = "0.28.0"
+leafwing-input-manager = { version = "0.21", features = [
+    "keyboard",
+    "gamepad",
+    "mouse",
+], default-features = false }
 serde = "1.0.228"
+clap = "4.6.1"
+cfg-if = "1.0.4"
 
 # Required to make `rand`/`getrandom` work on wasm.
 # Backend is selected via `.cargo/config.toml` rustflags for the wasm32-unknown-unknown target.
