@@ -12,14 +12,19 @@ use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
 // Player
+/// Components spawned together for each replicated player entity.
 #[derive(Bundle)]
 pub(crate) struct PlayerBundle {
+    /// Stable peer id for the player.
     id: PlayerId,
+    /// Networked player position.
     position: PlayerPosition,
+    /// Networked player display color.
     color: PlayerColor,
 }
 
 impl PlayerBundle {
+    /// Creates a player bundle with a deterministic color derived from the peer id.
     pub(crate) fn new(id: PeerId, position: Vec2) -> Self {
         // Generate pseudo random color from client id.
         let h = (((id.to_bits().wrapping_mul(30)) % 360) as f32) / 360.0;
@@ -36,9 +41,11 @@ impl PlayerBundle {
 
 // Components
 
+/// Replicated id of the peer that owns a player entity.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PlayerId(PeerId);
 
+/// Replicated world-space player position.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Deref, DerefMut)]
 pub struct PlayerPosition(pub Vec2);
 
@@ -50,14 +57,14 @@ impl Ease for PlayerPosition {
     }
 }
 
+/// Replicated player color used by the renderer.
 #[derive(Component, Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct PlayerColor(pub(crate) Color);
 
-// Example of a component that contains an entity.
-// This component, when replicated, needs to have the inner entity mapped from the Server world
-// to the client World.
-// You will need to derive the `MapEntities` trait for the component, and register
-// app.add_map_entities<PlayerParent>() in your protocol
+/// Example replicated component containing an entity reference.
+///
+/// Entity references need `MapEntities` so server-world entities can be mapped
+/// to their client-world equivalents.
 #[derive(Component, Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct PlayerParent(Entity);
 
@@ -68,31 +75,41 @@ impl MapEntities for PlayerParent {
 }
 
 // Channels
+/// Reliable ordered channel used by the example message.
 pub struct Channel1;
 
 // Messages
 
+/// Example server-to-client message payload.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Message1(pub usize);
 
 // Inputs
 
+/// Directional movement input captured from keyboard state.
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone, Reflect)]
 pub struct Direction {
+    /// Whether movement is requested upward.
     pub(crate) up: bool,
+    /// Whether movement is requested downward.
     pub(crate) down: bool,
+    /// Whether movement is requested leftward.
     pub(crate) left: bool,
+    /// Whether movement is requested rightward.
     pub(crate) right: bool,
 }
 
 impl Direction {
+    /// Returns true when no directional buttons are pressed.
     pub(crate) fn is_none(&self) -> bool {
         !self.up && !self.down && !self.left && !self.right
     }
 }
 
+/// Input variants sent from clients to the server.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Reflect)]
 pub enum Inputs {
+    /// Directional keyboard movement.
     Direction(Direction),
 }
 
@@ -107,6 +124,7 @@ impl MapEntities for Inputs {
 }
 
 // Protocol
+/// Registers replicated components, messages, inputs, and channels.
 #[derive(Clone)]
 pub struct ProtocolPlugin;
 

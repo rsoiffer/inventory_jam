@@ -6,6 +6,7 @@
 //! - read inputs from the clients and move the player entities accordingly
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
+use crate::net::SEND_INTERVAL;
 use crate::protocol::*;
 use crate::shared;
 use bevy::prelude::*;
@@ -14,8 +15,8 @@ use lightyear::connection::host::HostServer;
 use lightyear::prelude::input::native::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
-use lightyear_examples_common::shared::SEND_INTERVAL;
 
+/// Registers authoritative server movement, replication, and messaging systems.
 pub struct ExampleServerPlugin;
 
 impl Plugin for ExampleServerPlugin {
@@ -73,7 +74,7 @@ pub(crate) fn handle_connected(
     );
 }
 
-/// Read client inputs and move players in server therefore giving a basis for other clients
+/// Reads client inputs and moves authoritative server-side player entities.
 fn movement(
     timeline: Res<LocalTimeline>,
     host_server: Query<(), With<HostServer>>,

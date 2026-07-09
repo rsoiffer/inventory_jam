@@ -13,6 +13,7 @@ use lightyear::prelude::client::{InputDelayConfig, InputTimelineConfig};
 use lightyear::prelude::input::native::*;
 use lightyear::prelude::*;
 
+/// Registers client-side input, prediction, and presentation systems.
 pub struct ExampleClientPlugin;
 
 impl Plugin for ExampleClientPlugin {
@@ -32,6 +33,7 @@ impl Plugin for ExampleClientPlugin {
     }
 }
 
+/// Removes client-side input delay for local responsiveness.
 fn configure_input_delay(client: Single<Entity, With<Client>>, mut commands: Commands) {
     commands.entity(client.into_inner()).insert(
         InputTimelineConfig::default().with_input_delay(InputDelayConfig::no_input_delay()),
@@ -131,6 +133,7 @@ pub(crate) fn handle_predicted_spawn(
     }
 }
 
+/// Adds an input marker to the local client-controlled player entity.
 fn handle_controlled_spawn(
     trigger: On<Add, Controlled>,
     mut commands: Commands,

@@ -2,6 +2,7 @@ use crate::protocol::*;
 use bevy::prelude::*;
 
 #[derive(Clone)]
+/// Registers the 2D camera and gizmo renderer.
 pub struct ExampleRendererPlugin;
 
 impl Plugin for ExampleRendererPlugin {
@@ -11,6 +12,7 @@ impl Plugin for ExampleRendererPlugin {
     }
 }
 
+/// Spawns the 2D camera used by the debug renderer.
 fn init(mut commands: Commands) {
     commands.spawn(Camera2d);
 }

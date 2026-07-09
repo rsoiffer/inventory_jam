@@ -1,65 +1,70 @@
-//! This example showcases how to use Lightyear with Bevy, to easily get replication along with prediction/interpolation working.
-//!
-//! Run with
-//! - `cargo run -- server`
-//! - `cargo run -- client -c 1`
+//! Inventory Jam executable wiring for Bevy, Lightyear networking, and Edgegap discovery.
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+/// App construction and run-mode selection.
+mod app;
+#[cfg(feature = "client")]
+/// Client gameplay systems.
+mod client;
+/// Edgegap runtime environment helpers.
+mod edgegap;
+/// Low-level Lightyear transport components and constants.
+mod net;
+/// Client/server connection setup.
+mod networking;
+/// Replicated protocol definitions.
+mod protocol;
+#[cfg(feature = "gui")]
+/// Simple 2D debug renderer.
+mod renderer;
+#[cfg(feature = "server")]
+/// Server gameplay systems.
+mod server;
+#[cfg(feature = "client")]
+/// Edgegap server discovery for remote clients.
+mod server_discovery;
+
+/// Shared gameplay logic.
+mod shared;
+
+use crate::app::{RunMode, build_app, run_mode};
 #[cfg(feature = "client")]
 use crate::client::ExampleClientPlugin;
+use crate::net::FIXED_TIMESTEP_HZ;
 use crate::networking::spawn_connections;
 #[cfg(feature = "server")]
 use crate::server::ExampleServerPlugin;
 use crate::shared::SharedPlugin;
 use bevy::prelude::*;
 use core::time::Duration;
-use lightyear_examples_common::cli::{Cli, Mode};
-use lightyear_examples_common::shared::FIXED_TIMESTEP_HZ;
 
-#[cfg(feature = "client")]
-mod client;
-mod edgegap;
-mod networking;
-mod protocol;
-#[cfg(feature = "gui")]
-mod renderer;
-#[cfg(feature = "server")]
-mod server;
-#[cfg(feature = "server-discovery")]
-mod server_discovery;
-
-mod shared;
-
+/// Process entrypoint.
 fn main() {
     if let Err(error) = run() {
         eprintln!("{error}");
+        #[cfg(not(target_arch = "wasm32"))]
         std::process::exit(1);
     }
 }
 
+/// Builds and runs the Bevy app for the selected mode.
 fn run() -> Result<(), String> {
-    let cli = Cli::default();
-    let mut app = cli.build_app(Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ), true);
+    let mode = run_mode();
+    let mut app = build_app(mode, Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ));
     app.add_plugins(SharedPlugin);
-    spawn_connections(&mut app, &cli)?;
+    spawn_connections(&mut app, mode)?;
 
-    match cli.mode {
+    match mode {
         #[cfg(feature = "client")]
-        Some(Mode::Client { .. }) => {
+        RunMode::Client { .. } => {
             app.add_plugins(ExampleClientPlugin);
         }
         #[cfg(feature = "server")]
-        Some(Mode::Server) => {
+        RunMode::Server => {
             app.add_plugins(ExampleServerPlugin);
         }
-        #[cfg(all(feature = "client", feature = "server"))]
-        Some(Mode::HostClient { .. }) => {
-            app.add_plugins(ExampleClientPlugin);
-            app.add_plugins(ExampleServerPlugin);
-        }
-        _ => {}
     }
 
     #[cfg(feature = "gui")]

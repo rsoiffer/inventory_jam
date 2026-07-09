@@ -2,8 +2,7 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipPush,
     [switch]$SkipVersionUpdate,
-    [switch]$SkipDeploy,
-    [switch]$SkipDatabaseUpdate
+    [switch]$SkipDeploy
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,7 +24,6 @@ $DeployReadyPollSec = 5
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $TokenPath = Join-Path $RepoRoot "secrets\edgegap-token.txt"
 $RegistryCredentialsPath = Join-Path $RepoRoot "secrets\registry-credentials.txt"
-$DatabaseServerUrlPath = Join-Path $RepoRoot "secrets\database-server-url.txt"
 
 function Get-ApiToken {
     if (Test-Path $TokenPath) {
@@ -39,20 +37,6 @@ function Get-ApiToken {
         return $env:EDGEGAP_API_TOKEN
     }
     throw "Missing token in secrets/edgegap-token.txt or EDGEGAP_API_TOKEN (for CI)"
-}
-
-function Get-DatabaseServerUrl {
-    if (Test-Path $DatabaseServerUrlPath) {
-        foreach ($line in Get-Content $DatabaseServerUrlPath) {
-            $line = $line.Trim()
-            if ($line -eq "" -or $line.StartsWith("#")) { continue }
-            return $line
-        }
-    }
-    if ($env:DATABASE_SERVER_URL) {
-        return $env:DATABASE_SERVER_URL
-    }
-    throw "Missing URL in secrets/database-server-url.txt or DATABASE_SERVER_URL (for CI)"
 }
 
 function Get-RegistryCredentials {
@@ -101,7 +85,7 @@ function Invoke-EdgegapApi {
 
     if ($null -ne $Body) {
         $params.ContentType = "application/json"
-        $params.Body = ($Body | ConvertTo-Json -Depth 8)
+        $params.Body = ($Body | ConvertTo-Json -Depth 16)
     }
 
     return Invoke-RestMethod @params
@@ -269,40 +253,6 @@ function Wait-EdgegapDeploymentReady {
     throw "Timed out waiting for Edgegap deployment $RequestId to become ready"
 }
 
-function Get-GamePort {
-    param(
-        [object]$DeploymentStatus
-    )
-
-    $portInfo = $DeploymentStatus.ports.$GamePortName
-    if ($null -eq $portInfo) {
-        throw "Deployment is ready but port '$GamePortName' was not found"
-    }
-
-    return @{
-        ServerHost = $DeploymentStatus.public_ip
-        Port = [int]$portInfo.external
-    }
-}
-
-function Set-LatestServerInDatabase {
-    param(
-        [string]$ServerHost,
-        [int]$Port,
-        [string]$DatabaseUrl
-    )
-
-    $psql = Get-Command psql -ErrorAction SilentlyContinue
-    if (-not $psql) {
-        throw "psql was not found on PATH; install PostgreSQL client tools to update server discovery"
-    }
-
-    $sqlHost = $ServerHost.Replace("'", "''")
-    $command = "SELECT set_latest_server('$sqlHost', $Port);"
-    & $psql.Source $DatabaseUrl -v ON_ERROR_STOP=1 -c $command | Out-Host
-    Write-Host "Updated get_latest_server() -> ${ServerHost}:${Port}"
-}
-
 $ApiToken = Get-ApiToken
 $image = "$Registry/$ImageName`:$ImageTag"
 
@@ -355,12 +305,5 @@ $response = Invoke-EdgegapApi `
 $response | ConvertTo-Json -Depth 8
 Write-Host "Deployment request_id: $($response.request_id)"
 
-if ($SkipDatabaseUpdate) {
-    Write-Host "Skipping database update"
-    return
-}
-
 $ready = Wait-EdgegapDeploymentReady -RequestId $response.request_id -ApiToken $ApiToken
-$gamePort = Get-GamePort -DeploymentStatus $ready
-$databaseUrl = Get-DatabaseServerUrl
-Set-LatestServerInDatabase -ServerHost $gamePort.ServerHost -Port $gamePort.Port -DatabaseUrl $databaseUrl
+Write-Host "Deployment ready at $($ready.public_ip):$($ready.ports.$GamePortName.external)"
