@@ -1,0 +1,366 @@
+param(
+    [switch]$SkipBuild,
+    [switch]$SkipPush,
+    [switch]$SkipVersionUpdate,
+    [switch]$SkipDeploy,
+    [switch]$SkipDatabaseUpdate
+)
+
+$ErrorActionPreference = "Stop"
+
+$AppName = "inventory-jam"
+$AppVersion = "dev"
+$Registry = "registry.edgegap.com/loco-motion-devs-qfpbnhdj6oju"
+$ImageName = "inventory-jam-server"
+$ImageTag = "latest"
+$Latitude = 45.5231
+$Longitude = -122.6765
+$GamePortName = "gameport"
+$GamePort = 5888
+$ReqCpu = 1024
+$ReqMemory = 2048
+$DeployReadyTimeoutSec = 600
+$DeployReadyPollSec = 5
+
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$TokenPath = Join-Path $RepoRoot "secrets\edgegap-token.txt"
+$RegistryCredentialsPath = Join-Path $RepoRoot "secrets\registry-credentials.txt"
+$DatabaseServerUrlPath = Join-Path $RepoRoot "secrets\database-server-url.txt"
+
+function Get-ApiToken {
+    if (Test-Path $TokenPath) {
+        foreach ($line in Get-Content $TokenPath) {
+            $line = $line.Trim()
+            if ($line -eq "" -or $line.StartsWith("#")) { continue }
+            return $line
+        }
+    }
+    if ($env:EDGEGAP_API_TOKEN) {
+        return $env:EDGEGAP_API_TOKEN
+    }
+    throw "Missing token in secrets/edgegap-token.txt or EDGEGAP_API_TOKEN (for CI)"
+}
+
+function Get-DatabaseServerUrl {
+    if (Test-Path $DatabaseServerUrlPath) {
+        foreach ($line in Get-Content $DatabaseServerUrlPath) {
+            $line = $line.Trim()
+            if ($line -eq "" -or $line.StartsWith("#")) { continue }
+            return $line
+        }
+    }
+    if ($env:DATABASE_SERVER_URL) {
+        return $env:DATABASE_SERVER_URL
+    }
+    throw "Missing URL in secrets/database-server-url.txt or DATABASE_SERVER_URL (for CI)"
+}
+
+function Get-RegistryCredentials {
+    if (Test-Path $RegistryCredentialsPath) {
+        $lines = @(
+            foreach ($line in Get-Content $RegistryCredentialsPath) {
+                $line = $line.Trim()
+                if ($line -eq "" -or $line.StartsWith("#")) { continue }
+                $line
+            }
+        )
+        if ($lines.Count -ge 2) {
+            return @{
+                Username = $lines[0]
+                Token = $lines[1]
+            }
+        }
+    }
+    if ($env:EDGEGAP_REGISTRY_USERNAME -and $env:EDGEGAP_REGISTRY_TOKEN) {
+        return @{
+            Username = $env:EDGEGAP_REGISTRY_USERNAME
+            Token = $env:EDGEGAP_REGISTRY_TOKEN
+        }
+    }
+    throw "Missing credentials in secrets/registry-credentials.txt (username on line 1, token on line 2) or EDGEGAP_REGISTRY_USERNAME and EDGEGAP_REGISTRY_TOKEN"
+}
+
+function Ensure-RegistryLogin {
+    $credentials = Get-RegistryCredentials
+    $credentials.Token | docker login registry.edgegap.com -u $credentials.Username --password-stdin | Out-Host
+}
+
+function Invoke-EdgegapApi {
+    param(
+        [string]$Method,
+        [string]$Uri,
+        [object]$Body,
+        [string]$ApiToken
+    )
+
+    $params = @{
+        Method = $Method
+        Uri = $Uri
+        Headers = @{ Authorization = $ApiToken }
+    }
+
+    if ($null -ne $Body) {
+        $params.ContentType = "application/json"
+        $params.Body = ($Body | ConvertTo-Json -Depth 8)
+    }
+
+    return Invoke-RestMethod @params
+}
+
+function Get-AppVersion {
+    param(
+        [string]$AppName,
+        [string]$AppVersion,
+        [string]$ApiToken
+    )
+
+    try {
+        return Invoke-EdgegapApi `
+            -Method Get `
+            -Uri "https://api.edgegap.com/v1/app/$AppName/version/$AppVersion" `
+            -ApiToken $ApiToken
+    } catch {
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        if ($statusCode -eq 404) {
+            return $null
+        }
+        throw
+    }
+}
+
+function Get-VersionImageBody {
+    $credentials = Get-RegistryCredentials
+    return @{
+        docker_repository = $Registry.TrimEnd("/")
+        docker_image = $ImageName.TrimStart("/")
+        docker_tag = $ImageTag
+        private_username = $credentials.Username
+        private_token = $credentials.Token
+        verify_image = $true
+        is_active = $true
+    }
+}
+
+function New-AppVersion {
+    param(
+        [string]$AppName,
+        [string]$AppVersion,
+        [string]$ApiToken
+    )
+
+    $body = Get-VersionImageBody
+    $body.name = $AppVersion
+    $body.req_cpu = $ReqCpu
+    $body.req_memory = $ReqMemory
+    $body.restart_policy = "never"
+    $body.ports = @(
+        @{
+            port = $GamePort
+            protocol = "UDP"
+            to_check = $false
+            name = $GamePortName
+        }
+    )
+
+    Write-Host "Creating Edgegap app version $AppName@$AppVersion"
+    return Invoke-EdgegapApi `
+        -Method Post `
+        -Uri "https://api.edgegap.com/v1/app/$AppName/version" `
+        -Body $body `
+        -ApiToken $ApiToken
+}
+
+function Update-AppVersion {
+    param(
+        [string]$AppName,
+        [string]$AppVersion,
+        [string]$ApiToken
+    )
+
+    Write-Host "Updating existing Edgegap app version $AppName@$AppVersion"
+    return Invoke-EdgegapApi `
+        -Method Patch `
+        -Uri "https://api.edgegap.com/v1/app/$AppName/version/$AppVersion" `
+        -Body (Get-VersionImageBody) `
+        -ApiToken $ApiToken
+}
+
+function Ensure-AppVersion {
+    param(
+        [string]$AppName,
+        [string]$AppVersion,
+        [string]$ApiToken
+    )
+
+    $existing = Get-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+    if ($null -eq $existing) {
+        return New-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+    }
+    return Update-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+}
+
+function Stop-ActiveDeployments {
+    param(
+        [string]$ApiToken
+    )
+
+    $response = Invoke-EdgegapApi `
+        -Method Get `
+        -Uri "https://api.edgegap.com/v1/deployments?limit=50" `
+        -ApiToken $ApiToken
+
+    $deployments = @($response.data)
+    if ($deployments.Count -eq 0) {
+        Write-Host "No active deployments to stop"
+        return
+    }
+
+    foreach ($deployment in $deployments) {
+        $requestId = $deployment.request_id
+        Write-Host "Stopping deployment $requestId"
+        Invoke-EdgegapApi `
+            -Method Delete `
+            -Uri "https://api.edgegap.com/v1/stop/$requestId" `
+            -ApiToken $ApiToken | Out-Null
+    }
+
+    $deadline = (Get-Date).AddSeconds($DeployReadyTimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        $response = Invoke-EdgegapApi `
+            -Method Get `
+            -Uri "https://api.edgegap.com/v1/deployments?limit=50" `
+            -ApiToken $ApiToken
+        if (@($response.data).Count -eq 0) {
+            Write-Host "Previous deployments stopped"
+            return
+        }
+        Write-Host "Waiting for previous deployment(s) to stop..."
+        Start-Sleep -Seconds $DeployReadyPollSec
+    }
+
+    throw "Timed out waiting for previous deployments to stop"
+}
+
+function Wait-EdgegapDeploymentReady {
+    param(
+        [string]$RequestId,
+        [string]$ApiToken
+    )
+
+    $deadline = (Get-Date).AddSeconds($DeployReadyTimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        $status = Invoke-EdgegapApi `
+            -Method Get `
+            -Uri "https://api.edgegap.com/v1/status/$RequestId" `
+            -ApiToken $ApiToken
+
+        if ($status.error) {
+            throw "Edgegap deployment $RequestId failed: $($status.error_detail)"
+        }
+
+        if ($status.running) {
+            return $status
+        }
+
+        Write-Host "Waiting for deployment $RequestId (status: $($status.current_status))..."
+        Start-Sleep -Seconds $DeployReadyPollSec
+    }
+
+    throw "Timed out waiting for Edgegap deployment $RequestId to become ready"
+}
+
+function Get-GamePort {
+    param(
+        [object]$DeploymentStatus
+    )
+
+    $portInfo = $DeploymentStatus.ports.$GamePortName
+    if ($null -eq $portInfo) {
+        throw "Deployment is ready but port '$GamePortName' was not found"
+    }
+
+    return @{
+        ServerHost = $DeploymentStatus.public_ip
+        Port = [int]$portInfo.external
+    }
+}
+
+function Set-LatestServerInDatabase {
+    param(
+        [string]$ServerHost,
+        [int]$Port,
+        [string]$DatabaseUrl
+    )
+
+    $psql = Get-Command psql -ErrorAction SilentlyContinue
+    if (-not $psql) {
+        throw "psql was not found on PATH; install PostgreSQL client tools to update server discovery"
+    }
+
+    $sqlHost = $ServerHost.Replace("'", "''")
+    $command = "SELECT set_latest_server('$sqlHost', $Port);"
+    & $psql.Source $DatabaseUrl -v ON_ERROR_STOP=1 -c $command | Out-Host
+    Write-Host "Updated get_latest_server() -> ${ServerHost}:${Port}"
+}
+
+$ApiToken = Get-ApiToken
+$image = "$Registry/$ImageName`:$ImageTag"
+
+if (-not $SkipBuild) {
+    Write-Host "Building $image"
+    docker build -t $image $RepoRoot
+}
+
+if (-not $SkipPush) {
+    Write-Host "Logging in to registry.edgegap.com"
+    Ensure-RegistryLogin
+    Write-Host "Pushing $image"
+    docker push $image
+}
+
+if (-not $SkipVersionUpdate) {
+    $versionResponse = Ensure-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+    $versionResponse | ConvertTo-Json -Depth 8
+}
+
+if ($SkipDeploy) {
+    Write-Host "Skipping deployment"
+    return
+}
+
+$body = @{
+    application = $AppName
+    version = $AppVersion
+    users = @(
+        @{
+            user_type = "geo_coordinates"
+            user_data = @{
+                latitude = $Latitude
+                longitude = $Longitude
+            }
+        }
+    )
+}
+
+Write-Host "Creating Edgegap deployment for $AppName@$AppVersion"
+
+Stop-ActiveDeployments -ApiToken $ApiToken
+
+$response = Invoke-EdgegapApi `
+    -Method Post `
+    -Uri "https://api.edgegap.com/v2/deployments" `
+    -Body $body `
+    -ApiToken $ApiToken
+
+$response | ConvertTo-Json -Depth 8
+Write-Host "Deployment request_id: $($response.request_id)"
+
+if ($SkipDatabaseUpdate) {
+    Write-Host "Skipping database update"
+    return
+}
+
+$ready = Wait-EdgegapDeploymentReady -RequestId $response.request_id -ApiToken $ApiToken
+$gamePort = Get-GamePort -DeploymentStatus $ready
+$databaseUrl = Get-DatabaseServerUrl
+Set-LatestServerInDatabase -ServerHost $gamePort.ServerHost -Port $gamePort.Port -DatabaseUrl $databaseUrl
