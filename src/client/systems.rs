@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use lightyear::prelude::{client::InputDelayConfig, input::native::{ActionState, InputMarker}, *};
-use crate::{protocol::{Direction, Inputs, Message1, PlayerColor, PlayerId, PlayerPosition}, shared};
+use crate::{protocol::{Direction, PlayerMovementInput, Message1, PlayerColor, PlayerId, PlayerPosition}, shared};
 
 /// The client input only gets applied to predicted entities that we own
 /// This works because we only predict the user's controlled entity.
@@ -8,7 +8,7 @@ use crate::{protocol::{Direction, Inputs, Message1, PlayerColor, PlayerId, Playe
 pub(crate) fn player_movement(
     synced_client: Query<(), (With<Client>, With<IsSynced<InputTimeline>>)>,
     // timeline: Single<&LocalTimeline>,
-    mut position_query: Query<(&mut PlayerPosition, &ActionState<Inputs>), With<Predicted>>,
+    mut position_query: Query<(&mut PlayerPosition, &ActionState<PlayerMovementInput>), With<Predicted>>,
 ) {
     if synced_client.is_empty() {
         return;
@@ -53,7 +53,7 @@ pub(crate) fn handle_predicted_spawn(
 pub(crate) fn handle_controlled_spawn(
     trigger: On<Add, Controlled>,
     mut commands: Commands,
-    players: Query<(&PlayerId, Option<&ControlledBy>), Without<InputMarker<Inputs>>>,
+    players: Query<(&PlayerId, Option<&ControlledBy>), Without<InputMarker<PlayerMovementInput>>>,
     clients: Query<(), With<Client>>,
 ) {
     let entity = trigger.entity;
@@ -68,7 +68,7 @@ pub(crate) fn handle_controlled_spawn(
     info!("Adding InputMarker to controlled player {entity:?} {player_id:?}");
     commands
         .entity(entity)
-        .insert(InputMarker::<Inputs>::default());
+        .insert(InputMarker::<PlayerMovementInput>::default());
 }
 
 /// When the predicted copy of the client-owned entity is spawned, do stuff

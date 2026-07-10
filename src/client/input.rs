@@ -1,6 +1,7 @@
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
 use lightyear::prelude::{client::InputDelayConfig, input::native::{ActionState, InputMarker}, *};
-use crate::protocol::{Direction, Inputs};
+use crate::protocol::{Direction, PlayerMovementInput};
 
 pub(crate) fn configure_input_delay(client: Single<Entity, With<Client>>, mut commands: Commands) {
     commands.entity(client.into_inner()).insert(
@@ -16,7 +17,7 @@ pub(crate) fn configure_input_delay(client: Single<Entity, With<Client>>, mut co
 /// `InputPlugin`, which contains more features.
 pub(crate) fn buffer_input(
     timeline: Res<LocalTimeline>,
-    mut query: Query<&mut ActionState<Inputs>, With<InputMarker<Inputs>>>,
+    mut query: Query<&mut ActionState<PlayerMovementInput>, With<InputMarker<PlayerMovementInput>>>,
     keypress: Option<Res<ButtonInput<KeyCode>>>,
 ) {
     if let Ok(mut action_state) = query.single_mut() {
@@ -40,7 +41,7 @@ pub(crate) fn buffer_input(
 
         // we always set the value. Setting it to None means that the input was missing, it's not the same
         // as saying that the input was 'no keys pressed'
-        action_state.0 = Inputs::Direction(direction);
+        action_state.0 = PlayerMovementInput::Direction(direction);
         trace!(
             target: "lightyear_debug::simple_box",
             kind = "simple_box_client_input",

@@ -77,7 +77,7 @@ pub(crate) fn handle_connected(
 fn movement(
     timeline: Res<LocalTimeline>,
     host_server: Query<(), With<HostServer>>,
-    mut position_query: Query<(&mut PlayerPosition, &ActionState<Inputs>, Has<Predicted>)>,
+    mut position_query: Query<(&mut PlayerPosition, &ActionState<PlayerMovementInput>, Has<Predicted>)>,
 ) {
     let is_host_server = !host_server.is_empty();
     let tick = timeline.tick();

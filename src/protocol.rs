@@ -10,6 +10,7 @@ use bevy::math::Curve;
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
+use leafwing_input_manager::prelude::*;
 
 // Player
 #[derive(Bundle)]
@@ -76,8 +77,17 @@ pub struct Channel1;
 pub struct Message1(pub usize);
 
 // Inputs
-
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone, Reflect)]
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Clone,
+    Reflect,
+)]
 pub struct Direction {
     pub(crate) up: bool,
     pub(crate) down: bool,
@@ -85,23 +95,50 @@ pub struct Direction {
     pub(crate) right: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Reflect)]
-pub enum Inputs {
+#[derive(
+    Actionlike,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Clone,
+    Reflect,
+)]
+pub enum PlayerMovementInput {
     Direction(Direction),
+}
+
+#[derive(
+    Actionlike,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Clone,
+    Reflect,
+)]
+pub enum PlayerActionInput {
     Interact,
+
+    #[actionlike(DualAxis)]
     Aim,
+
     Fire,
     UseSkill,
     Quit,
 }
 
-impl Default for Inputs {
+impl Default for PlayerMovementInput {
     fn default() -> Self {
         Self::Direction(Direction::default())
     }
 }
 
-impl MapEntities for Inputs {
+impl MapEntities for PlayerMovementInput {
     fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
 }
 
@@ -116,7 +153,7 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ServerToClient);
 
         // inputs
-        app.add_plugins(input::native::InputPlugin::<Inputs>::default());
+        app.add_plugins(input::native::InputPlugin::<PlayerMovementInput>::default());
         // components
         app.component::<PlayerId>().replicate();
 
