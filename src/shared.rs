@@ -3,6 +3,9 @@ use leafwing_input_manager::prelude::*;
 
 use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 
+pub const WORLD_HALF_SIZE: Vec2 = Vec2::new(800.0, 600.0);
+pub const PLAYER_HALF_SIZE: f32 = 25.0;
+
 /// Registers protocol definitions shared by clients and servers.
 pub struct SharedPlugin;
 
@@ -23,6 +26,9 @@ pub(crate) fn shared_movement_behaviour(
 
     if movement != Vec2::ZERO {
         position.0 += movement * MOVE_SPEED;
+
+        let limit = WORLD_HALF_SIZE - Vec2::splat(PLAYER_HALF_SIZE);
+        position.0 = position.0.clamp(-limit, limit);
     }
 
     if actions.just_pressed(&PlayerAction::Fire) {

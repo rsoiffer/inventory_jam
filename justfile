@@ -2,8 +2,8 @@
 # Install Just with `$ cargo install just`
 # Usage: `$ just dev`
 
-dev:
-    cargo build
+dev n="2":
     cargo run -- server &
-    cargo run -- client &
-    cargo run -- client
+    for i in $(seq 1 {{n}}); do \
+        cargo run -- client -c $i & \
+    done;

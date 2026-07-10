@@ -7,7 +7,9 @@ mod systems;
 
 use bevy::prelude::*;
 use player::*;
-use systems::{handle_predicted_spawn, player_movement, receive_debug_server_message};
+use systems::{
+    handle_predicted_spawn, player_movement, receive_debug_server_message, update_camera,
+};
 
 /// Installs client gameplay systems and spawn observers.
 pub struct ClientPlugin;
@@ -15,6 +17,7 @@ pub struct ClientPlugin;
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, player_movement);
+        app.add_systems(Update, update_camera);
 
         app.add_systems(Update, receive_debug_server_message);
         app.add_observer(handle_predicted_spawn);

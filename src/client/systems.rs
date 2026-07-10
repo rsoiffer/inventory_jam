@@ -7,6 +7,9 @@ use crate::{
     shared,
 };
 
+/// How quickly should the camera snap to the desired location.
+const CAMERA_DECAY_RATE: f32 = 2.;
+
 /// Applies local inputs to predicted player entities for client-side prediction.
 pub(crate) fn player_movement(
     synced_client: Query<(), (With<Client>, With<IsSynced<InputTimeline>>)>,
@@ -19,6 +22,19 @@ pub(crate) fn player_movement(
     for (position, actions) in position_query.iter_mut() {
         shared::shared_movement_behaviour(position, actions);
     }
+}
+
+/// Client-only system that smoothly moves the camera to the center of the Player's position.
+pub(crate) fn update_camera(
+    mut camera: Single<&mut Transform, With<Camera2d>>,
+    player: Single<&PlayerPosition, With<Predicted>>,
+    time: Res<Time>,
+) {
+    let target = player.0.extend(camera.translation.z);
+
+    camera
+        .translation
+        .smooth_nudge(&target, CAMERA_DECAY_RATE, time.delta_secs());
 }
 
 /// Receives debug messages sent from the server.
