@@ -3,7 +3,9 @@ use leafwing_input_manager::prelude::*;
 
 use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 
+/// Half-extents of the playable world along X and Y.
 pub const WORLD_HALF_SIZE: Vec2 = Vec2::new(800.0, 600.0);
+/// Half-size of a player box, used for world-boundary clamping.
 pub const PLAYER_HALF_SIZE: f32 = 25.0;
 
 /// Registers protocol definitions shared by clients and servers.

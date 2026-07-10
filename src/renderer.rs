@@ -1,7 +1,12 @@
 use crate::{protocol::*, shared};
 use bevy::prelude::*;
 
+/// Distance between debug grid lines in world units.
 const GRID_SPACING: f32 = 100.0;
+/// Half the number of grid lines along X (`WORLD_HALF_SIZE.x / GRID_SPACING`).
+const GRID_X_HALF_STEPS: i16 = 8;
+/// Half the number of grid lines along Y (`WORLD_HALF_SIZE.y / GRID_SPACING`).
+const GRID_Y_HALF_STEPS: i16 = 6;
 
 #[derive(Clone)]
 /// Registers the 2D camera and gizmo renderer.
@@ -37,31 +42,22 @@ fn draw_test_world(mut gizmos: Gizmos) {
     let axis_color = Color::srgba(0.7, 0.72, 0.75, 0.7);
     let boundary_color = Color::srgb(0.95, 0.25, 0.2);
 
-    let mut x = -half.x;
-    while x <= half.x {
-        let color = if x.abs() < f32::EPSILON {
-            axis_color
-        } else {
-            grid_color
-        };
+    for i in -GRID_X_HALF_STEPS..=GRID_X_HALF_STEPS {
+        let x = f32::from(i) * GRID_SPACING;
+        let color = if i == 0 { axis_color } else { grid_color };
         gizmos.line_2d(Vec2::new(x, -half.y), Vec2::new(x, half.y), color);
-        x += GRID_SPACING;
     }
 
-    let mut y = -half.y;
-    while y <= half.y {
-        let color = if y.abs() < f32::EPSILON {
-            axis_color
-        } else {
-            grid_color
-        };
+    for i in -GRID_Y_HALF_STEPS..=GRID_Y_HALF_STEPS {
+        let y = f32::from(i) * GRID_SPACING;
+        let color = if i == 0 { axis_color } else { grid_color };
         gizmos.line_2d(Vec2::new(-half.x, y), Vec2::new(half.x, y), color);
-        y += GRID_SPACING;
     }
 
     gizmos.rect_2d(Isometry2d::IDENTITY, half * 2.0, boundary_color);
 }
 
+/// Spawns on-screen control instructions for the debug client.
 fn setup_instructions(mut commands: Commands) {
     commands.spawn((
         Text::new("Move with WASD\n Aim with Mouse \n Fire with Left Click \n Shift to use Skill"),
