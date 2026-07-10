@@ -82,7 +82,7 @@ lightyear = { version = "0.28.0", features = [
     "interpolation",
     "prediction",
     "replication",
-    "input_native",
+    "leafwing",
 ] }
 lightyear_examples_common = "0.28.0"
 leafwing-input-manager = { version = "0.21", features = [

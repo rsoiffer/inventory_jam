@@ -1,29 +1,31 @@
 use bevy::prelude::*;
-use lightyear::prelude::{client::InputDelayConfig, input::native::{ActionState, InputMarker}, *};
-use crate::{protocol::{Direction, PlayerMovementInput, Message1, PlayerColor, PlayerId, PlayerPosition}, shared};
+use leafwing_input_manager::prelude::*;
+use lightyear::prelude::*;
+
+use crate::{protocol::{
+    DebugServerMessage, PlayerAction, PlayerColor, PlayerId, PlayerPosition,
+}, shared};
 
 /// The client input only gets applied to predicted entities that we own
 /// This works because we only predict the user's controlled entity.
 /// If we were predicting more entities, we would have to only apply movement to the player owned one.
 pub(crate) fn player_movement(
     synced_client: Query<(), (With<Client>, With<IsSynced<InputTimeline>>)>,
-    // timeline: Single<&LocalTimeline>,
-    mut position_query: Query<(&mut PlayerPosition, &ActionState<PlayerMovementInput>), With<Predicted>>,
+    mut position_query: Query<(&mut PlayerPosition, &ActionState<PlayerAction>), With<Predicted>>,
 ) {
     if synced_client.is_empty() {
         return;
     }
-    // let tick = timeline.tick();
-    for (position, input) in position_query.iter_mut() {
-        // trace!(?tick, ?position, ?input, "client");
-        // NOTE: be careful to directly pass Mut<PlayerPosition>
-        // getting a mutable reference triggers change detection, unless you use `as_deref_mut()`
-        shared::shared_movement_behaviour(position, input);
+
+    for (position, actions) in position_query.iter_mut() {
+        shared::shared_movement_behaviour(position, actions);
     }
 }
 
 /// System to receive messages on the client
-pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<Message1>>) {
+pub(crate) fn receive_message1(
+    mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>,
+) {
     for message in receiver.receive() {
         info!("Received message: {:?}", message);
     }
@@ -53,22 +55,26 @@ pub(crate) fn handle_predicted_spawn(
 pub(crate) fn handle_controlled_spawn(
     trigger: On<Add, Controlled>,
     mut commands: Commands,
-    players: Query<(&PlayerId, Option<&ControlledBy>), Without<InputMarker<PlayerMovementInput>>>,
+    players: Query<(&PlayerId, Option<&ControlledBy>), Without<InputMap<PlayerAction>>>,
     clients: Query<(), With<Client>>,
 ) {
     let entity = trigger.entity;
+
     let Ok((player_id, controlled_by)) = players.get(entity) else {
         return;
     };
-    if let Some(controlled_by) = controlled_by
-        && clients.get(controlled_by.owner).is_err()
-    {
-        return;
+
+    if let Some(controlled_by) = controlled_by {
+        if clients.get(controlled_by.owner).is_err() {
+            return;
+        }
     }
-    info!("Adding InputMarker to controlled player {entity:?} {player_id:?}");
+
+    info!("Adding Leafwing InputMap to controlled player {entity:?} {player_id:?}");
+
     commands
         .entity(entity)
-        .insert(InputMarker::<PlayerMovementInput>::default());
+        .insert(PlayerAction::default_input_map());
 }
 
 /// When the predicted copy of the client-owned entity is spawned, do stuff

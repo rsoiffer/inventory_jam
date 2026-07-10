@@ -1,55 +1,30 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
-use lightyear::prelude::{client::InputDelayConfig, input::native::{ActionState, InputMarker}, *};
-use crate::protocol::{Direction, PlayerMovementInput};
+use lightyear::prelude::*;
 
-pub(crate) fn configure_input_delay(client: Single<Entity, With<Client>>, mut commands: Commands) {
-    commands.entity(client.into_inner()).insert(
-        InputTimelineConfig::default().with_input_delay(InputDelayConfig::no_input_delay()),
-    );
-}
+use crate::protocol::{PlayerAction, PlayerId};
 
-/// System that reads from peripherals and adds inputs to the buffer
-/// This system must be run in the `InputSystemSet::BufferInputs` set in the `FixedPreUpdate` schedule
-/// to work correctly.
-///
-/// I would also advise to use the `leafwing` feature to use the `LeafwingInputPlugin` instead of the
-/// `InputPlugin`, which contains more features.
-pub(crate) fn buffer_input(
-    timeline: Res<LocalTimeline>,
-    mut query: Query<&mut ActionState<PlayerMovementInput>, With<InputMarker<PlayerMovementInput>>>,
-    keypress: Option<Res<ButtonInput<KeyCode>>>,
+pub(crate) fn handle_controlled_spawn(
+    trigger: On<Add, Controlled>,
+    mut commands: Commands,
+    players: Query<(&PlayerId, Option<&ControlledBy>), Without<InputMap<PlayerAction>>>,
+    clients: Query<(), With<Client>>,
 ) {
-    if let Ok(mut action_state) = query.single_mut() {
-        let current_tick = timeline.tick();
-        let mut direction = Direction::default();
+    let entity = trigger.entity;
 
-        if let Some(keypress) = keypress {
-            if keypress.pressed(KeyCode::KeyW) || keypress.pressed(KeyCode::ArrowUp) {
-                direction.up = true;
-            }
-            if keypress.pressed(KeyCode::KeyS) || keypress.pressed(KeyCode::ArrowDown) {
-                direction.down = true;
-            }
-            if keypress.pressed(KeyCode::KeyA) || keypress.pressed(KeyCode::ArrowLeft) {
-                direction.left = true;
-            }
-            if keypress.pressed(KeyCode::KeyD) || keypress.pressed(KeyCode::ArrowRight) {
-                direction.right = true;
-            }
-        }
+    let Ok((player_id, controlled_by)) = players.get(entity) else {
+        return;
+    };
 
-        // we always set the value. Setting it to None means that the input was missing, it's not the same
-        // as saying that the input was 'no keys pressed'
-        action_state.0 = PlayerMovementInput::Direction(direction);
-        trace!(
-            target: "lightyear_debug::simple_box",
-            kind = "simple_box_client_input",
-            schedule = "FixedPreUpdate",
-            sample_point = "FixedPreUpdate",
-            local_tick = current_tick.0,
-            input = ?action_state.0,
-            "selected simple_box client input"
-        );
+    if let Some(controlled_by) = controlled_by
+        && clients.get(controlled_by.owner).is_err()
+    {
+        return;
     }
+
+    info!("Adding Leafwing InputMap to controlled player {entity:?} {player_id:?}");
+
+    commands
+        .entity(entity)
+        .insert(PlayerAction::default_input_map());
 }

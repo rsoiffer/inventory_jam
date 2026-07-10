@@ -5,29 +5,17 @@
 //! - applying inputs to the locally predicted player (for prediction to work, inputs have to be applied to both the
 //!   predicted entity and the server entity)
 
+pub mod player;
 mod systems;
-mod input;
 
 use bevy::prelude::*;
-use leafwing_input_manager::prelude::*;
-use input::*;
-use systems::*;
-
-use crate::protocol::PlayerMovementInput;
-use lightyear::prelude::client::input::InputSystems;
-
+use systems::{player_movement, receive_message1, handle_predicted_spawn};
+use player::*;
 
 pub struct ExampleClientPlugin;
 
 impl Plugin for ExampleClientPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, configure_input_delay);
-
-        app.add_systems(
-            FixedPreUpdate,
-            buffer_input.in_set(InputSystems::WriteClientInputs),
-        );
-
         app.add_systems(FixedUpdate, player_movement);
 
         app.add_systems(Update, receive_message1);

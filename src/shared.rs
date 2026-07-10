@@ -1,10 +1,8 @@
-//! This module contains the shared code between the client and the server.
-//!
-//! The simulation logic (movement, etc.) should be shared between client and server to guarantee that there won't be
-//! mispredictions/rollbacks.
-use crate::protocol::*;
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
 use lightyear_examples_common::shared::SharedSettings;
+
+use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 
 pub struct SharedPlugin;
 
@@ -19,20 +17,33 @@ pub const SHARED_SETTINGS: SharedSettings = SharedSettings {
     private_key: [0; 32],
 };
 
-// This system defines how we update the player's positions when we receive an input
-pub(crate) fn shared_movement_behaviour(mut position: Mut<PlayerPosition>, input: &PlayerMovementInput) {
+pub(crate) fn shared_movement_behaviour(
+    mut position: Mut<PlayerPosition>,
+    actions: &ActionState<PlayerAction>,
+) {
     const MOVE_SPEED: f32 = 10.0;
-    let PlayerMovementInput::Direction(direction) = input;
-    if direction.up {
-        position.y += MOVE_SPEED;
+
+    let movement = actions.clamped_axis_pair(&PlayerAction::Move);
+
+    if movement != Vec2::ZERO {
+        position.0 += movement * MOVE_SPEED;
     }
-    if direction.down {
-        position.y -= MOVE_SPEED;
+
+    if actions.just_pressed(&PlayerAction::Fire) {
+        info!("Fire");
     }
-    if direction.left {
-        position.x -= MOVE_SPEED;
+
+    if actions.just_pressed(&PlayerAction::Interact) {
+        info!("Interact");
     }
-    if direction.right {
-        position.x += MOVE_SPEED;
+
+    if actions.just_pressed(&PlayerAction::UseSkill) {
+        info!("UseSkill");
+    }
+
+    let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
+
+    if aim != Vec2::ZERO {
+        trace!(?aim, "Aim");
     }
 }
