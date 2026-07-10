@@ -88,6 +88,11 @@ pub struct Direction {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Reflect)]
 pub enum Inputs {
     Direction(Direction),
+    Interact,
+    Aim,
+    Fire,
+    UseSkill,
+    Quit,
 }
 
 impl Default for Inputs {

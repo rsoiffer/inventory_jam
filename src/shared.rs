@@ -22,7 +22,7 @@ pub const SHARED_SETTINGS: SharedSettings = SharedSettings {
 // This system defines how we update the player's positions when we receive an input
 pub(crate) fn shared_movement_behaviour(mut position: Mut<PlayerPosition>, input: &Inputs) {
     const MOVE_SPEED: f32 = 10.0;
-    let Inputs::Direction(direction) = input;
+    let Inputs::Direction(direction) = input else { return };
     if direction.up {
         position.y += MOVE_SPEED;
     }
