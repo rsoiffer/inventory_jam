@@ -14,13 +14,20 @@ use input::*;
 use systems::*;
 
 use crate::protocol::PlayerMovementInput;
+use lightyear::prelude::client::input::InputSystems;
+
 
 pub struct ExampleClientPlugin;
 
 impl Plugin for ExampleClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, configure_input_delay);
-        app.add_plugins(InputManagerPlugin::<PlayerMovementInput>::default());
+
+        app.add_systems(
+            FixedPreUpdate,
+            buffer_input.in_set(InputSystems::WriteClientInputs),
+        );
+
         app.add_systems(FixedUpdate, player_movement);
 
         app.add_systems(Update, receive_message1);
