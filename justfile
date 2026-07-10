@@ -4,7 +4,6 @@
 
 dev n="2":
     cargo run -- server &
-    sleep 2
     for i in $(seq 1 {{n}}); do \
         cargo run -- client -c $i & \
     done;
