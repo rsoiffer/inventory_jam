@@ -1,0 +1,52 @@
+use bevy::math::Curve;
+use bevy::prelude::*;
+use lightyear::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Bundle)]
+pub(crate) struct PlayerBundle {
+    id: PlayerId,
+    position: PlayerPosition,
+    color: PlayerColor,
+}
+
+impl PlayerBundle {
+    pub(crate) fn new(id: PeerId, position: Vec2) -> Self {
+        let h = (((id.to_bits().wrapping_mul(30)) % 360) as f32) / 360.0;
+        let color = Color::hsl(h, 0.8, 0.5);
+
+        Self {
+            id: PlayerId(id),
+            position: PlayerPosition(position),
+            color: PlayerColor(color),
+        }
+    }
+}
+
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct PlayerId(pub PeerId);
+
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Deref, DerefMut)]
+pub struct PlayerPosition(pub Vec2);
+
+impl Ease for PlayerPosition {
+    fn interpolating_curve_unbounded(start: Self, end: Self) -> impl Curve<Self> {
+        FunctionCurve::new(Interval::UNIT, move |t| {
+            PlayerPosition(Vec2::lerp(start.0, end.0, t))
+        })
+    }
+}
+
+#[derive(Component, Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct PlayerColor(pub(crate) Color);
+
+pub fn register(app: &mut App) {
+    app.component::<PlayerId>().replicate();
+
+    app.component::<PlayerPosition>()
+        .replicate()
+        .predict()
+        .add_linear_interpolation();
+
+    app.component::<PlayerColor>().replicate();
+}

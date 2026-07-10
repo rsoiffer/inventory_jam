@@ -1,6 +1,7 @@
-//! This module contains the shared code between the client and the server.
-use crate::protocol::*;
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
+
+use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 
 /// Registers protocol definitions shared by clients and servers.
 pub struct SharedPlugin;
@@ -12,20 +13,33 @@ impl Plugin for SharedPlugin {
 }
 
 /// Applies directional input to a replicated player position.
-pub(crate) fn shared_movement_behaviour(mut position: Mut<PlayerPosition>, input: &Inputs) {
-    /// Movement distance applied for each pressed direction per fixed tick.
+pub(crate) fn shared_movement_behaviour(
+    mut position: Mut<PlayerPosition>,
+    actions: &ActionState<PlayerAction>,
+) {
     const MOVE_SPEED: f32 = 10.0;
-    let Inputs::Direction(direction) = input;
-    if direction.up {
-        position.y += MOVE_SPEED;
+
+    let movement = actions.clamped_axis_pair(&PlayerAction::Move);
+
+    if movement != Vec2::ZERO {
+        position.0 += movement * MOVE_SPEED;
     }
-    if direction.down {
-        position.y -= MOVE_SPEED;
+
+    if actions.just_pressed(&PlayerAction::Fire) {
+        info!("Fire Pressed!");
     }
-    if direction.left {
-        position.x -= MOVE_SPEED;
+
+    if actions.just_pressed(&PlayerAction::Interact) {
+        info!("Interact Pressed!");
     }
-    if direction.right {
-        position.x += MOVE_SPEED;
+
+    if actions.just_pressed(&PlayerAction::UseSkill) {
+        info!("UseSkill Pressed!");
+    }
+
+    let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
+
+    if aim != Vec2::ZERO {
+        info!(?aim, "Aim");
     }
 }
