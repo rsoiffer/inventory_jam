@@ -1,6 +1,4 @@
-/*
-    Hooks up input to Player when they are spawned.
-*/
+//! Hooks up input maps when a controlled player entity is spawned.
 
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
@@ -8,6 +6,7 @@ use lightyear::prelude::*;
 
 use crate::protocol::{PlayerAction, PlayerId};
 
+/// Adds the default leafwing input map to locally controlled players.
 pub(crate) fn handle_controlled_spawn(
     trigger: On<Add, Controlled>,
     mut commands: Commands,

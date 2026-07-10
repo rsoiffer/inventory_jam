@@ -1,9 +1,12 @@
+//! Client-side spawn observers for interpolated players and debug messages.
+
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
 use crate::protocol::PlayerColor;
 use crate::protocol::messages::*;
 
+/// Desaturates interpolated remote players so they read differently from predicted ones.
 pub(crate) fn handle_interpolated_spawn(
     trigger: On<Add, Interpolated>,
     mut interpolated: Query<&mut PlayerColor>,
@@ -17,6 +20,7 @@ pub(crate) fn handle_interpolated_spawn(
     }
 }
 
+/// Receives debug messages sent from the server.
 #[allow(dead_code)]
 pub(crate) fn receive_debug_server_message(
     mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>,

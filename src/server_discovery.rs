@@ -110,7 +110,6 @@ impl EdgegapRequest {
             Self::DeploymentStatus { request_id, .. } => format!("/v1/status/{request_id}"),
         }
     }
-
 }
 
 /// Delayed status request marker used between Edgegap polling attempts.
@@ -125,10 +124,7 @@ pub struct PendingStatusRequest {
 }
 
 /// Sends the initial Edgegap discovery request.
-pub fn start_server_discovery(
-    discovery: Option<ResMut<ServerDiscovery>>,
-    mut client: BevyReqwest,
-) {
+pub fn start_server_discovery(discovery: Option<ResMut<ServerDiscovery>>, mut client: BevyReqwest) {
     let Some(mut discovery) = discovery else {
         return;
     };
@@ -301,7 +297,8 @@ fn handle_list_deployments_response(
             }
         }
         Ok(None) => {
-            if let Err(error) = send_edgegap_request(&mut client, EdgegapRequest::CreateDeployment) {
+            if let Err(error) = send_edgegap_request(&mut client, EdgegapRequest::CreateDeployment)
+            {
                 discovery.fail(error);
             }
         }
@@ -359,7 +356,9 @@ fn handle_deployment_status_response(
     if status.error == Some(true) {
         discovery.fail(format!(
             "edgegap deployment {request_id} failed: {}",
-            status.error_detail.unwrap_or_else(|| "unknown error".into())
+            status
+                .error_detail
+                .unwrap_or_else(|| "unknown error".into())
         ));
         return;
     }

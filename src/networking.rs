@@ -136,7 +136,7 @@ struct ClientConnection {
 }
 
 /// Installs client or server network entities and systems for the selected mode.
-pub fn spawn_connections(app: &mut App, mode: RunMode) -> Result<(), String> {
+pub fn spawn_connections(app: &mut App, mode: RunMode) {
     let config = NetworkingConfig::for_mode(mode);
     app.insert_resource(NetworkingRuntime {
         certificate_digest: config.certificate_digest.clone(),
@@ -159,10 +159,7 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) -> Result<(), String> {
             } else {
                 app.add_plugins(ReqwestPlugin::default());
                 app.insert_resource(ServerDiscovery::new(client_id.to_string()));
-                app.insert_resource(ClientConnection {
-                    client_id,
-                    config: config.clone(),
-                });
+                app.insert_resource(ClientConnection { client_id, config });
                 app.add_systems(Startup, start_server_discovery);
             }
             app.add_systems(
@@ -201,7 +198,6 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) -> Result<(), String> {
             app.add_systems(Startup, start_server);
         }
     }
-    Ok(())
 }
 
 #[cfg(feature = "client")]
@@ -264,7 +260,7 @@ fn spawn_client(
 
 #[cfg(feature = "client")]
 /// Converts shared networking config into a client transport enum.
-fn client_transport(config: &NetworkingConfig) -> ClientTransports {
+const fn client_transport(config: &NetworkingConfig) -> ClientTransports {
     match config.transport {
         TransportMode::WebTransport => ClientTransports::WebTransport,
         #[cfg(all(not(target_family = "wasm"), feature = "udp"))]
@@ -345,7 +341,7 @@ fn patch_webtransport_digest(
     {
         let mut clients = clients;
         for mut io in clients.iter_mut() {
-            io.certificate_digest = config.certificate_digest.clone();
+            io.certificate_digest.clone_from(&config.certificate_digest);
         }
     }
     *done = true;

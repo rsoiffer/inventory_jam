@@ -1,26 +1,31 @@
-/*
-    Allows the protocol to register events.
-*/
+//! Player actions replicated through Lightyear's leafwing input plugin.
 
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::input::leafwing::prelude::InputPlugin as LightyearLeafwingInputPlugin;
 use serde::{Deserialize, Serialize};
 
+/// Actions a player can perform, synchronized as networked input.
 #[derive(Actionlike, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy, Reflect)]
 pub enum PlayerAction {
+    /// Dual-axis movement input (WASD / arrow keys).
     #[actionlike(DualAxis)]
     Move,
 
+    /// Dual-axis aim input (relative mouse movement).
     #[actionlike(DualAxis)]
     Aim,
 
+    /// Primary fire action.
     Fire,
+    /// World interaction action.
     Interact,
+    /// Secondary skill action.
     UseSkill,
 }
 
 impl PlayerAction {
+    /// Builds the default keyboard/mouse bindings for player actions.
     pub fn default_input_map() -> InputMap<Self> {
         let mut input_map = InputMap::default();
 
@@ -46,6 +51,7 @@ impl PlayerAction {
     }
 }
 
+/// Registers leafwing input replication for [`PlayerAction`].
 pub fn register(app: &mut App) {
     app.add_plugins(LightyearLeafwingInputPlugin::<PlayerAction>::default());
 }

@@ -52,7 +52,7 @@ impl ExampleServer {
         let entity = context.entity;
         world.commands().queue(move |world: &mut World| -> Result {
             let mut entity_mut = world.entity_mut(entity);
-            let Some(settings) = entity_mut.take::<ExampleServer>() else {
+            let Some(settings) = entity_mut.take::<Self>() else {
                 return Ok(());
             };
             entity_mut.insert((
@@ -107,7 +107,7 @@ pub fn apply_server_link_conditioner(
     };
     if link.recv.conditioner.is_some() {
         return;
-    };
+    }
     let Some(conditioner) = server_conditioner.0.clone() else {
         return;
     };
@@ -134,9 +134,7 @@ pub enum WebTransportCertificateSettings {
 }
 
 /// Builds the WebTransport identity and logs its certificate digest.
-fn webtransport_identity(
-    settings: &WebTransportCertificateSettings,
-) -> Result<Identity, String> {
+fn webtransport_identity(settings: &WebTransportCertificateSettings) -> Result<Identity, String> {
     let mut sans = match settings {
         WebTransportCertificateSettings::AutoSelfSigned(sans) => sans.clone(),
         WebTransportCertificateSettings::FromFile { cert, key } => {

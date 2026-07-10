@@ -1,14 +1,18 @@
+//! Server gameplay systems for connection handling and authoritative simulation.
+
+/// Player spawn and authoritative movement systems.
 mod player;
 
+use crate::net::SEND_INTERVAL;
 use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
-use crate::net::SEND_INTERVAL;
 
 use crate::protocol::messages::DebugServerMessage;
 use crate::protocol::*;
 use player::*;
 
+/// Installs server observers and authoritative gameplay systems.
 pub struct ExampleServerPlugin;
 
 impl Plugin for ExampleServerPlugin {
@@ -23,12 +27,14 @@ impl Plugin for ExampleServerPlugin {
     }
 }
 
+/// Adds replication sender state when a new client link is created.
 pub(crate) fn handle_new_client(trigger: On<Add, LinkOf>, mut commands: Commands) {
     commands
         .entity(trigger.entity)
         .insert((ReplicationSender, Name::from("Client")));
 }
 
+/// Sends a debug message to all clients when `M` is pressed.
 pub(crate) fn send_debug_server_message(
     mut sender: ServerMultiMessageSender,
     server: Single<&Server>,

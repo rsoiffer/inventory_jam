@@ -5,13 +5,16 @@
 //! - applying inputs to the locally predicted player (for prediction to work, inputs have to be applied to both the
 //!   predicted entity and the server entity)
 
+/// Client-side player input binding and spawn observers.
 pub mod player;
+/// Client movement, messaging, and predicted-entity systems.
 mod systems;
 
 use bevy::prelude::*;
 use player::*;
 use systems::{handle_predicted_spawn, player_movement, receive_message1};
 
+/// Installs client gameplay systems and spawn observers.
 pub struct ExampleClientPlugin;
 
 impl Plugin for ExampleClientPlugin {

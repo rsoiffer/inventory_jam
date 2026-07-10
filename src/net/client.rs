@@ -46,7 +46,7 @@ impl ExampleClient {
         let entity = context.entity;
         world.commands().queue(move |world: &mut World| -> Result {
             let mut entity_mut = world.entity_mut(entity);
-            let Some(settings) = entity_mut.take::<ExampleClient>() else {
+            let Some(settings) = entity_mut.take::<Self>() else {
                 return Ok(());
             };
             let client_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), settings.client_port);

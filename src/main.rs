@@ -42,19 +42,10 @@ use core::time::Duration;
 
 /// Process entrypoint.
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
-        #[cfg(not(target_arch = "wasm32"))]
-        std::process::exit(1);
-    }
-}
-
-/// Builds and runs the Bevy app for the selected mode.
-fn run() -> Result<(), String> {
     let mode = run_mode();
     let mut app = build_app(mode, Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ));
     app.add_plugins(SharedPlugin);
-    spawn_connections(&mut app, mode)?;
+    spawn_connections(&mut app, mode);
 
     match mode {
         #[cfg(feature = "client")]
@@ -71,5 +62,4 @@ fn run() -> Result<(), String> {
     app.add_plugins(renderer::ExampleRendererPlugin);
 
     app.run();
-    Ok(())
 }

@@ -7,13 +7,27 @@ edition = "2024"
 exclude = ["dist", "build", "assets"]
 
 [lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
 missing_docs_in_private_items = "deny"
+# Bevy systems take params by value; Clippy cannot see the SystemParam impls.
+needless_pass_by_value = "allow"
+# Private modules make `pub(crate)` equivalent to `pub`; keep crate-intent explicit.
+redundant_pub_crate = "allow"
+# Dependency trees (Bevy/Lightyear) inevitably pull multiple crate versions.
+multiple_crate_versions = "allow"
+# Bevy plugins commonly re-export with wildcards.
+wildcard_imports = "allow"
 
 [lints.rust]
 missing_docs = "deny"
+unsafe_code = "deny"
+unused_qualifications = "deny"
 
 [profile.dev.package."*"]
 opt-level = 3
