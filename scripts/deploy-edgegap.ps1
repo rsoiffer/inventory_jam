@@ -2,7 +2,8 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipPush,
     [switch]$SkipVersionUpdate,
-    [switch]$SkipDeploy
+    [switch]$SkipDeploy,
+    [string]$ImageTag
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +12,6 @@ $AppName = "inventory-jam"
 $AppVersion = "dev"
 $Registry = "registry.edgegap.com/loco-motion-devs-qfpbnhdj6oju"
 $ImageName = "inventory-jam-server"
-$ImageTag = "latest"
 $Latitude = 45.5231
 $Longitude = -122.6765
 $GamePortName = "gameport"
@@ -64,9 +64,31 @@ function Get-RegistryCredentials {
     throw "Missing credentials in secrets/registry-credentials.txt (username on line 1, token on line 2) or EDGEGAP_REGISTRY_USERNAME and EDGEGAP_REGISTRY_TOKEN"
 }
 
+function Invoke-NativeChecked {
+    param(
+        [string]$Command,
+        [string[]]$Arguments
+    )
+
+    & $Command @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Command $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Assert-DockerAvailable {
+    if ($null -eq (Get-Command docker -ErrorAction SilentlyContinue)) {
+        throw "Docker CLI was not found. Start Docker Desktop or install Docker before deploying."
+    }
+    Invoke-NativeChecked -Command "docker" -Arguments @("info")
+}
+
 function Ensure-RegistryLogin {
     $credentials = Get-RegistryCredentials
     $credentials.Token | docker login registry.edgegap.com -u $credentials.Username --password-stdin | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker login failed with exit code $LASTEXITCODE"
+    }
 }
 
 function Invoke-EdgegapApi {
@@ -253,19 +275,35 @@ function Wait-EdgegapDeploymentReady {
     throw "Timed out waiting for Edgegap deployment $RequestId to become ready"
 }
 
-$ApiToken = Get-ApiToken
+function New-DefaultImageTag {
+    return "dev-$((Get-Date).ToUniversalTime().ToString("yyyyMMddHHmmss"))"
+}
+
+if ([string]::IsNullOrWhiteSpace($ImageTag)) {
+    if ($SkipBuild -or $SkipPush) {
+        throw "Pass -ImageTag when using -SkipBuild or -SkipPush so the script does not update Edgegap to an unbuilt image tag."
+    }
+    $ImageTag = New-DefaultImageTag
+}
+
 $image = "$Registry/$ImageName`:$ImageTag"
+
+if (-not $SkipBuild -or -not $SkipPush) {
+    Assert-DockerAvailable
+}
+
+$ApiToken = Get-ApiToken
 
 if (-not $SkipBuild) {
     Write-Host "Building $image"
-    docker build -t $image $RepoRoot
+    Invoke-NativeChecked -Command "docker" -Arguments @("build", "--pull", "-t", $image, $RepoRoot)
 }
 
 if (-not $SkipPush) {
     Write-Host "Logging in to registry.edgegap.com"
     Ensure-RegistryLogin
     Write-Host "Pushing $image"
-    docker push $image
+    Invoke-NativeChecked -Command "docker" -Arguments @("push", $image)
 }
 
 if (-not $SkipVersionUpdate) {

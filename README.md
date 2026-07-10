@@ -84,12 +84,13 @@ Edgegap dashboard under **Container Registry**.
 
 Flow:
 
-1. Build and push the Docker image
+1. Build and push the Docker image with a unique `dev-<timestamp>` tag
 2. Create the app version if missing, otherwise `PATCH` the existing version's image reference
 3. Stop any active deployments, then `POST /v2/deployments` near Portland, OR
 4. Poll until the deployment is ready
 
-Flags: `-SkipBuild`, `-SkipPush`, `-SkipVersionUpdate`, `-SkipDeploy`
+Flags: `-SkipBuild`, `-SkipPush`, `-SkipVersionUpdate`, `-SkipDeploy`, `-ImageTag <tag>`. If you skip build or push, pass
+`-ImageTag` explicitly so the script does not point Edgegap at an unbuilt tag.
 
 ### Local container smoke test
 

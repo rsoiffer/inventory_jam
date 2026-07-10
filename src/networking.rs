@@ -22,7 +22,10 @@ use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
 /// Pinned digest for the Edgegap WebTransport certificate used by clients.
-const CERT_DIGEST: &str = "1c2066ff65d1ad7a83a1e06b5a5c08167498b24e946d2f30852e87cdd250622d";
+const CERT_DIGEST: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/certificates/digest.txt"
+));
 /// Local server address used before remote discovery resolves an address.
 const LOCAL_SERVER_ADDR: SocketAddr = {
     #[cfg(feature = "client")]
@@ -86,7 +89,7 @@ impl NetworkingConfig {
             transport: TransportMode::WebTransport,
             server_port: LOCAL_SERVER_ADDR.port(),
             server_addr: LOCAL_SERVER_ADDR,
-            certificate_digest: CERT_DIGEST.into(),
+            certificate_digest: CERT_DIGEST.trim().into(),
         }
     }
 
@@ -174,6 +177,13 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) -> Result<(), String> {
         }
         #[cfg(feature = "server")]
         RunMode::Server => {
+            info!(
+                "server networking config transport {:?} bind port {} public addr {} edgegap {}",
+                config.transport,
+                config.server_port,
+                config.server_addr,
+                edgegap::is_edgegap_server()
+            );
             if let Some(deployment) = edgegap::deployment_info() {
                 info!(
                     "edgegap deployment {} public {}:{} internal {}",
@@ -247,6 +257,7 @@ fn spawn_client(
         server_addr,
         conditioner: Some(conditioner),
         transport: client_transport(config),
+        certificate_digest: config.certificate_digest.clone(),
         shared: SHARED_SETTINGS,
     });
 }
@@ -269,11 +280,10 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
     match config.transport {
         TransportMode::WebTransport => ServerTransports::WebTransport {
             local_port: config.server_port,
-            certificate: WebTransportCertificateSettings::AutoSelfSigned(vec![
-                "localhost".into(),
-                "127.0.0.1".into(),
-                "::1".into(),
-            ]),
+            certificate: WebTransportCertificateSettings::FromFile {
+                cert: "certificates/webtransport-cert.pem".into(),
+                key: "certificates/webtransport-key.pem".into(),
+            },
         },
         #[cfg(feature = "udp")]
         TransportMode::Udp => ServerTransports::Udp {
@@ -282,11 +292,10 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
         #[cfg(not(feature = "udp"))]
         TransportMode::Udp => ServerTransports::WebTransport {
             local_port: config.server_port,
-            certificate: WebTransportCertificateSettings::AutoSelfSigned(vec![
-                "localhost".into(),
-                "127.0.0.1".into(),
-                "::1".into(),
-            ]),
+            certificate: WebTransportCertificateSettings::FromFile {
+                cert: "certificates/webtransport-cert.pem".into(),
+                key: "certificates/webtransport-key.pem".into(),
+            },
         },
     }
 }

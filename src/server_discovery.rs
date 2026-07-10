@@ -110,6 +110,7 @@ impl EdgegapRequest {
             Self::DeploymentStatus { request_id, .. } => format!("/v1/status/{request_id}"),
         }
     }
+
 }
 
 /// Delayed status request marker used between Edgegap polling attempts.

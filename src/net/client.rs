@@ -34,6 +34,8 @@ pub struct ExampleClient {
     pub conditioner: Option<RecvLinkConditioner>,
     /// Transport backend used by the client.
     pub transport: ClientTransports,
+    /// Certificate digest used by WebTransport clients.
+    pub certificate_digest: String,
     /// Shared protocol and authentication settings.
     pub shared: SharedSettings,
 }
@@ -76,46 +78,11 @@ impl ExampleClient {
                     entity_mut.insert(UdpIo::default());
                 }
                 ClientTransports::WebTransport => {
-                    let certificate_digest = {
-                        #[cfg(target_family = "wasm")]
-                        {
-                            browser_certificate_digest()
-                        }
-                        #[cfg(not(target_family = "wasm"))]
-                        {
-                            String::new()
-                        }
-                    };
+                    let certificate_digest = settings.certificate_digest;
                     entity_mut.insert(WebTransportClientIo { certificate_digest });
                 }
             }
             Ok(())
         });
     }
-}
-
-#[cfg(target_family = "wasm")]
-/// Reads the WebTransport certificate digest from browser config or the bundled fallback.
-fn browser_certificate_digest() -> String {
-    browser_digest_override().unwrap_or_else(|| {
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/certificates/digest.txt"))
-            .trim()
-            .to_string()
-    })
-}
-
-#[cfg(target_family = "wasm")]
-/// Reads a digest override from `#<digest>` or `window.CERT_DIGEST`.
-fn browser_digest_override() -> Option<String> {
-    let window = web_sys::window()?;
-    let hash = window.location().hash().ok()?;
-    let hash = hash.trim_start_matches('#').trim();
-    if !hash.is_empty() {
-        return Some(hash.to_string());
-    }
-    js_sys::Reflect::get(&window, &wasm_bindgen::JsValue::from_str("CERT_DIGEST"))
-        .ok()
-        .and_then(|value| value.as_string())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
 }

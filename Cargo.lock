@@ -4421,6 +4421,7 @@ dependencies = [
 name = "inventory_jam"
 version = "0.1.0"
 dependencies = [
+ "async-compat",
  "bevy",
  "bevy-inspector-egui",
  "bevy_asset_loader",
@@ -9558,8 +9559,6 @@ checksum = "647e17b66bd49bfebe8fe73d327358432f298bb41227600f47fb07fa4f7c1eef"
 [[package]]
 name = "xwt-web"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f80997b90d89451537f2866130f52b1e4be4d29cfadf9183081b24542f1abdf0"
 dependencies = [
  "js-sys",
  "thiserror 2.0.18",
