@@ -1,3 +1,7 @@
+/*
+    Hooks up input to Player when they are spawned.
+*/
+
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;

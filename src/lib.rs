@@ -1,5 +1,4 @@
 pub mod protocol;
-pub mod player;
 
 #[cfg(feature = "client")]
 pub mod client;

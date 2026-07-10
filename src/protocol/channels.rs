@@ -1,3 +1,7 @@
+/*
+    Allows the protocol to register events.
+*/
+
 use bevy::prelude::*;
 use lightyear::prelude::*;
 

@@ -1,3 +1,7 @@
+/*
+    Allows the protocol to register events.
+*/
+
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::input::leafwing::prelude::InputPlugin as LightyearLeafwingInputPlugin;
