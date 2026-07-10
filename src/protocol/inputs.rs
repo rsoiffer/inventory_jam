@@ -31,22 +31,20 @@ impl PlayerAction {
     pub fn default_input_map() -> InputMap<Self> {
         let mut input_map = InputMap::default();
 
+        // Move: WASD / Arrow Keys
         input_map.insert_dual_axis(Self::Move, VirtualDPad::wasd());
         input_map.insert_dual_axis(Self::Move, VirtualDPad::arrow_keys());
 
-        input_map.insert_dual_axis(
-            Self::Aim,
-            VirtualDPad::new(
-                KeyCode::KeyI,
-                KeyCode::KeyK,
-                KeyCode::KeyJ,
-                KeyCode::KeyL,
-            ),
-        );
+        // Aim: relative mouse movement
+        input_map.insert_dual_axis(Self::Aim, MouseMove::default());
 
-        input_map.insert(Self::Fire, MouseButton::Left);
+        // Actions
+        input_map.insert(Self::Fire, KeyCode::Space);
         input_map.insert(Self::Interact, KeyCode::KeyE);
+
+        // Secondary skill: either Shift key
         input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
+        input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
 
         input_map
     }
