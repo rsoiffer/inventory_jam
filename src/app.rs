@@ -126,7 +126,10 @@ fn new_gui_app() -> App {
     );
     app.insert_resource(WinitSettings::continuous());
     #[cfg(feature = "dev")]
-    app.add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new());
+    app.add_plugins((
+        bevy_inspector_egui::bevy_egui::EguiPlugin::default(),
+        bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
+    ));
     app
 }
 
