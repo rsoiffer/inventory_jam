@@ -318,7 +318,7 @@ fn connect_client_once(
 /// Patches the WebTransport certificate digest after Lightyear creates the IO component.
 fn patch_webtransport_digest(
     config: Res<NetworkingRuntime>,
-    mut clients: Query<&mut WebTransportClientIo, With<Client>>,
+    clients: Query<&mut WebTransportClientIo, With<Client>>,
     mut done: Local<bool>,
 ) {
     if *done || config.certificate_digest.is_empty() {
@@ -328,8 +328,16 @@ fn patch_webtransport_digest(
     if clients.is_empty() {
         return;
     }
-    for mut io in clients.iter_mut() {
-        io.certificate_digest = config.certificate_digest.clone();
+    #[cfg(target_family = "wasm")]
+    {
+        // Browser clients choose the certificate digest when the WebTransport IO is created.
+    }
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let mut clients = clients;
+        for mut io in clients.iter_mut() {
+            io.certificate_digest = config.certificate_digest.clone();
+        }
     }
     *done = true;
 }
