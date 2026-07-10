@@ -126,7 +126,10 @@ $env:NO_COLOR = $null
 trunk serve
 ```
 
-Pass the certificate digest via URL hash (`#<digest>`) or `window.CERT_DIGEST`. Regenerate local certificates when
-needed and update `certificates/digest.txt` before rebuilding wasm clients.
+The wasm client reads the WebTransport certificate digest from `certificates/digest.txt`.
+
+Firefox currently needs a local `xwt-web` patch that avoids BYOB readers for WebTransport datagrams. Background:
+[Mozilla bug 2007755](https://bugzilla.mozilla.org/show_bug.cgi?id=2007755) and
+[MOZGIII/xwt issue 156](https://github.com/MOZGIII/xwt/issues/156).
 
 Native and wasm clients use the same async Edgegap discovery path before connecting.
