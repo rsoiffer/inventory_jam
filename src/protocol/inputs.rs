@@ -7,18 +7,7 @@ use leafwing_input_manager::prelude::*;
 use lightyear::input::leafwing::prelude::InputPlugin as LightyearLeafwingInputPlugin;
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Actionlike,
-    Serialize,
-    Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    Clone,
-    Copy,
-    Reflect,
-)]
+#[derive(Actionlike, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy, Reflect)]
 pub enum PlayerAction {
     #[actionlike(DualAxis)]
     Move,

@@ -2,9 +2,10 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
-use crate::{protocol::{
-    DebugServerMessage, PlayerAction, PlayerColor, PlayerId, PlayerPosition,
-}, shared};
+use crate::{
+    protocol::{DebugServerMessage, PlayerAction, PlayerColor, PlayerId, PlayerPosition},
+    shared,
+};
 
 /// The client input only gets applied to predicted entities that we own
 /// This works because we only predict the user's controlled entity.
@@ -23,9 +24,7 @@ pub(crate) fn player_movement(
 }
 
 /// System to receive messages on the client
-pub(crate) fn receive_message1(
-    mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>,
-) {
+pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
     for message in receiver.receive() {
         info!("Received message: {:?}", message);
     }
@@ -55,6 +54,7 @@ pub(crate) fn handle_predicted_spawn(
 /// When the predicted copy of the client-owned entity is spawned, do stuff
 /// - assign it a different saturation
 /// - keep track of it in the Global resource
+#[allow(dead_code)]
 pub(crate) fn handle_interpolated_spawn(
     trigger: On<Add, Interpolated>,
     mut interpolated: Query<&mut PlayerColor>,

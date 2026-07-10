@@ -9,8 +9,8 @@ pub mod player;
 mod systems;
 
 use bevy::prelude::*;
-use systems::{player_movement, receive_message1, handle_predicted_spawn};
 use player::*;
+use systems::{handle_predicted_spawn, player_movement, receive_message1};
 
 pub struct ExampleClientPlugin;
 

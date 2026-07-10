@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
-use crate::protocol::{PlayerColor};
+use crate::protocol::PlayerColor;
 use crate::protocol::messages::*;
 
 pub(crate) fn handle_interpolated_spawn(
@@ -17,6 +17,7 @@ pub(crate) fn handle_interpolated_spawn(
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn receive_debug_server_message(
     mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>,
 ) {
