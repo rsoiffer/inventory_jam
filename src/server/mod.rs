@@ -3,19 +3,18 @@
 /// Player spawn and authoritative movement systems.
 mod player;
 
-use crate::net::SEND_INTERVAL;
+use crate::networking::SEND_INTERVAL;
 use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
-use crate::protocol::messages::DebugServerMessage;
 use crate::protocol::*;
 use player::*;
 
 /// Installs server observers and authoritative gameplay systems.
-pub struct ExampleServerPlugin;
+pub struct ServerPlugin;
 
-impl Plugin for ExampleServerPlugin {
+impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ReplicationMetadata::new(SEND_INTERVAL));
 

@@ -10,7 +10,7 @@ use lightyear::netcode::NetcodeServer;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
-use crate::net::shared::SharedSettings;
+use super::shared::SharedSettings;
 
 /// Server transport backend and bind configuration.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,8 +32,8 @@ pub enum ServerTransports {
 
 /// Marker component that expands into the Lightyear server entity configuration.
 #[derive(Component, Debug)]
-#[component(on_add = ExampleServer::on_add)]
-pub struct ExampleServer {
+#[component(on_add = NetworkServer::on_add)]
+pub struct NetworkServer {
     /// Optional incoming link conditioner applied to client links.
     pub conditioner: Option<RecvLinkConditioner>,
     /// Transport backend used by the server.
@@ -46,7 +46,7 @@ pub struct ExampleServer {
 #[derive(Component, Clone, Debug)]
 pub(crate) struct ServerLinkConditioner(Option<RecvLinkConditioner>);
 
-impl ExampleServer {
+impl NetworkServer {
     /// Converts the setup marker into Lightyear server components.
     fn on_add(mut world: DeferredWorld, context: HookContext) {
         let entity = context.entity;
@@ -57,7 +57,7 @@ impl ExampleServer {
             };
             entity_mut.insert((
                 Name::from("Server"),
-                ServerLinkConditioner(settings.conditioner.clone()),
+                ServerLinkConditioner(settings.conditioner),
             ));
 
             entity_mut.insert(NetcodeServer::new(NetcodeConfig {
@@ -119,43 +119,26 @@ pub fn apply_server_link_conditioner(
     }
 }
 
-/// Settings for creating the server's WebTransport certificate.
+/// Settings for loading the server's WebTransport certificate from PEM files.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WebTransportCertificateSettings {
-    /// Generates a self-signed certificate with the provided subject alternative names.
-    AutoSelfSigned(Vec<String>),
-    /// Loads a stable certificate and private key from PEM files.
-    FromFile {
-        /// PEM-encoded certificate chain path.
-        cert: String,
-        /// PEM-encoded private key path.
-        key: String,
-    },
+pub struct WebTransportCertificateSettings {
+    /// PEM-encoded certificate chain path.
+    pub cert: String,
+    /// PEM-encoded private key path.
+    pub key: String,
 }
 
 /// Builds the WebTransport identity and logs its certificate digest.
 fn webtransport_identity(settings: &WebTransportCertificateSettings) -> Result<Identity, String> {
-    let mut sans = match settings {
-        WebTransportCertificateSettings::AutoSelfSigned(sans) => sans.clone(),
-        WebTransportCertificateSettings::FromFile { cert, key } => {
-            info!("Loading WebTransport certificate from {cert} and key from {key}");
-            let identity = block_on(Compat::new(Identity::load_pemfiles(cert, key)))
-                .map_err(|e| format!("failed to load WebTransport certificate files: {e}"))?;
-            let digest = identity.certificate_chain().as_slice()[0].hash();
-            info!("WebTransport certificate digest: {digest}");
-            return Ok(identity);
-        }
-    };
-    if let Ok(public_ip) = std::env::var("ARBITRIUM_PUBLIC_IP") {
-        sans.push(public_ip);
-        sans.push("*.pr.edgegap.net".to_string());
-    }
-    if let Ok(extra) = std::env::var("SELF_SIGNED_SANS") {
-        sans.extend(extra.split(',').map(str::to_string));
-    }
-    info!("WebTransport certificate SANs: {}", sans.join(","));
-    let identity = Identity::self_signed(sans.clone())
-        .map_err(|e| format!("failed to generate self-signed certificate: {e}"))?;
+    info!(
+        "Loading WebTransport certificate from {} and key from {}",
+        settings.cert, settings.key
+    );
+    let identity = block_on(Compat::new(Identity::load_pemfiles(
+        &settings.cert,
+        &settings.key,
+    )))
+    .map_err(|e| format!("failed to load WebTransport certificate files: {e}"))?;
     let digest = identity.certificate_chain().as_slice()[0].hash();
     info!("WebTransport certificate digest: {digest}");
     Ok(identity)

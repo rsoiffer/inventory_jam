@@ -11,9 +11,14 @@ pub mod player;
 
 use bevy::prelude::*;
 
+// Convenience re-exports for gameplay modules; not every feature set uses every symbol.
+#[allow(unused_imports)]
 pub use channels::ServerEventsChannel;
+#[allow(unused_imports)]
 pub use inputs::PlayerAction;
+#[allow(unused_imports)]
 pub use messages::DebugServerMessage;
+#[allow(unused_imports)]
 pub use player::{PlayerColor, PlayerId, PlayerPosition};
 
 /// Registers all protocol channels, messages, inputs, and components.

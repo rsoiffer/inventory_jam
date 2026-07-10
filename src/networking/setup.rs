@@ -1,45 +1,43 @@
 use crate::app::RunMode;
-use crate::edgegap;
-#[cfg(any(feature = "client", feature = "server"))]
-use crate::net::SERVER_ADDR;
-use crate::net::SHARED_SETTINGS;
-#[cfg(feature = "client")]
-use crate::net::{CLIENT_PORT, ClientTransports, ExampleClient};
-#[cfg(feature = "server")]
-use crate::net::{ExampleServer, SERVER_PORT, ServerTransports, WebTransportCertificateSettings};
-#[cfg(feature = "client")]
-use crate::server_discovery::{
-    ServerDiscovery, ServerDiscoveryState, USE_LOCAL_SERVER, send_due_status_requests,
-    start_server_discovery,
-};
 use bevy::prelude::*;
 #[cfg(feature = "client")]
 use bevy_mod_reqwest::ReqwestPlugin;
 use core::net::SocketAddr;
 use lightyear::link::RecvLinkConditioner;
+#[cfg(feature = "client")]
 use lightyear::prelude::client::*;
+#[cfg(feature = "server")]
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
+#[cfg(feature = "server")]
+use super::edgegap;
+#[cfg(any(feature = "client", feature = "server"))]
+use super::shared::SERVER_ADDR;
+use super::shared::SHARED_SETTINGS;
+#[cfg(feature = "client")]
+use super::client::{ClientTransports, NetworkClient};
+#[cfg(feature = "client")]
+use super::edgegap::{
+    ServerDiscovery, ServerDiscoveryState, USE_LOCAL_SERVER, send_due_status_requests,
+    start_server_discovery,
+};
+#[cfg(feature = "client")]
+use super::shared::CLIENT_PORT;
+#[cfg(feature = "server")]
+use super::server::{NetworkServer, ServerTransports, WebTransportCertificateSettings};
+#[cfg(feature = "server")]
+use super::shared::SERVER_PORT;
+
+#[cfg(feature = "client")]
 /// Pinned digest for the Edgegap WebTransport certificate used by clients.
 const CERT_DIGEST: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/certificates/digest.txt"
 ));
+#[cfg(feature = "client")]
 /// Local server address used before remote discovery resolves an address.
-const LOCAL_SERVER_ADDR: SocketAddr = {
-    #[cfg(feature = "client")]
-    {
-        SERVER_ADDR
-    }
-    #[cfg(not(feature = "client"))]
-    {
-        SocketAddr::new(
-            core::net::IpAddr::V4(core::net::Ipv4Addr::LOCALHOST),
-            SERVER_PORT,
-        )
-    }
-};
+const LOCAL_SERVER_ADDR: SocketAddr = SERVER_ADDR;
 
 /// Transport backend selected for a client or server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,10 +54,12 @@ pub struct NetworkingConfig {
     /// Transport backend to spawn.
     pub transport: TransportMode,
     /// Local port used when binding a server transport.
+    #[cfg_attr(not(feature = "server"), allow(dead_code))]
     pub server_port: u16,
     /// Remote address clients connect to or public server address.
     pub server_addr: SocketAddr,
     /// Certificate digest clients use for WebTransport verification.
+    #[cfg(feature = "client")]
     pub certificate_digest: String,
 }
 
@@ -113,12 +113,14 @@ impl NetworkingConfig {
             transport,
             server_port,
             server_addr,
+            #[cfg(feature = "client")]
             certificate_digest: String::new(),
         }
     }
 }
 
 /// Runtime networking data shared with follow-up systems.
+#[cfg(feature = "client")]
 #[derive(Resource, Clone)]
 pub struct NetworkingRuntime {
     /// Certificate digest to patch into native WebTransport clients.
@@ -138,6 +140,7 @@ struct ClientConnection {
 /// Installs client or server network entities and systems for the selected mode.
 pub fn spawn_connections(app: &mut App, mode: RunMode) {
     let config = NetworkingConfig::for_mode(mode);
+    #[cfg(feature = "client")]
     app.insert_resource(NetworkingRuntime {
         certificate_digest: config.certificate_digest.clone(),
     });
@@ -156,21 +159,22 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
                     &config,
                     RecvLinkConditioner::new(conditioner),
                 );
+                app.add_systems(Update, (connect_client_once, patch_webtransport_digest));
             } else {
                 app.add_plugins(ReqwestPlugin::default());
-                app.insert_resource(ServerDiscovery::new(client_id.to_string()));
+                app.insert_resource(ServerDiscovery::new());
                 app.insert_resource(ClientConnection { client_id, config });
                 app.add_systems(Startup, start_server_discovery);
+                app.add_systems(
+                    Update,
+                    (
+                        send_due_status_requests,
+                        spawn_discovered_client,
+                        connect_client_once,
+                        patch_webtransport_digest,
+                    ),
+                );
             }
-            app.add_systems(
-                Update,
-                (
-                    send_due_status_requests,
-                    spawn_discovered_client,
-                    connect_client_once,
-                    patch_webtransport_digest,
-                ),
-            );
         }
         #[cfg(feature = "server")]
         RunMode::Server => {
@@ -190,7 +194,7 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
                     deployment.internal_port
                 );
             }
-            app.world_mut().spawn(ExampleServer {
+            app.world_mut().spawn(NetworkServer {
                 conditioner: Some(RecvLinkConditioner::new(conditioner)),
                 transport: server_transport(&config),
                 shared: SHARED_SETTINGS,
@@ -247,7 +251,7 @@ fn spawn_client(
     config: &NetworkingConfig,
     conditioner: RecvLinkConditioner,
 ) {
-    commands.spawn(ExampleClient {
+    commands.spawn(NetworkClient {
         client_id,
         client_port: CLIENT_PORT,
         server_addr,
@@ -276,7 +280,7 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
     match config.transport {
         TransportMode::WebTransport => ServerTransports::WebTransport {
             local_port: config.server_port,
-            certificate: WebTransportCertificateSettings::FromFile {
+            certificate: WebTransportCertificateSettings {
                 cert: "certificates/webtransport-cert.pem".into(),
                 key: "certificates/webtransport-key.pem".into(),
             },
@@ -288,7 +292,7 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
         #[cfg(not(feature = "udp"))]
         TransportMode::Udp => ServerTransports::WebTransport {
             local_port: config.server_port,
-            certificate: WebTransportCertificateSettings::FromFile {
+            certificate: WebTransportCertificateSettings {
                 cert: "certificates/webtransport-cert.pem".into(),
                 key: "certificates/webtransport-key.pem".into(),
             },
@@ -304,6 +308,7 @@ fn start_server(mut commands: Commands, server: Single<Entity, With<Server>>) {
     });
 }
 
+#[cfg(feature = "client")]
 /// Connects the first spawned client exactly once.
 fn connect_client_once(
     mut commands: Commands,
@@ -320,10 +325,11 @@ fn connect_client_once(
     *connected = true;
 }
 
+#[cfg(feature = "client")]
 /// Patches the WebTransport certificate digest after Lightyear creates the IO component.
 fn patch_webtransport_digest(
     config: Res<NetworkingRuntime>,
-    clients: Query<&mut WebTransportClientIo, With<Client>>,
+    mut clients: Query<&mut WebTransportClientIo, With<Client>>,
     mut done: Local<bool>,
 ) {
     if *done || config.certificate_digest.is_empty() {
@@ -333,14 +339,9 @@ fn patch_webtransport_digest(
     if clients.is_empty() {
         return;
     }
-    #[cfg(target_family = "wasm")]
-    {
-        // Browser clients choose the certificate digest when the WebTransport IO is created.
-    }
     #[cfg(not(target_family = "wasm"))]
     {
-        let mut clients = clients;
-        for mut io in clients.iter_mut() {
+        for mut io in &mut clients {
             io.certificate_digest.clone_from(&config.certificate_digest);
         }
     }

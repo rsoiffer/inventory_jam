@@ -6,6 +6,7 @@ use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// Bundle of replicated components spawned for each connected player.
+#[cfg(feature = "server")]
 #[derive(Bundle)]
 pub(crate) struct PlayerBundle {
     /// Network peer that owns this player.
@@ -16,6 +17,7 @@ pub(crate) struct PlayerBundle {
     color: PlayerColor,
 }
 
+#[cfg(feature = "server")]
 impl PlayerBundle {
     /// Creates a player bundle with a color derived from `id`.
     pub(crate) fn new(id: PeerId, position: Vec2) -> Self {

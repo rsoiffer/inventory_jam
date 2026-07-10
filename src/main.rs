@@ -1,18 +1,11 @@
 //! Inventory Jam executable wiring for Bevy, Lightyear networking, and Edgegap discovery.
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
 
 /// App construction and run-mode selection.
 mod app;
 #[cfg(feature = "client")]
 /// Client gameplay systems.
 mod client;
-/// Edgegap runtime environment helpers.
-mod edgegap;
-/// Low-level Lightyear transport components and constants.
-mod net;
-/// Client/server connection setup.
+/// Low-level networking transport, connection setup, and Edgegap hosting.
 mod networking;
 /// Replicated protocol definitions.
 mod protocol;
@@ -22,22 +15,17 @@ mod renderer;
 #[cfg(feature = "server")]
 /// Server gameplay systems.
 mod server;
-#[cfg(feature = "client")]
-/// Edgegap server discovery for remote clients.
-mod server_discovery;
 
 /// Shared gameplay logic.
 mod shared;
 
 use crate::app::{RunMode, build_app, run_mode};
 #[cfg(feature = "client")]
-use crate::client::ExampleClientPlugin;
-use crate::net::FIXED_TIMESTEP_HZ;
-use crate::networking::spawn_connections;
+use crate::client::ClientPlugin;
+use crate::networking::{FIXED_TIMESTEP_HZ, spawn_connections};
 #[cfg(feature = "server")]
-use crate::server::ExampleServerPlugin;
+use crate::server::ServerPlugin;
 use crate::shared::SharedPlugin;
-use bevy::prelude::*;
 use core::time::Duration;
 
 /// Process entrypoint.
@@ -50,16 +38,16 @@ fn main() {
     match mode {
         #[cfg(feature = "client")]
         RunMode::Client { .. } => {
-            app.add_plugins(ExampleClientPlugin);
+            app.add_plugins(ClientPlugin);
         }
         #[cfg(feature = "server")]
         RunMode::Server => {
-            app.add_plugins(ExampleServerPlugin);
+            app.add_plugins(ServerPlugin);
         }
     }
 
     #[cfg(feature = "gui")]
-    app.add_plugins(renderer::ExampleRendererPlugin);
+    app.add_plugins(renderer::RendererPlugin);
 
     app.run();
 }

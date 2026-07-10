@@ -8,7 +8,7 @@ use lightyear::netcode::client_plugin::NetcodeConfig;
 use lightyear::prelude::client::*;
 use lightyear::prelude::*;
 
-use crate::net::shared::SharedSettings;
+use super::shared::SharedSettings;
 
 /// Client transport backend selected for a connection.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,8 +22,8 @@ pub enum ClientTransports {
 
 /// Marker component that expands into the Lightyear client entity configuration.
 #[derive(Component, Clone, Debug)]
-#[component(on_add = ExampleClient::on_add)]
-pub struct ExampleClient {
+#[component(on_add = NetworkClient::on_add)]
+pub struct NetworkClient {
     /// Stable client id used for netcode authentication.
     pub client_id: u64,
     /// Local port the client binds to.
@@ -40,7 +40,7 @@ pub struct ExampleClient {
     pub shared: SharedSettings,
 }
 
-impl ExampleClient {
+impl NetworkClient {
     /// Converts the setup marker into Lightyear client components.
     fn on_add(mut world: DeferredWorld, context: HookContext) {
         let entity = context.entity;
@@ -52,7 +52,7 @@ impl ExampleClient {
             let client_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), settings.client_port);
             entity_mut.insert((
                 Client::default(),
-                Link::new(settings.conditioner.clone()),
+                Link::new(settings.conditioner),
                 LocalAddr(client_addr),
                 PeerAddr(settings.server_addr),
                 PredictionManager::default(),

@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use core::time::Duration;
 
 /// Update frequency for headless clients so they keep processing network events.
+#[cfg(all(not(feature = "gui"), feature = "client"))]
 const HEADLESS_CLIENT_LOOP_HZ: f64 = 60.0;
 
 /// Startup mode selected from the target platform and command-line arguments.
@@ -45,7 +46,7 @@ pub fn run_mode() -> RunMode {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(not(target_family = "wasm"), feature = "client"))]
 /// Parses a client id from `client -c <id>`, `client <id>`, or defaults to one.
 fn parse_client_id(args: &mut impl Iterator<Item = String>) -> u64 {
     let mut client_id = 1;
@@ -65,7 +66,7 @@ fn parse_client_id(args: &mut impl Iterator<Item = String>) -> u64 {
 pub fn build_app(mode: RunMode, tick_duration: Duration) -> App {
     let mut app = create_app(mode);
     #[cfg(feature = "server")]
-    app.add_observer(crate::net::server::apply_server_link_conditioner);
+    app.add_observer(crate::networking::apply_server_link_conditioner);
     match mode {
         #[cfg(feature = "client")]
         RunMode::Client { .. } => {
@@ -137,10 +138,10 @@ fn new_gui_app() -> App {
 /// Creates a minimal app for server or headless client execution.
 fn new_headless_app(loop_wait: Option<Duration>) -> App {
     let mut app = App::new();
-    let minimal_plugins = match loop_wait {
-        Some(wait) => MinimalPlugins.set(bevy::app::ScheduleRunnerPlugin::run_loop(wait)),
-        None => MinimalPlugins.build(),
-    };
+    let minimal_plugins = loop_wait.map_or_else(
+        || MinimalPlugins.build(),
+        |wait| MinimalPlugins.set(bevy::app::ScheduleRunnerPlugin::run_loop(wait)),
+    );
     app.add_plugins((
         minimal_plugins,
         TransformPlugin,

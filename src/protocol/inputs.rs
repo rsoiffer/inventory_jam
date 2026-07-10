@@ -26,6 +26,7 @@ pub enum PlayerAction {
 
 impl PlayerAction {
     /// Builds the default keyboard/mouse bindings for player actions.
+    #[cfg(feature = "client")]
     pub fn default_input_map() -> InputMap<Self> {
         let mut input_map = InputMap::default();
 
