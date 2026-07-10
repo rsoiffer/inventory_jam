@@ -38,8 +38,11 @@ impl PlayerAction {
         // Aim: relative mouse movement
         input_map.insert_dual_axis(Self::Aim, MouseMove::default());
 
-        // Actions
+        // Fire
         input_map.insert(Self::Fire, KeyCode::Space);
+        input_map.insert(Self::Fire, MouseButton::Left);
+
+        // Interact
         input_map.insert(Self::Interact, KeyCode::KeyE);
 
         // Secondary skill: either Shift key

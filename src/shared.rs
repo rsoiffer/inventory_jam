@@ -30,20 +30,20 @@ pub(crate) fn shared_movement_behaviour(
     }
 
     if actions.just_pressed(&PlayerAction::Fire) {
-        info!("Fire");
+        info!("Fire Pressed!");
     }
 
     if actions.just_pressed(&PlayerAction::Interact) {
-        info!("Interact");
+        info!("Interact Pressed!");
     }
 
     if actions.just_pressed(&PlayerAction::UseSkill) {
-        info!("UseSkill");
+        info!("UseSkill Pressed!");
     }
 
     let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
 
     if aim != Vec2::ZERO {
-        trace!(?aim, "Aim");
+        info!(?aim, "Aim");
     }
 }
