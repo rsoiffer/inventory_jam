@@ -4,7 +4,7 @@ use lightyear::{prediction::Predicted, prelude::PeerId};
 use crate::{
     fragment::{
         protocol::Fragment,
-        shared::{self as fragment_shared, ClientFragmentVisual, FragmentPosition, ServerFragment},
+        shared::{self as fragment_shared, ClientFragment, FragmentPosition, ServerFragment},
     },
     protocol::{PlayerId, PlayerPosition},
 };
@@ -27,7 +27,7 @@ pub(crate) fn initialize_fragment(
 
     commands
         .entity(entity)
-        .insert((FragmentPosition(fragment.origin), ClientFragmentVisual));
+        .insert((FragmentPosition(fragment.origin), ClientFragment));
 }
 
 /// Animates collected fragments locally. The server already awarded the
@@ -35,7 +35,7 @@ pub(crate) fn initialize_fragment(
 pub(crate) fn simulate_client_fragments(
     mut fragments: Query<
         (&Fragment, &mut FragmentPosition),
-        (With<ClientFragmentVisual>, Without<ServerFragment>),
+        (With<ClientFragment>, Without<ServerFragment>),
     >,
     players: Query<(&PlayerId, &PlayerPosition, Has<Predicted>)>,
 ) {

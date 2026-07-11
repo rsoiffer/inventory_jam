@@ -5,7 +5,7 @@ pub mod api;
 #[cfg(feature = "client")]
 pub(crate) mod client;
 
-pub mod protocol;
+pub(crate) mod protocol;
 
 #[cfg(feature = "gui")]
 pub(crate) mod render;

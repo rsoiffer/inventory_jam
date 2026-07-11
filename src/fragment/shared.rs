@@ -25,18 +25,13 @@ pub struct FragmentLifetime {
     pub remaining_ticks: u16,
 }
 
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct FragmentPickupLifetime {
-    pub remaining_ticks: u16,
-}
-
-/// Marker for the authoritative server-side representation.
+/// Marker for the authoritative server-side fragments.
 #[derive(Component)]
 pub struct ServerFragment;
 
-/// Marker for a client-created visual representation.
+/// Marker for a client fragments.
 #[derive(Component)]
-pub struct ClientFragmentVisual;
+pub struct ClientFragment;
 
 /// Moves a fragment toward a player while retaining a curved, orbit-like path.
 pub fn pull_fragment_toward(position: &mut FragmentPosition, target: Vec2) {

@@ -7,10 +7,7 @@ use crate::{
     fragment::{
         SpawnFragmentPool,
         protocol::{CarriedFragments, Fragment},
-        shared::{
-            self as fragment_shared, FragmentLifetime, FragmentPickupLifetime, FragmentPosition,
-            ServerFragment,
-        },
+        shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
     },
     protocol::{PlayerAction, PlayerId, PlayerPosition},
     shared,
@@ -113,7 +110,6 @@ pub(crate) fn simulate_server_fragments(
             &mut Fragment,
             &mut FragmentPosition,
             &mut FragmentLifetime,
-            Option<&mut FragmentPickupLifetime>,
         ),
         With<ServerFragment>,
     >,
@@ -123,16 +119,13 @@ pub(crate) fn simulate_server_fragments(
 ) {
     let is_host_server = !host_server.is_empty();
 
-    for (fragment_entity, mut fragment, mut position, mut lifetime, pickup_lifetime) in
-        &mut fragments
-    {
+    for (fragment_entity, mut fragment, mut position, mut lifetime) in &mut fragments {
         if let Some(collector) = fragment.collector {
             simulate_collected_fragment(
                 &mut commands,
                 fragment_entity,
                 collector,
                 &mut position,
-                pickup_lifetime,
                 &players,
                 is_host_server,
             );
@@ -154,11 +147,6 @@ pub(crate) fn simulate_server_fragments(
             }
 
             fragment.collector = Some(collector);
-            commands
-                .entity(fragment_entity)
-                .insert(FragmentPickupLifetime {
-                    remaining_ticks: fragment_shared::FRAGMENT_PICKUP_VISUAL_TICKS,
-                });
 
             info!(
                 ?fragment_entity,
@@ -179,28 +167,15 @@ pub(crate) fn simulate_server_fragments(
 }
 
 fn simulate_collected_fragment(
-    commands: &mut Commands,
-    fragment_entity: Entity,
+    _commands: &mut Commands,
+    _fragment_entity: Entity,
     collector: PeerId,
     position: &mut FragmentPosition,
-    pickup_lifetime: Option<Mut<FragmentPickupLifetime>>,
     players: &Query<(Entity, &PlayerId, &PlayerPosition, Has<Predicted>)>,
     is_host_server: bool,
 ) {
     if let Some(target) = player_position_by_id(collector, players, is_host_server) {
         fragment_shared::pull_fragment_toward(position, target);
-    }
-
-    let Some(mut pickup_lifetime) = pickup_lifetime else {
-        // The collection marker is inserted through Commands. This branch is
-        // expected for at most the collection tick itself.
-        return;
-    };
-
-    pickup_lifetime.remaining_ticks = pickup_lifetime.remaining_ticks.saturating_sub(1);
-
-    if pickup_lifetime.remaining_ticks == 0 {
-        commands.entity(fragment_entity).despawn();
     }
 }
 
