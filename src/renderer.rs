@@ -1,8 +1,5 @@
-use crate::{
-    fragment::protocol::CarriedFragments, projectile::render::draw_projectiles, protocol::*, shared,
-};
+use crate::{projectile::render::draw_projectiles, protocol::*, shared};
 use bevy::prelude::*;
-use lightyear::prelude::Controlled;
 
 const GRID_SPACING: f32 = 100.0;
 
@@ -11,25 +8,14 @@ pub struct ExampleRendererPlugin;
 
 impl Plugin for ExampleRendererPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (init, setup_instructions, setup_fragment_balance));
+        app.add_systems(Startup, (init, setup_instructions));
 
-        app.add_systems(
-            Update,
-            (
-                draw_test_world,
-                draw_boxes,
-                draw_projectiles,
-                update_fragment_balance,
-            ),
-        );
+        app.add_systems(Update, (draw_test_world, draw_boxes, draw_projectiles));
     }
 }
 fn init(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
-
-#[derive(Component)]
-struct FragmentBalanceText;
 
 /// System that draws the boxes of the player positions.
 /// The components should be replicated from the server to the client
@@ -85,24 +71,4 @@ fn setup_instructions(mut commands: Commands) {
             ..default()
         },
     ));
-}
-
-fn setup_fragment_balance(mut commands: Commands) {
-    commands.spawn((
-        Text::new("Fragments: 0"),
-        FragmentBalanceText,
-        Node {
-            position_type: PositionType::Absolute,
-            top: px(12),
-            left: px(12),
-            ..default()
-        },
-    ));
-}
-
-fn update_fragment_balance(
-    balance: Single<&CarriedFragments, With<Controlled>>,
-    mut text: Single<&mut Text, With<FragmentBalanceText>>,
-) {
-    text.0 = format!("Fragments: {}", balance.0);
 }

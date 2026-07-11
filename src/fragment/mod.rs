@@ -67,6 +67,11 @@ pub struct FragmentRenderPlugin;
 #[cfg(feature = "gui")]
 impl Plugin for FragmentRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, render::draw_fragments);
+        app.add_systems(Startup, render::setup_fragment_balance);
+
+        app.add_systems(
+            Update,
+            (render::draw_fragments, render::update_fragment_balance),
+        );
     }
 }
