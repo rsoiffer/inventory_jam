@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+pub mod api;
+
 #[cfg(feature = "client")]
 pub(crate) mod client;
 
@@ -13,7 +15,9 @@ pub(crate) mod server;
 
 pub mod shared;
 
-/// Must be installed on every peer so protocol registration remains identical.
+pub use api::SpawnFragmentPool;
+
+/// Installs network component registration on every peer.
 pub struct FragmentProtocolPlugin;
 
 impl Plugin for FragmentProtocolPlugin {
@@ -22,6 +26,7 @@ impl Plugin for FragmentProtocolPlugin {
     }
 }
 
+/// Installs only client-side fragment presentation behavior.
 #[cfg(feature = "client")]
 pub struct FragmentClientPlugin;
 
@@ -33,16 +38,21 @@ impl Plugin for FragmentClientPlugin {
     }
 }
 
+/// Installs only server-authoritative fragment behavior.
 #[cfg(feature = "server")]
 pub struct FragmentServerPlugin;
 
 #[cfg(feature = "server")]
 impl Plugin for FragmentServerPlugin {
     fn build(&self, app: &mut App) {
+        app.add_message::<SpawnFragmentPool>();
+
         app.add_systems(
             FixedUpdate,
             (
-                server::drop_fragments_at_player,
+                server::ensure_player_fragment_wallets,
+                server::request_debug_fragment_pool,
+                server::spawn_requested_fragment_pools,
                 server::simulate_server_fragments,
             )
                 .chain(),
@@ -50,6 +60,7 @@ impl Plugin for FragmentServerPlugin {
     }
 }
 
+/// Installs fragment rendering without exposing rendering internals elsewhere.
 #[cfg(feature = "gui")]
 pub struct FragmentRenderPlugin;
 
