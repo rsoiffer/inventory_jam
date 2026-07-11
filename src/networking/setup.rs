@@ -10,24 +10,24 @@ use lightyear::prelude::client::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
-#[cfg(feature = "server")]
-use super::edgegap;
-#[cfg(any(feature = "client", feature = "server"))]
-use super::shared::SERVER_ADDR;
-use super::shared::SHARED_SETTINGS;
 #[cfg(feature = "client")]
 use super::client::{ClientTransports, NetworkClient};
+#[cfg(feature = "server")]
+use super::edgegap;
 #[cfg(feature = "client")]
 use super::edgegap::{
     ServerDiscovery, ServerDiscoveryState, USE_LOCAL_SERVER, send_due_status_requests,
     start_server_discovery,
 };
-#[cfg(feature = "client")]
-use super::shared::CLIENT_PORT;
 #[cfg(feature = "server")]
 use super::server::{NetworkServer, ServerTransports, WebTransportCertificateSettings};
+#[cfg(feature = "client")]
+use super::shared::CLIENT_PORT;
+#[cfg(any(feature = "client", feature = "server"))]
+use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
+use super::shared::SHARED_SETTINGS;
 
 #[cfg(feature = "client")]
 /// Pinned digest for the Edgegap WebTransport certificate used by clients.

@@ -462,7 +462,10 @@ mod discovery {
     }
 
     /// Handles transport-level Edgegap request failures.
-    fn handle_edgegap_error(trigger: On<ReqwestErrorEvent>, mut discovery: ResMut<ServerDiscovery>) {
+    fn handle_edgegap_error(
+        trigger: On<ReqwestErrorEvent>,
+        mut discovery: ResMut<ServerDiscovery>,
+    ) {
         discovery.fail(format!("edgegap request failed: {}", trigger.event().error));
     }
 
@@ -493,7 +496,9 @@ mod discovery {
     }
 
     /// Finds a reusable deployment or pending request id from a deployment list.
-    fn find_existing_deployment(list: DeploymentList) -> Result<Option<ExistingDeployment>, String> {
+    fn find_existing_deployment(
+        list: DeploymentList,
+    ) -> Result<Option<ExistingDeployment>, String> {
         let mut pending = None;
         for deployment in list.data {
             if deployment.ready {
@@ -509,7 +514,9 @@ mod discovery {
     }
 
     /// Extracts connection info from a ready deployment summary.
-    fn connection_from_deployment(deployment: &DeploymentSummary) -> Result<DiscoveredServer, String> {
+    fn connection_from_deployment(
+        deployment: &DeploymentSummary,
+    ) -> Result<DiscoveredServer, String> {
         let port = deployment
             .ports
             .as_ref()

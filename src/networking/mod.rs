@@ -16,9 +16,9 @@ mod setup;
 /// Shared ports, tick rate, and netcode settings.
 mod shared;
 
+#[cfg(feature = "server")]
+pub use server::apply_server_link_conditioner;
 pub use setup::spawn_connections;
 pub use shared::FIXED_TIMESTEP_HZ;
 #[cfg(feature = "server")]
 pub use shared::SEND_INTERVAL;
-#[cfg(feature = "server")]
-pub use server::apply_server_link_conditioner;
