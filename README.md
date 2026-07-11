@@ -20,7 +20,6 @@ https://github.com/cBournhonesque/lightyear/assets/8112632/7b57d48a-d8b0-4cdd-a1
 - Run the server without a gui: `cargo run --no-default-features --features=server -- server`
 - Run a headless client without a gui:
   `cargo run --no-default-features --features=client,netcode,webtransport -- client -c 1`
-- Run the client and server in "HostClient" mode: `cargo run -- host-client -c 0`
 
 You can control the behaviour of the example by changing the list of features. By default, all features are enabled (
 client, server, gui).
@@ -29,14 +28,11 @@ For example you can run the server in headless mode (without gui) by running
 
 ### Client configuration
 
-Edit hardcoded client settings in [`src/networking.rs`](src/networking.rs) and [
-`src/server_discovery.rs`](src/server_discovery.rs):
+Hardcoded client settings live in [`src/networking/`](src/networking/):
 
-- `CERT_DIGEST` in `networking.rs` — WebTransport certificate fingerprint from server deployment logs
-- `USE_LOCAL_SERVER` in `server_discovery.rs` — set `true` for local UDP against `127.0.0.1:5888`
-
-Remote clients discover or start an Edgegap deployment directly through the Edgegap API using the same code path on
-native and wasm builds. The API token is hardcoded in `server_discovery.rs` for this game jam build.
+- `CERT_DIGEST` in `setup.rs` — WebTransport certificate fingerprint
+- `USE_LOCAL_SERVER` in `edgegap.rs` — set `true` for local UDP against `127.0.0.1:5888`
+- Edgegap API token and app name/version in `edgegap.rs`
 
 Then run the client normally:
 
@@ -67,20 +63,11 @@ On startup, clients call the Edgegap API directly:
 ### Deploy script
 
 Edit the hardcoded values at the top of [`scripts/deploy-edgegap.ps1`](scripts/deploy-edgegap.ps1) (`$AppName`,
-`$AppVersion`, `$Registry`, etc.), then run:
+`$AppVersion`, `$Registry`, `$ApiToken`, registry credentials, etc.), then run:
 
 ```powershell
-Copy-Item secrets/edgegap-token.txt.example secrets/edgegap-token.txt
-Copy-Item secrets/registry-credentials.txt.example secrets/registry-credentials.txt
-# paste your tokens/credentials on the first line(s) of each file
 .\scripts\deploy-edgegap.ps1
 ```
-
-The API token is read from `secrets/edgegap-token.txt` (token only, one line), or from the `EDGEGAP_API_TOKEN`
-environment variable in CI.
-Registry credentials for push and image verification are read from `secrets/registry-credentials.txt` (username on
-line 1, token on line 2), or from `EDGEGAP_REGISTRY_USERNAME` and `EDGEGAP_REGISTRY_TOKEN` in CI. Get these from the
-Edgegap dashboard under **Container Registry**.
 
 Flow:
 
@@ -104,13 +91,6 @@ docker run --rm -p 5888:5888/udp `
   inventory-jam-server
 ```
 
-Connect a local client with WebTransport (set `USE_LOCAL_SERVER = true` in `server_discovery.rs` and update
-`CERT_DIGEST` in `networking.rs`):
-
-```powershell
-cargo run --no-default-features --features=client,netcode,webtransport -- client -c 1
-```
-
 ### Testing in wasm with webtransport
 
 ```powershell
@@ -125,8 +105,6 @@ If `trunk` fails with an invalid `--no-color` value, clear `NO_COLOR` first:
 $env:NO_COLOR = $null
 trunk serve
 ```
-
-The wasm client reads the WebTransport certificate digest from `certificates/digest.txt`.
 
 Firefox currently needs a local `xwt-web` patch that avoids BYOB readers for WebTransport datagrams. Background:
 [Mozilla bug 2007755](https://bugzilla.mozilla.org/show_bug.cgi?id=2007755) and

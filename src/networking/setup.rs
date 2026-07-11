@@ -1,4 +1,3 @@
-use crate::app::RunMode;
 use bevy::prelude::*;
 #[cfg(feature = "client")]
 use bevy_mod_reqwest::ReqwestPlugin;
@@ -20,7 +19,7 @@ use super::edgegap::{
     start_server_discovery,
 };
 #[cfg(feature = "server")]
-use super::server::{NetworkServer, ServerTransports, WebTransportCertificateSettings};
+use super::server::{NetworkServer, ServerTransports};
 #[cfg(feature = "client")]
 use super::shared::CLIENT_PORT;
 #[cfg(any(feature = "client", feature = "server"))]
@@ -28,43 +27,30 @@ use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
+use super::RunMode;
 
 #[cfg(feature = "client")]
-/// Pinned digest for the Edgegap WebTransport certificate used by clients.
-const CERT_DIGEST: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/certificates/digest.txt"
-));
+const CERT_DIGEST: &str = "18b16f92178824528aabb1c4274a0f247d0dec2c6f755e152739ff2fe343ec7c";
 #[cfg(feature = "client")]
-/// Local server address used before remote discovery resolves an address.
 const LOCAL_SERVER_ADDR: SocketAddr = SERVER_ADDR;
 
-/// Transport backend selected for a client or server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransportMode {
-    /// UDP sockets.
     Udp,
-    /// WebTransport over HTTP/3.
     WebTransport,
 }
 
-/// Runtime-independent networking configuration.
 #[derive(Debug, Clone)]
 pub struct NetworkingConfig {
-    /// Transport backend to spawn.
     pub transport: TransportMode,
-    /// Local port used when binding a server transport.
     #[cfg_attr(not(feature = "server"), allow(dead_code))]
     pub server_port: u16,
-    /// Remote address clients connect to or public server address.
     pub server_addr: SocketAddr,
-    /// Certificate digest clients use for WebTransport verification.
     #[cfg(feature = "client")]
     pub certificate_digest: String,
 }
 
 impl NetworkingConfig {
-    /// Builds networking configuration for the selected run mode.
     pub fn for_mode(mode: RunMode) -> Self {
         match mode {
             #[cfg(feature = "client")]
@@ -75,7 +61,6 @@ impl NetworkingConfig {
     }
 
     #[cfg(feature = "client")]
-    /// Builds client-side transport configuration.
     fn for_client() -> Self {
         if USE_LOCAL_SERVER {
             return Self {
@@ -89,12 +74,11 @@ impl NetworkingConfig {
             transport: TransportMode::WebTransport,
             server_port: LOCAL_SERVER_ADDR.port(),
             server_addr: LOCAL_SERVER_ADDR,
-            certificate_digest: CERT_DIGEST.trim().into(),
+            certificate_digest: CERT_DIGEST.into(),
         }
     }
 
     #[cfg(feature = "server")]
-    /// Builds server-side transport configuration from Edgegap or local defaults.
     fn for_server() -> Self {
         let (server_port, server_addr) = if let Some(deployment) = edgegap::deployment_info() {
             (
@@ -119,25 +103,19 @@ impl NetworkingConfig {
     }
 }
 
-/// Runtime networking data shared with follow-up systems.
 #[cfg(feature = "client")]
 #[derive(Resource, Clone)]
 pub struct NetworkingRuntime {
-    /// Certificate digest to patch into native WebTransport clients.
     pub certificate_digest: String,
 }
 
 #[cfg(feature = "client")]
-/// Stored client connection settings used after async server discovery completes.
 #[derive(Resource, Clone)]
 struct ClientConnection {
-    /// Client id used by netcode authentication.
     client_id: u64,
-    /// Transport configuration to use when spawning the client.
     config: NetworkingConfig,
 }
 
-/// Installs client or server network entities and systems for the selected mode.
 pub fn spawn_connections(app: &mut App, mode: RunMode) {
     let config = NetworkingConfig::for_mode(mode);
     #[cfg(feature = "client")]
@@ -205,7 +183,6 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
 }
 
 #[cfg(feature = "client")]
-/// Spawns the client once server discovery resolves a remote address.
 fn spawn_discovered_client(
     mut commands: Commands,
     discovery: Option<Res<ServerDiscovery>>,
@@ -243,7 +220,6 @@ fn spawn_discovered_client(
 }
 
 #[cfg(feature = "client")]
-/// Spawns the setup marker that expands into a Lightyear client entity.
 fn spawn_client(
     commands: &mut Commands,
     client_id: u64,
@@ -263,7 +239,6 @@ fn spawn_client(
 }
 
 #[cfg(feature = "client")]
-/// Converts shared networking config into a client transport enum.
 const fn client_transport(config: &NetworkingConfig) -> ClientTransports {
     match config.transport {
         TransportMode::WebTransport => ClientTransports::WebTransport,
@@ -275,15 +250,10 @@ const fn client_transport(config: &NetworkingConfig) -> ClientTransports {
 }
 
 #[cfg(feature = "server")]
-/// Converts shared networking config into a server transport enum.
 fn server_transport(config: &NetworkingConfig) -> ServerTransports {
     match config.transport {
         TransportMode::WebTransport => ServerTransports::WebTransport {
             local_port: config.server_port,
-            certificate: WebTransportCertificateSettings {
-                cert: "certificates/webtransport-cert.pem".into(),
-                key: "certificates/webtransport-key.pem".into(),
-            },
         },
         #[cfg(feature = "udp")]
         TransportMode::Udp => ServerTransports::Udp {
@@ -292,16 +262,11 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
         #[cfg(not(feature = "udp"))]
         TransportMode::Udp => ServerTransports::WebTransport {
             local_port: config.server_port,
-            certificate: WebTransportCertificateSettings {
-                cert: "certificates/webtransport-cert.pem".into(),
-                key: "certificates/webtransport-key.pem".into(),
-            },
         },
     }
 }
 
 #[cfg(feature = "server")]
-/// Triggers Lightyear server startup after the server entity exists.
 fn start_server(mut commands: Commands, server: Single<Entity, With<Server>>) {
     commands.trigger(Start {
         entity: server.into_inner(),
@@ -309,7 +274,6 @@ fn start_server(mut commands: Commands, server: Single<Entity, With<Server>>) {
 }
 
 #[cfg(feature = "client")]
-/// Connects the first spawned client exactly once.
 fn connect_client_once(
     mut commands: Commands,
     client: Query<Entity, With<Client>>,
@@ -326,7 +290,6 @@ fn connect_client_once(
 }
 
 #[cfg(feature = "client")]
-/// Patches the WebTransport certificate digest after Lightyear creates the IO component.
 fn patch_webtransport_digest(
     config: Res<NetworkingRuntime>,
     mut clients: Query<&mut WebTransportClientIo, With<Client>>,

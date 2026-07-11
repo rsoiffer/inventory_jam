@@ -1,4 +1,14 @@
-//! Library target for Inventory Jam.
-//!
-//! Game code currently lives in the binary (`main.rs`). This crate root exists so
-//! tooling such as `cargo test --doc` has a library target to exercise.
+pub mod protocol;
+
+#[cfg(feature = "client")]
+pub mod client;
+
+#[cfg(feature = "server")]
+pub mod server;
+
+#[cfg(feature = "gui")]
+pub mod renderer;
+
+pub mod shared;
+
+pub mod networking;

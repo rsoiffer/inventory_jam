@@ -20,49 +20,11 @@ $ReqCpu = 1024
 $ReqMemory = 2048
 $DeployReadyTimeoutSec = 600
 $DeployReadyPollSec = 5
+$ApiToken = "token 6d12964d-c588-4e26-9810-fe5ad00b33af"
+$RegistryUsername = 'robot$loco-motion-devs-qfpbnhdj6oju+client-push'
+$RegistryToken = "hCHsdXULbVJQrT71TdTvGPPJNAvxc1Yv"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$TokenPath = Join-Path $RepoRoot "secrets\edgegap-token.txt"
-$RegistryCredentialsPath = Join-Path $RepoRoot "secrets\registry-credentials.txt"
-
-function Get-ApiToken {
-    if (Test-Path $TokenPath) {
-        foreach ($line in Get-Content $TokenPath) {
-            $line = $line.Trim()
-            if ($line -eq "" -or $line.StartsWith("#")) { continue }
-            return $line
-        }
-    }
-    if ($env:EDGEGAP_API_TOKEN) {
-        return $env:EDGEGAP_API_TOKEN
-    }
-    throw "Missing token in secrets/edgegap-token.txt or EDGEGAP_API_TOKEN (for CI)"
-}
-
-function Get-RegistryCredentials {
-    if (Test-Path $RegistryCredentialsPath) {
-        $lines = @(
-            foreach ($line in Get-Content $RegistryCredentialsPath) {
-                $line = $line.Trim()
-                if ($line -eq "" -or $line.StartsWith("#")) { continue }
-                $line
-            }
-        )
-        if ($lines.Count -ge 2) {
-            return @{
-                Username = $lines[0]
-                Token = $lines[1]
-            }
-        }
-    }
-    if ($env:EDGEGAP_REGISTRY_USERNAME -and $env:EDGEGAP_REGISTRY_TOKEN) {
-        return @{
-            Username = $env:EDGEGAP_REGISTRY_USERNAME
-            Token = $env:EDGEGAP_REGISTRY_TOKEN
-        }
-    }
-    throw "Missing credentials in secrets/registry-credentials.txt (username on line 1, token on line 2) or EDGEGAP_REGISTRY_USERNAME and EDGEGAP_REGISTRY_TOKEN"
-}
 
 function Invoke-NativeChecked {
     param(
@@ -84,8 +46,7 @@ function Assert-DockerAvailable {
 }
 
 function Ensure-RegistryLogin {
-    $credentials = Get-RegistryCredentials
-    $credentials.Token | docker login registry.edgegap.com -u $credentials.Username --password-stdin | Out-Host
+    $RegistryToken | docker login registry.edgegap.com -u $RegistryUsername --password-stdin | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "docker login failed with exit code $LASTEXITCODE"
     }
@@ -95,8 +56,7 @@ function Invoke-EdgegapApi {
     param(
         [string]$Method,
         [string]$Uri,
-        [object]$Body,
-        [string]$ApiToken
+        [object]$Body
     )
 
     $params = @{
@@ -116,15 +76,13 @@ function Invoke-EdgegapApi {
 function Get-AppVersion {
     param(
         [string]$AppName,
-        [string]$AppVersion,
-        [string]$ApiToken
+        [string]$AppVersion
     )
 
     try {
         return Invoke-EdgegapApi `
             -Method Get `
-            -Uri "https://api.edgegap.com/v1/app/$AppName/version/$AppVersion" `
-            -ApiToken $ApiToken
+            -Uri "https://api.edgegap.com/v1/app/$AppName/version/$AppVersion"
     } catch {
         $statusCode = $_.Exception.Response.StatusCode.value__
         if ($statusCode -eq 404) {
@@ -135,13 +93,12 @@ function Get-AppVersion {
 }
 
 function Get-VersionImageBody {
-    $credentials = Get-RegistryCredentials
     return @{
         docker_repository = $Registry.TrimEnd("/")
         docker_image = $ImageName.TrimStart("/")
         docker_tag = $ImageTag
-        private_username = $credentials.Username
-        private_token = $credentials.Token
+        private_username = $RegistryUsername
+        private_token = $RegistryToken
         verify_image = $true
         is_active = $true
     }
@@ -150,8 +107,7 @@ function Get-VersionImageBody {
 function New-AppVersion {
     param(
         [string]$AppName,
-        [string]$AppVersion,
-        [string]$ApiToken
+        [string]$AppVersion
     )
 
     $body = Get-VersionImageBody
@@ -172,48 +128,39 @@ function New-AppVersion {
     return Invoke-EdgegapApi `
         -Method Post `
         -Uri "https://api.edgegap.com/v1/app/$AppName/version" `
-        -Body $body `
-        -ApiToken $ApiToken
+        -Body $body
 }
 
 function Update-AppVersion {
     param(
         [string]$AppName,
-        [string]$AppVersion,
-        [string]$ApiToken
+        [string]$AppVersion
     )
 
     Write-Host "Updating existing Edgegap app version $AppName@$AppVersion"
     return Invoke-EdgegapApi `
         -Method Patch `
         -Uri "https://api.edgegap.com/v1/app/$AppName/version/$AppVersion" `
-        -Body (Get-VersionImageBody) `
-        -ApiToken $ApiToken
+        -Body (Get-VersionImageBody)
 }
 
 function Ensure-AppVersion {
     param(
         [string]$AppName,
-        [string]$AppVersion,
-        [string]$ApiToken
+        [string]$AppVersion
     )
 
-    $existing = Get-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+    $existing = Get-AppVersion -AppName $AppName -AppVersion $AppVersion
     if ($null -eq $existing) {
-        return New-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+        return New-AppVersion -AppName $AppName -AppVersion $AppVersion
     }
-    return Update-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+    return Update-AppVersion -AppName $AppName -AppVersion $AppVersion
 }
 
 function Stop-ActiveDeployments {
-    param(
-        [string]$ApiToken
-    )
-
     $response = Invoke-EdgegapApi `
         -Method Get `
-        -Uri "https://api.edgegap.com/v1/deployments?limit=50" `
-        -ApiToken $ApiToken
+        -Uri "https://api.edgegap.com/v1/deployments?limit=50"
 
     $deployments = @($response.data)
     if ($deployments.Count -eq 0) {
@@ -226,16 +173,14 @@ function Stop-ActiveDeployments {
         Write-Host "Stopping deployment $requestId"
         Invoke-EdgegapApi `
             -Method Delete `
-            -Uri "https://api.edgegap.com/v1/stop/$requestId" `
-            -ApiToken $ApiToken | Out-Null
+            -Uri "https://api.edgegap.com/v1/stop/$requestId" | Out-Null
     }
 
     $deadline = (Get-Date).AddSeconds($DeployReadyTimeoutSec)
     while ((Get-Date) -lt $deadline) {
         $response = Invoke-EdgegapApi `
             -Method Get `
-            -Uri "https://api.edgegap.com/v1/deployments?limit=50" `
-            -ApiToken $ApiToken
+            -Uri "https://api.edgegap.com/v1/deployments?limit=50"
         if (@($response.data).Count -eq 0) {
             Write-Host "Previous deployments stopped"
             return
@@ -249,16 +194,14 @@ function Stop-ActiveDeployments {
 
 function Wait-EdgegapDeploymentReady {
     param(
-        [string]$RequestId,
-        [string]$ApiToken
+        [string]$RequestId
     )
 
     $deadline = (Get-Date).AddSeconds($DeployReadyTimeoutSec)
     while ((Get-Date) -lt $deadline) {
         $status = Invoke-EdgegapApi `
             -Method Get `
-            -Uri "https://api.edgegap.com/v1/status/$RequestId" `
-            -ApiToken $ApiToken
+            -Uri "https://api.edgegap.com/v1/status/$RequestId"
 
         if ($status.error) {
             throw "Edgegap deployment $RequestId failed: $($status.error_detail)"
@@ -292,8 +235,6 @@ if (-not $SkipBuild -or -not $SkipPush) {
     Assert-DockerAvailable
 }
 
-$ApiToken = Get-ApiToken
-
 if (-not $SkipBuild) {
     Write-Host "Building $image"
     Invoke-NativeChecked -Command "docker" -Arguments @("build", "--pull", "-t", $image, $RepoRoot)
@@ -307,7 +248,7 @@ if (-not $SkipPush) {
 }
 
 if (-not $SkipVersionUpdate) {
-    $versionResponse = Ensure-AppVersion -AppName $AppName -AppVersion $AppVersion -ApiToken $ApiToken
+    $versionResponse = Ensure-AppVersion -AppName $AppName -AppVersion $AppVersion
     $versionResponse | ConvertTo-Json -Depth 8
 }
 
@@ -332,16 +273,15 @@ $body = @{
 
 Write-Host "Creating Edgegap deployment for $AppName@$AppVersion"
 
-Stop-ActiveDeployments -ApiToken $ApiToken
+Stop-ActiveDeployments
 
 $response = Invoke-EdgegapApi `
     -Method Post `
     -Uri "https://api.edgegap.com/v2/deployments" `
-    -Body $body `
-    -ApiToken $ApiToken
+    -Body $body
 
 $response | ConvertTo-Json -Depth 8
 Write-Host "Deployment request_id: $($response.request_id)"
 
-$ready = Wait-EdgegapDeploymentReady -RequestId $response.request_id -ApiToken $ApiToken
+$ready = Wait-EdgegapDeploymentReady -RequestId $response.request_id
 Write-Host "Deployment ready at $($ready.public_ip):$($ready.ports.$GamePortName.external)"

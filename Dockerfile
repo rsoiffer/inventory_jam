@@ -4,12 +4,10 @@ RUN apt-get update && apt-get install -y g++ pkg-config libx11-dev libasound2-de
 COPY Cargo.toml Cargo.lock ./
 COPY vendor ./vendor
 COPY src ./src
-COPY certificates ./certificates
 RUN cargo build --release --no-default-features --features=server,netcode,webtransport
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/target/release/inventory_jam /app/inventory_jam
-COPY --from=builder /app/certificates ./certificates
 ENTRYPOINT ["/app/inventory_jam", "server"]

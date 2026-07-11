@@ -1,5 +1,3 @@
-//! Server-side player spawn and authoritative movement.
-
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::connection::client::Connected;
@@ -11,7 +9,6 @@ use crate::protocol::player::PlayerBundle;
 use crate::protocol::{PlayerAction, PlayerPosition};
 use crate::shared;
 
-/// Spawns a replicated player entity when a client finishes connecting.
 pub(crate) fn handle_connected(
     trigger: On<Add, Connected>,
     query: Query<&RemoteId, With<ClientOf>>,
@@ -32,7 +29,7 @@ pub(crate) fn handle_connected(
             InterpolationTarget::to_clients(NetworkTarget::AllExceptSingle(client_id)),
             ControlledBy {
                 owner: trigger.entity,
-                lifetime: Lifetime::default(),
+                lifetime: Default::default(),
             },
         ))
         .id();
@@ -43,7 +40,6 @@ pub(crate) fn handle_connected(
     );
 }
 
-/// Applies player input on the server authority timeline.
 pub(crate) fn authoritative_player_movement(
     timeline: Res<LocalTimeline>,
     host_server: Query<(), With<HostServer>>,

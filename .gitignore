@@ -3,5 +3,3 @@ target/
 .DS_Store
 
 dist/
-secrets/*
-!secrets/*.example
