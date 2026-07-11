@@ -18,7 +18,10 @@ pub use shared::SEND_INTERVAL;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunMode {
     #[cfg(feature = "client")]
-    Client { client_id: u64 },
+    Client {
+        client_id: u64,
+        use_local_server: bool,
+    },
     #[cfg(feature = "server")]
     Server,
 }

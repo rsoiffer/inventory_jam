@@ -87,9 +87,6 @@ mod discovery {
     /// DNS suffix used for Edgegap request-id hostnames.
     const FQDN_SUFFIX: &str = ".pr.edgegap.net";
 
-    /// If true, clients skip Edgegap and connect to the local server address.
-    pub const USE_LOCAL_SERVER: bool = false;
-
     /// Base URL for Edgegap's public API.
     const API_BASE: &str = "https://api.edgegap.com";
     /// Edgegap API token used for deployment discovery.

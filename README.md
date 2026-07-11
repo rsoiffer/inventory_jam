@@ -16,7 +16,8 @@ https://github.com/cBournhonesque/lightyear/assets/8112632/7b57d48a-d8b0-4cdd-a1
 ## Running locally
 
 - Run the server with a gui: `cargo run -- server`
-- Run client with id 1: `cargo run -- client -c 1`
+- Run client with id 1 (Edgegap): `cargo run -- client -c 1`
+- Run client against local server: `cargo run -- client -c 1 --dev`
 - Run the server without a gui: `cargo run --no-default-features --features=server -- server`
 - Run a headless client without a gui:
   `cargo run --no-default-features --features=client,netcode,webtransport -- client -c 1`
@@ -31,7 +32,7 @@ For example you can run the server in headless mode (without gui) by running
 Hardcoded client settings live in [`src/networking/`](src/networking/):
 
 - `CERT_DIGEST` in `setup.rs` — WebTransport certificate fingerprint
-- `USE_LOCAL_SERVER` in `edgegap.rs` — set `true` for local UDP against `127.0.0.1:5888`
+- `--dev` on the client — connect with local UDP to `127.0.0.1:5888` instead of Edgegap
 - Edgegap API token and app name/version in `edgegap.rs`
 
 Then run the client normally:

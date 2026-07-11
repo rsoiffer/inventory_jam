@@ -53,29 +53,36 @@ fn run_mode() -> RunMode {
     {
         RunMode::Client {
             client_id: rand::random(),
+            use_local_server: false,
         }
     }
     #[cfg(not(target_family = "wasm"))]
     {
-        let mut args = std::env::args().skip(1);
-        match args.next().as_deref() {
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        let use_local_server = args.iter().any(|arg| arg == "--dev");
+        match args.first().map(String::as_str) {
             #[cfg(feature = "server")]
             Some("server") => RunMode::Server,
             #[cfg(feature = "client")]
             Some("client") => RunMode::Client {
-                client_id: parse_client_id(&mut args),
+                client_id: parse_client_id(args.iter().skip(1).cloned()),
+                use_local_server,
             },
             #[cfg(all(feature = "server", not(feature = "client")))]
             _ => RunMode::Server,
             #[cfg(feature = "client")]
-            _ => RunMode::Client { client_id: 1 },
+            _ => RunMode::Client {
+                client_id: 1,
+                use_local_server,
+            },
         }
     }
 }
 
 #[cfg(all(not(target_family = "wasm"), feature = "client"))]
-fn parse_client_id(args: &mut impl Iterator<Item = String>) -> u64 {
+fn parse_client_id(args: impl Iterator<Item = String>) -> u64 {
     let mut client_id = 1;
+    let mut args = args;
     while let Some(arg) = args.next() {
         if arg == "-c" {
             if let Some(id) = args.next().and_then(|value| value.parse().ok()) {

@@ -16,8 +16,7 @@ use super::client::{ClientTransports, NetworkClient};
 use super::edgegap;
 #[cfg(feature = "client")]
 use super::edgegap::{
-    ServerDiscovery, ServerDiscoveryState, USE_LOCAL_SERVER, send_due_status_requests,
-    start_server_discovery,
+    ServerDiscovery, ServerDiscoveryState, send_due_status_requests, start_server_discovery,
 };
 #[cfg(feature = "server")]
 use super::server::{NetworkServer, ServerTransports};
@@ -54,15 +53,17 @@ impl NetworkingConfig {
     pub fn for_mode(mode: RunMode) -> Self {
         match mode {
             #[cfg(feature = "client")]
-            RunMode::Client { .. } => Self::for_client(),
+            RunMode::Client {
+                use_local_server, ..
+            } => Self::for_client(use_local_server),
             #[cfg(feature = "server")]
             RunMode::Server => Self::for_server(),
         }
     }
 
     #[cfg(feature = "client")]
-    fn for_client() -> Self {
-        if USE_LOCAL_SERVER {
+    fn for_client(use_local_server: bool) -> Self {
+        if use_local_server {
             return Self {
                 transport: TransportMode::Udp,
                 server_port: LOCAL_SERVER_ADDR.port(),
@@ -127,8 +128,11 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
 
     match mode {
         #[cfg(feature = "client")]
-        RunMode::Client { client_id } => {
-            if USE_LOCAL_SERVER {
+        RunMode::Client {
+            client_id,
+            use_local_server,
+        } => {
+            if use_local_server {
                 info!("connecting client to {}", config.server_addr);
                 spawn_client(
                     &mut app.world_mut().commands(),
