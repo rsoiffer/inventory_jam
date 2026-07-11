@@ -35,8 +35,12 @@ D+HrhcridTYg9F/tdbiOlEOYvqwI1PxPceU64Piu0b4ZYN5RO+Pdp7gi
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ServerTransports {
     #[cfg(feature = "udp")]
-    Udp { local_port: u16 },
-    WebTransport { local_port: u16 },
+    Udp {
+        local_port: u16,
+    },
+    WebTransport {
+        local_port: u16,
+    },
 }
 
 #[derive(Component, Debug)]

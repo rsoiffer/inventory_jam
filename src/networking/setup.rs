@@ -9,6 +9,7 @@ use lightyear::prelude::client::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
+use super::RunMode;
 #[cfg(feature = "client")]
 use super::client::{ClientTransports, NetworkClient};
 #[cfg(feature = "server")]
@@ -27,7 +28,6 @@ use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
-use super::RunMode;
 
 #[cfg(feature = "client")]
 const CERT_DIGEST: &str = "18b16f92178824528aabb1c4274a0f247d0dec2c6f755e152739ff2fe343ec7c";

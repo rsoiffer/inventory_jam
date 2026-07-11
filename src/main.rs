@@ -12,14 +12,14 @@ mod renderer;
 mod server;
 mod shared;
 
-use bevy::log::{Level, LogPlugin};
-use bevy::prelude::*;
 #[cfg(feature = "client")]
 use crate::client::ExampleClientPlugin;
 use crate::networking::{FIXED_TIMESTEP_HZ, RunMode, spawn_connections};
 #[cfg(feature = "server")]
 use crate::server::ExampleServerPlugin;
 use crate::shared::SharedPlugin;
+use bevy::log::{Level, LogPlugin};
+use bevy::prelude::*;
 use core::time::Duration;
 
 #[cfg(all(not(feature = "gui"), feature = "client"))]
