@@ -36,6 +36,7 @@ gui = []
 server = ["lightyear/client", "lightyear/server"]
 netcode = ["lightyear/netcode"]
 udp = ["lightyear/udp", "lightyear/std"]
+link_conditioner = []
 webtransport = [
     "lightyear/webtransport",
     "lightyear/webtransport_self_signed",

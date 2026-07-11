@@ -7,7 +7,8 @@ use lightyear::link::RecvLinkConditioner;
 use lightyear::prelude::client::*;
 #[cfg(feature = "server")]
 use lightyear::prelude::server::*;
-use lightyear::prelude::*;
+#[cfg(feature = "link_conditioner")]
+use lightyear::prelude::LinkConditionerConfig;
 
 use super::RunMode;
 #[cfg(feature = "client")]
@@ -124,7 +125,7 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
         certificate_digest: config.certificate_digest.clone(),
     });
 
-    let conditioner = LinkConditionerConfig::average_condition().half();
+    let conditioner = link_conditioner();
 
     match mode {
         #[cfg(feature = "client")]
@@ -139,7 +140,7 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
                     client_id,
                     config.server_addr,
                     &config,
-                    RecvLinkConditioner::new(conditioner),
+                    conditioner,
                 );
                 app.add_systems(Update, (connect_client_once, patch_webtransport_digest));
             } else {
@@ -177,12 +178,25 @@ pub fn spawn_connections(app: &mut App, mode: RunMode) {
                 );
             }
             app.world_mut().spawn(NetworkServer {
-                conditioner: Some(RecvLinkConditioner::new(conditioner)),
+                conditioner,
                 transport: server_transport(&config),
                 shared: SHARED_SETTINGS,
             });
             app.add_systems(Startup, start_server);
         }
+    }
+}
+
+fn link_conditioner() -> Option<RecvLinkConditioner> {
+    #[cfg(feature = "link_conditioner")]
+    {
+        Some(RecvLinkConditioner::new(
+            LinkConditionerConfig::average_condition().half(),
+        ))
+    }
+    #[cfg(not(feature = "link_conditioner"))]
+    {
+        None
     }
 }
 
@@ -209,7 +223,7 @@ fn spawn_discovered_client(
                 connection.client_id,
                 *server_addr,
                 &connection.config,
-                RecvLinkConditioner::new(LinkConditionerConfig::average_condition().half()),
+                link_conditioner(),
             );
             commands.remove_resource::<ClientConnection>();
             commands.remove_resource::<ServerDiscovery>();
@@ -229,13 +243,13 @@ fn spawn_client(
     client_id: u64,
     server_addr: SocketAddr,
     config: &NetworkingConfig,
-    conditioner: RecvLinkConditioner,
+    conditioner: Option<RecvLinkConditioner>,
 ) {
     commands.spawn(NetworkClient {
         client_id,
         client_port: CLIENT_PORT,
         server_addr,
-        conditioner: Some(conditioner),
+        conditioner,
         transport: client_transport(config),
         certificate_digest: config.certificate_digest.clone(),
         shared: SHARED_SETTINGS,
