@@ -3,12 +3,12 @@ use bevy::prelude::*;
 use bevy_mod_reqwest::ReqwestPlugin;
 use core::net::SocketAddr;
 use lightyear::link::RecvLinkConditioner;
+#[cfg(feature = "link_conditioner")]
+use lightyear::prelude::LinkConditionerConfig;
 #[cfg(feature = "client")]
 use lightyear::prelude::client::*;
 #[cfg(feature = "server")]
 use lightyear::prelude::server::*;
-#[cfg(feature = "link_conditioner")]
-use lightyear::prelude::LinkConditionerConfig;
 
 use super::RunMode;
 #[cfg(feature = "client")]
