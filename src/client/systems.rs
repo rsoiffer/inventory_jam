@@ -51,8 +51,8 @@ pub(crate) fn update_camera(
 
 /// System to receive messages on the client
 pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
-    for message in receiver.receive() {
-        info!("Received message: {:?}", message);
+    for _message in receiver.receive() {
+        //info!("Received message: {:?}", message);
     }
 }
 
@@ -140,8 +140,8 @@ pub(crate) fn write_cursor_aim_to_leafwing(
 
     actions.set_axis_pair(&PlayerAction::Aim, cached_aim.0);
 
-    info!(
+    /* info!(
         direction = ?cached_aim.0,
         "CLIENT wrote cached aim to Leafwing"
-    );
+    ); */
 }

@@ -47,7 +47,7 @@ pub(crate) fn send_debug_server_message(
     if input.is_some_and(|input| input.just_pressed(KeyCode::KeyM)) {
         let message = DebugServerMessage(5);
 
-        info!("Sending message: {:?}", message);
+        //info!("Sending message: {:?}", message);
 
         sender
             .send::<_, ServerEventsChannel>(&message, server.into_inner(), &NetworkTarget::All)

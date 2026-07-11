@@ -19,7 +19,7 @@ pub(crate) fn handle_controlled_spawn(
 ) {
     let entity = trigger.entity;
 
-    let Ok((player_id, controlled_by)) = players.get(entity) else {
+    let Ok((_player_id, controlled_by)) = players.get(entity) else {
         return;
     };
 
@@ -29,7 +29,7 @@ pub(crate) fn handle_controlled_spawn(
         return;
     }
 
-    info!("Adding Leafwing InputMap to controlled player {entity:?} {player_id:?}");
+    //info!("Adding Leafwing InputMap to controlled player {entity:?} {player_id:?}");
 
     commands.entity(entity).insert((
         PlayerAction::default_input_map(),

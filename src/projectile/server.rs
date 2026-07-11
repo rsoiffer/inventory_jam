@@ -44,11 +44,11 @@ pub(crate) fn fire_player_projectiles(
         let spawn_position =
             projectile_shared::projectile_spawn_position(player_position.0, direction);
 
-        info!(
+        /* info!(
             position = ?player_position.0,
             ?direction,
             "SERVER firing projectile"
-        );
+        ); */
 
         commands.spawn((
             PlayerProjectile {

@@ -41,22 +41,22 @@ pub(crate) fn shared_movement_behaviour(
     }
 
     if actions.just_pressed(&PlayerAction::Fire) {
-        info!("Fire Pressed!");
+        //info!("Fire Pressed!");
     }
 
     if actions.just_pressed(&PlayerAction::Interact) {
-        info!("Interact Pressed!");
+        //info!("Interact Pressed!");
     }
 
     if actions.just_pressed(&PlayerAction::UseSkill) {
-        info!("UseSkill Pressed!");
+        //info!("UseSkill Pressed!");
     }
 
     let aim = actions.axis_pair(&PlayerAction::Aim);
 
     if aim.length_squared() > f32::EPSILON {
-        let aim_direction = aim.normalize();
+        let _aim_direction = aim.normalize();
 
-        info!(?aim, ?aim_direction, "Aim");
+        //info!(?aim, ?aim_direction, "Aim");
     }
 }
