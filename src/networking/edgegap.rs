@@ -196,11 +196,17 @@ mod discovery {
     }
 
     /// Sends the initial Edgegap discovery request.
-    pub fn start_server_discovery(discovery: &mut ServerDiscovery, client: &mut BevyReqwest) {
+    pub fn start_server_discovery(
+        discovery: Option<ResMut<ServerDiscovery>>,
+        mut client: BevyReqwest,
+    ) {
+        let Some(mut discovery) = discovery else {
+            return;
+        };
         if !matches!(discovery.state, ServerDiscoveryState::Discovering) {
             return;
         }
-        if let Err(error) = send_edgegap_request(client, EdgegapRequest::ListDeployments) {
+        if let Err(error) = send_edgegap_request(&mut client, EdgegapRequest::ListDeployments) {
             discovery.fail(error);
         }
     }

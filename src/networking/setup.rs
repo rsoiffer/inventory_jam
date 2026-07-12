@@ -109,6 +109,14 @@ struct ClientConnection {
     config: NetworkingConfig,
 }
 
+#[cfg(feature = "client")]
+#[derive(Resource)]
+struct KickoffDiscovery;
+
+#[cfg(feature = "server")]
+#[derive(Component)]
+struct ServerStarted;
+
 #[derive(Message)]
 pub enum ConnectAction {
     #[cfg(feature = "client")]
@@ -138,6 +146,7 @@ pub fn configure_networking(app: &mut App, mode: LaunchMode) {
         app.add_systems(
             Update,
             (
+                kickoff_discovery,
                 send_due_status_requests,
                 spawn_discovered_client,
                 connect_client_once,
@@ -151,7 +160,7 @@ pub fn configure_networking(app: &mut App, mode: LaunchMode) {
 
     #[cfg(feature = "server")]
     if mode.starts_server() {
-        app.add_observer(start_server);
+        app.add_systems(Update, start_pending_servers);
     }
 }
 
@@ -195,7 +204,6 @@ fn handle_connect_actions(
     mut next_state: Option<ResMut<NextState<AppState>>>,
     #[cfg(feature = "client")] clients: Query<Entity, With<Client>>,
     #[cfg(feature = "client")] username: Res<LocalUsername>,
-    #[cfg(feature = "client")] mut http_client: bevy_mod_reqwest::BevyReqwest,
     #[cfg(feature = "server")] servers: Query<Entity, With<Server>>,
 ) {
     for action in actions.read() {
@@ -210,13 +218,12 @@ fn handle_connect_actions(
                 commands.insert_resource(NetworkingRuntime {
                     certificate_digest: config.certificate_digest.clone(),
                 });
-                let mut discovery = ServerDiscovery::new();
-                start_server_discovery(&mut discovery, &mut http_client);
-                commands.insert_resource(discovery);
+                commands.insert_resource(ServerDiscovery::new());
                 commands.insert_resource(ClientConnection {
                     client_id: client_id_from_username(&username.0),
                     config,
                 });
+                commands.insert_resource(KickoffDiscovery);
                 status.message = "searching for Edgegap server...".into();
                 if let Some(next_state) = next_state.as_mut() {
                     next_state.set(AppState::Connecting);
@@ -283,6 +290,20 @@ fn handle_connect_actions(
             }
         }
     }
+}
+
+#[cfg(feature = "client")]
+fn kickoff_discovery(
+    mut commands: Commands,
+    kickoff: Option<Res<KickoffDiscovery>>,
+    discovery: Option<ResMut<ServerDiscovery>>,
+    client: bevy_mod_reqwest::BevyReqwest,
+) {
+    if kickoff.is_none() {
+        return;
+    }
+    commands.remove_resource::<KickoffDiscovery>();
+    start_server_discovery(discovery, client);
 }
 
 #[cfg(feature = "client")]
@@ -371,10 +392,14 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
 }
 
 #[cfg(feature = "server")]
-fn start_server(trigger: On<Add, Server>, mut commands: Commands) {
-    commands.trigger(Start {
-        entity: trigger.entity,
-    });
+fn start_pending_servers(
+    mut commands: Commands,
+    servers: Query<Entity, (With<Server>, Without<ServerStarted>)>,
+) {
+    for entity in &servers {
+        commands.trigger(Start { entity });
+        commands.entity(entity).insert(ServerStarted);
+    }
 }
 
 #[cfg(feature = "client")]

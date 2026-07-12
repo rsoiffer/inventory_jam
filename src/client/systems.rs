@@ -64,16 +64,15 @@ pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugSe
 }
 
 pub(crate) fn send_local_username(
-    trigger: On<Add, (Connected, Client)>,
+    trigger: On<Add, Connected>,
     mut senders: Query<&mut MessageSender<SetUsername>>,
     username: Res<LocalUsername>,
 ) {
-    senders
-        .get_mut(trigger.entity)
-        .unwrap()
-        .send::<ClientEventsChannel>(SetUsername {
+    if let Ok(mut sender) = senders.get_mut(trigger.entity) {
+        sender.send::<ClientEventsChannel>(SetUsername {
             name: username.0.clone(),
         });
+    }
 }
 
 /// When the predicted copy of the client-owned entity is spawned, do stuff
