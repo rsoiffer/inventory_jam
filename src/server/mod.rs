@@ -34,6 +34,7 @@ impl Plugin for ExampleServerPlugin {
                 .chain()
                 .in_set(FixedGameplaySet::ProjectileSimulation),
         );
+        app.add_systems(FixedUpdate, debug_switch_rooms);
 
         app.add_systems(FixedUpdate, spawn_enemy);
         app.add_systems(Update, send_debug_server_message);
