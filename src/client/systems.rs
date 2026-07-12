@@ -60,8 +60,8 @@ pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugSe
 }
 
 pub(crate) fn send_local_username(
-    trigger: On<Add, Connected>,
-    mut senders: Query<&mut MessageSender<SetUsername>, With<Client>>,
+    trigger: On<Add, (Connected, Client)>,
+    mut senders: Query<&mut MessageSender<SetUsername>>,
     username: Res<LocalUsername>,
 ) {
     senders
