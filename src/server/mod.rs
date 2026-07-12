@@ -5,8 +5,9 @@ use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
 use crate::enemy::server::spawn_enemy;
-use crate::projectile::server::{fire_player_projectiles, simulate_server_projectiles};
 use crate::networking::SEND_INTERVAL;
+use crate::projectile::server::{fire_player_projectiles, simulate_server_projectiles};
+use crate::projectile::shared::projectile_collision_system;
 use crate::protocol::messages::DebugServerMessage;
 use crate::protocol::*;
 use player::*;
@@ -27,6 +28,7 @@ impl Plugin for ExampleServerPlugin {
                 update_player_aim_direction,
                 fire_player_projectiles,
                 simulate_server_projectiles,
+                projectile_collision_system,
                 spawn_enemy,
             )
                 .chain(),
