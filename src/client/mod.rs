@@ -16,6 +16,7 @@ use systems::{
 };
 
 use crate::projectile::client::{initialize_projectile, simulate_client_projectiles};
+use crate::projectile::shared::projectile_collision_system;
 
 pub struct ExampleClientPlugin;
 
@@ -31,6 +32,7 @@ impl Plugin for ExampleClientPlugin {
                 player_movement,
                 update_predicted_player_aim_direction,
                 simulate_client_projectiles,
+                projectile_collision_system,
             )
                 .chain(),
         );
