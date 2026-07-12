@@ -14,7 +14,7 @@ use inventory_jam::server::ExampleServerPlugin;
 use inventory_jam::shared::SharedPlugin;
 #[cfg(feature = "gui")]
 use inventory_jam::ui::MenuPlugin;
-use inventory_jam::{fragment, networking, weapon};
+use inventory_jam::{fragment, networking, projectile, weapon};
 use std::time::Duration;
 
 const TICK_DURATION: Duration =
@@ -69,7 +69,9 @@ fn main() {
     })
     .add_plugins((
         renderer::ExampleRendererPlugin,
+        projectile::ProjectileRenderPlugin,
         fragment::FragmentRenderPlugin,
+        weapon::WeaponRenderPlugin,
         MenuPlugin,
     ));
 
@@ -135,7 +137,7 @@ fn base_app(_config: &LaunchConfig) -> App {
 fn log_plugin() -> LogPlugin {
     LogPlugin {
         level: Level::INFO,
-        filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn".into(),
+        filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn".to_string(),
         ..default()
     }
 }
