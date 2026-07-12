@@ -2,33 +2,16 @@
 //! - `cargo run -- server`
 //! - `cargo run -- client -c 1`
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-#[cfg(feature = "client")]
-mod client;
-mod enemy;
-mod fragment;
-mod networking;
-mod projectile;
-mod protocol;
-#[cfg(feature = "gui")]
-mod renderer;
-#[cfg(feature = "server")]
-mod server;
-mod shared;
-mod weapon;
-
-#[cfg(feature = "client")]
-use crate::client::ExampleClientPlugin;
-use crate::networking::{FIXED_TIMESTEP_HZ, RunMode, spawn_connections};
-#[cfg(feature = "server")]
-use crate::server::ExampleServerPlugin;
-use crate::shared::SharedPlugin;
 use bevy::log::{Level, LogPlugin};
 use bevy::prelude::*;
 use core::time::Duration;
+#[cfg(feature = "client")]
+use inventory_jam::client::ExampleClientPlugin;
+use inventory_jam::networking::{FIXED_TIMESTEP_HZ, RunMode, spawn_connections};
+#[cfg(feature = "server")]
+use inventory_jam::server::ExampleServerPlugin;
+use inventory_jam::shared::SharedPlugin;
+use inventory_jam::{fragment, projectile, renderer, weapon};
 
 #[cfg(all(not(feature = "gui"), feature = "client"))]
 const HEADLESS_CLIENT_LOOP_HZ: f64 = 60.0;
@@ -132,7 +115,7 @@ fn parse_client_id(args: impl Iterator<Item = String>) -> u64 {
 fn build_app(mode: RunMode, tick_duration: Duration) -> App {
     let mut app = create_app(mode);
     #[cfg(feature = "server")]
-    app.add_observer(crate::networking::apply_server_link_conditioner);
+    app.add_observer(inventory_jam::networking::apply_server_link_conditioner);
     match mode {
         #[cfg(feature = "client")]
         RunMode::Client { .. } => {
