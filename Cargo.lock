@@ -4421,8 +4421,8 @@ dependencies = [
 name = "inventory_jam"
 version = "0.1.0"
 dependencies = [
- "async-compat",
  "anyhow",
+ "async-compat",
  "bevy",
  "bevy-inspector-egui",
  "bevy_asset_loader",
