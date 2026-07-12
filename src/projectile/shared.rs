@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 
 use crate::{
-    enemy::protocol::{EnemyPosition, ENEMY_HALF_SIZE, ENEMY_SIZE},
+    enemy::protocol::{ENEMY_HALF_SIZE, ENEMY_SIZE, EnemyPosition},
     projectile::protocol::PlayerProjectile,
 };
 

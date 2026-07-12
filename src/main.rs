@@ -7,21 +7,11 @@
 #![allow(dead_code)]
 
 #[cfg(feature = "client")]
-use crate::client::ExampleClientPlugin;
-#[cfg(feature = "server")]
-use crate::server::ExampleServerPlugin;
-use crate::shared::SharedPlugin;
-use bevy::prelude::*;
-use core::time::Duration;
-use lightyear_examples_common::cli::Mode;
-use lightyear_examples_common::shared::FIXED_TIMESTEP_HZ;
-
-#[cfg(feature = "client")]
 mod client;
 mod enemy;
 mod fragment;
-mod projectile;
 mod networking;
+mod projectile;
 mod protocol;
 #[cfg(feature = "gui")]
 mod renderer;
@@ -31,7 +21,7 @@ mod shared;
 
 #[cfg(feature = "client")]
 use crate::client::ExampleClientPlugin;
-use crate::networking::{FIXED_TIMESTEP_HZ, RunMode, spawn_connections};
+use crate::networking::{spawn_connections, RunMode, FIXED_TIMESTEP_HZ};
 #[cfg(feature = "server")]
 use crate::server::ExampleServerPlugin;
 use crate::shared::SharedPlugin;
@@ -50,24 +40,12 @@ fn main() {
 
     match mode {
         #[cfg(feature = "client")]
-        Some(Mode::Client { .. }) => {
-            use crate::enemy::EnemyClientPlugin;
-
+        RunMode::Client { .. } => {
             app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
         }
         #[cfg(feature = "server")]
-        Some(Mode::Server) => {
+        RunMode::Server => {
             app.add_plugins((ExampleServerPlugin, fragment::FragmentServerPlugin));
-        }
-        #[cfg(all(feature = "client", feature = "server"))]
-        Some(Mode::HostClient { .. }) => {
-            use crate::enemy::EnemyClientPlugin;
-            app.add_plugins((
-                ExampleClientPlugin,
-                ExampleServerPlugin,
-                fragment::FragmentClientPlugin,
-                fragment::FragmentServerPlugin,
-            ));
         }
     }
 
@@ -76,10 +54,6 @@ fn main() {
         renderer::ExampleRendererPlugin,
         fragment::FragmentRenderPlugin,
     ));
-
-    // Observers and protocol registrations are now present before the link
-    // entities are created.
-    cli.spawn_connections(&mut app);
 
     app.run();
 }
