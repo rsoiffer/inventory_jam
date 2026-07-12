@@ -1,4 +1,4 @@
-use crate::protocol::rooms::{GameRoom, GameRooms};
+use crate::protocol::rooms::GameRoom;
 use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
@@ -45,11 +45,7 @@ pub(crate) fn shared_movement_behaviour(
     if movement != Vec2::ZERO {
         position.0 += movement * MOVE_SPEED;
 
-        let local_bounds = match room.room {
-            GameRooms::Arena => ARENA_WORLD_BOUNDS,
-            GameRooms::Pit => SHOP_WORLD_BOUNDS,
-        }
-        .inflate(-PLAYER_HALF_SIZE);
+        let local_bounds = room.bounds().inflate(-PLAYER_HALF_SIZE);
 
         position.0 = position.0.clamp(local_bounds.min, local_bounds.max);
     }

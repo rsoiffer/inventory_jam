@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
-use crate::shared::ARENA_WORLD_BOUNDS;
+use crate::protocol::rooms::GameRoom;
 use crate::{
     enemy::{
         protocol::{EnemyHealth, EnemyPosition},
@@ -25,12 +25,13 @@ pub(crate) fn simulate_server_projectiles(
             &PlayerProjectile,
             &mut ProjectilePosition,
             &mut ProjectileLifetime,
+            &GameRoom,
         ),
         With<ServerProjectile>,
     >,
     mut enemies: Query<(Entity, &EnemyPosition, &mut EnemyHealth)>,
 ) {
-    for (projectile_entity, projectile, mut position, mut lifetime) in &mut projectiles {
+    for (projectile_entity, projectile, mut position, mut lifetime, room) in &mut projectiles {
         projectile_shared::move_projectile(&mut position, projectile);
 
         let mut hit_enemy = None;
@@ -81,7 +82,7 @@ pub(crate) fn simulate_server_projectiles(
 
         if lifetime.remaining_ticks == 0
             || projectile_shared::projectile_reached_max_range(*position, projectile)
-            || projectile_is_outside_world(position.0)
+            || projectile_is_outside_world(position.0, room)
         {
             commands.entity(projectile_entity).despawn();
         }
@@ -101,6 +102,6 @@ pub(crate) fn expire_server_impacts(
     }
 }
 
-fn projectile_is_outside_world(position: Vec2) -> bool {
-    !ARENA_WORLD_BOUNDS.inflate(-100.0).contains(position)
+fn projectile_is_outside_world(position: Vec2, room: &GameRoom) -> bool {
+    !room.bounds().inflate(-100.0).contains(position)
 }

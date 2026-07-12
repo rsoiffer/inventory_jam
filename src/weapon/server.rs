@@ -15,6 +15,7 @@ use crate::{
         shared::{WeaponCooldown, weapon_stats},
     },
 };
+use crate::protocol::rooms::GameRoom;
 
 /// Gives every authoritative player a starter weapon.
 ///
@@ -91,6 +92,7 @@ pub(crate) fn fire_equipped_weapons(
         &PlayerId,
         &PlayerPosition,
         &PlayerAimDirection,
+        &GameRoom,
         &ActionState<PlayerAction>,
         &EquippedWeapon,
         &mut WeaponCooldown,
@@ -104,6 +106,7 @@ pub(crate) fn fire_equipped_weapons(
         player_id,
         player_position,
         aim_direction,
+        room,
         actions,
         equipped_weapon,
         mut cooldown,
@@ -148,6 +151,7 @@ pub(crate) fn fire_equipped_weapons(
             ProjectilePosition(spawn_position),
             ProjectileLifetime::from_projectile(&projectile),
             ServerProjectile,
+            *room,
             Replicate::to_clients(NetworkTarget::All),
             Name::new("Server Projectile"),
         ));
