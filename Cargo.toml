@@ -30,7 +30,7 @@ dev = [
     "bevy/dynamic_linking",
     "dep:bevy-inspector-egui",
 ]
-default = ["client", "gui", "server", "netcode", "udp", "webtransport"]
+default = ["client", "gui", "server", "netcode", "udp", "webtransport", "dev"]
 client = ["lightyear/client"]
 gui = []
 server = ["lightyear/client", "lightyear/server"]
