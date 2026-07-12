@@ -27,9 +27,9 @@ use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
-use crate::app::appstate::{AppState, LaunchConfig, LaunchMode};
+use crate::app::{AppState, LaunchConfig, LaunchMode};
 #[cfg(feature = "client")]
-use crate::app::username::{LocalUsername, client_id_from_username};
+use crate::app::{LocalUsername, client_id_from_username};
 
 #[cfg(feature = "client")]
 const CERT_DIGEST: &str = "18b16f92178824528aabb1c4274a0f247d0dec2c6f755e152739ff2fe343ec7c";

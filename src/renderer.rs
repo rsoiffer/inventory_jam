@@ -1,4 +1,4 @@
-use crate::app::appstate::AppState;
+use crate::app::AppState;
 use crate::enemy::render::draw_enemy_boxes;
 use crate::protocol::*;
 use crate::shared::{ARENA_WORLD_BOUNDS, SHOP_WORLD_BOUNDS};

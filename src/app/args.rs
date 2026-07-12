@@ -1,5 +1,5 @@
-use crate::app::username::validate_username;
-use crate::app::*;
+use super::appstate::{LaunchConfig, LaunchMode};
+use super::username::validate_username;
 
 pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<LaunchConfig, String> {
     let mut args = args.into_iter();

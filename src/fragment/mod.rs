@@ -1,5 +1,5 @@
 #[cfg(feature = "gui")]
-use crate::app::appstate::AppState;
+use crate::app::AppState;
 use bevy::prelude::*;
 
 pub mod api;

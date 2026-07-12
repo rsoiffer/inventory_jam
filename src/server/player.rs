@@ -1,4 +1,4 @@
-use crate::app::username::validate_username;
+use crate::app::validate_username;
 use crate::protocol::messages::SetUsername;
 use crate::protocol::player::{PlayerBundle, PlayerUsername};
 use crate::protocol::rooms::{GameRoom, GameRooms};

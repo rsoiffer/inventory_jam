@@ -1,9 +1,12 @@
 //! Application construction and launch-mode setup.
 
-pub(crate) mod appstate;
-pub(crate) mod args;
-pub(crate) mod username;
+mod appstate;
+mod args;
+mod username;
 
-pub use appstate::*;
-pub use args::*;
-pub use username::*;
+pub use appstate::{AppState, LaunchConfig, LaunchMode, config_from_env};
+pub use username::LocalUsername;
+
+pub(crate) use username::{
+    MAX_USERNAME_LEN, client_id_from_username, temporary_username, validate_username,
+};

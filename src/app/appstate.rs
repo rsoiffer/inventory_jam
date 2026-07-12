@@ -1,4 +1,4 @@
-use crate::app::args::*;
+use super::args::{USAGE, parse_args};
 use bevy::prelude::{Resource, States};
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]

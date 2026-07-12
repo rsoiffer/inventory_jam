@@ -2,7 +2,7 @@ use bevy::{prelude::*, window::PrimaryWindow};
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
-use crate::app::username::LocalUsername;
+use crate::app::LocalUsername;
 use crate::protocol::rooms::GameRoom;
 use crate::{
     client::player::SmoothedAimDirection,

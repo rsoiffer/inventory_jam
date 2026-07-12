@@ -5,7 +5,7 @@ use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
-use crate::app::username::temporary_username;
+use crate::app::temporary_username;
 
 #[cfg(feature = "server")]
 #[derive(Bundle)]

@@ -1,7 +1,6 @@
 //! Main menu UI: username entry and connection actions.
 
-use crate::app::appstate::AppState;
-use crate::app::username::{LocalUsername, MAX_USERNAME_LEN};
+use crate::app::{AppState, LocalUsername, MAX_USERNAME_LEN};
 use crate::networking::{ConnectAction, ConnectionStatus};
 use bevy::color::palettes::tailwind::{SLATE_300, SLATE_700, SLATE_900};
 use bevy::input_focus::AutoFocus;
