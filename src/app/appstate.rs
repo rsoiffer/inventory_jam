@@ -1,5 +1,5 @@
 use super::args::{USAGE, parse_args};
-use bevy::prelude::{Resource, States};
+use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
 pub enum AppState {
@@ -20,21 +20,34 @@ pub enum LaunchMode {
     DedicatedServer,
 }
 
-impl LaunchMode {
-    pub const fn starts_client(self) -> bool {
-        matches!(self, Self::Menu | Self::JoinEdgegap | Self::JoinLocal)
-    }
-
-    pub const fn starts_server(self) -> bool {
-        matches!(self, Self::DedicatedServer | Self::HostLocal)
-            || (matches!(self, Self::Menu) && cfg!(all(feature = "dev", feature = "gui")))
-    }
-}
-
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub struct LaunchConfig {
     pub username: String,
     pub mode: LaunchMode,
+}
+
+#[derive(Message)]
+pub struct StartGame {
+    pub mode: LaunchMode,
+    pub username: String,
+}
+
+pub struct LaunchPlugin;
+
+impl Plugin for LaunchPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_message::<StartGame>()
+            .add_systems(Startup, start_configured_game);
+    }
+}
+
+fn start_configured_game(config: Res<LaunchConfig>, mut starts: MessageWriter<StartGame>) {
+    if config.mode != LaunchMode::Menu {
+        starts.write(StartGame {
+            mode: config.mode,
+            username: config.username.clone(),
+        });
+    }
 }
 
 pub fn config_from_env() -> LaunchConfig {

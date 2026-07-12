@@ -8,66 +8,60 @@ use inventory_jam::app::*;
 #[cfg(feature = "client")]
 use inventory_jam::client::ExampleClientPlugin;
 #[cfg(feature = "gui")]
+use inventory_jam::projectile;
+#[cfg(feature = "gui")]
 use inventory_jam::renderer;
 #[cfg(feature = "server")]
 use inventory_jam::server::ExampleServerPlugin;
 use inventory_jam::shared::SharedPlugin;
 #[cfg(feature = "gui")]
 use inventory_jam::ui::MenuPlugin;
-use inventory_jam::{fragment, networking, projectile, weapon};
+use inventory_jam::{fragment, networking, weapon};
 use std::time::Duration;
 
 const TICK_DURATION: Duration =
     Duration::from_nanos((1_000_000_000.0 / networking::FIXED_TIMESTEP_HZ) as u64);
 
-#[cfg(all(not(feature = "gui"), feature = "client"))]
+#[cfg(not(feature = "gui"))]
 const HEADLESS_CLIENT_LOOP_HZ: f64 = 60.0;
 
 fn main() {
     let config = config_from_env();
-    let mut app = base_app(&config);
+    let mut app = base_app();
     app.insert_resource(config.clone())
         .insert_resource(LocalUsername(config.username.clone()));
 
     #[cfg(feature = "server")]
-    if config.mode.starts_server() {
-        app.add_plugins(lightyear::prelude::server::ServerPlugins {
-            tick_duration: TICK_DURATION,
-        });
-    }
+    app.add_plugins(lightyear::prelude::server::ServerPlugins {
+        tick_duration: TICK_DURATION,
+    });
 
     #[cfg(feature = "client")]
-    if config.mode.starts_client() {
-        app.add_plugins(lightyear::prelude::client::ClientPlugins {
-            tick_duration: TICK_DURATION,
-        });
-    }
+    app.add_plugins(lightyear::prelude::client::ClientPlugins {
+        tick_duration: TICK_DURATION,
+    });
 
     app.add_plugins((
+        LaunchPlugin,
         SharedPlugin,
         fragment::FragmentProtocolPlugin,
         weapon::WeaponProtocolPlugin,
     ));
-    networking::configure_networking(&mut app, config.mode);
+    networking::configure_networking(&mut app);
 
     #[cfg(feature = "server")]
-    if config.mode.starts_server() {
-        app.add_observer(networking::apply_server_link_conditioner);
-        app.add_plugins((ExampleServerPlugin, fragment::FragmentServerPlugin));
-    }
+    app.add_observer(networking::apply_server_link_conditioner)
+        .add_plugins((
+            ExampleServerPlugin,
+            fragment::FragmentServerPlugin,
+            weapon::WeaponServerPlugin,
+        ));
 
     #[cfg(feature = "client")]
-    if config.mode.starts_client() {
-        app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
-    }
+    app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
 
     #[cfg(feature = "gui")]
-    app.insert_state(match config.mode {
-        LaunchMode::DedicatedServer | LaunchMode::HostLocal => AppState::Hosting,
-        LaunchMode::JoinEdgegap | LaunchMode::JoinLocal => AppState::Connecting,
-        LaunchMode::Menu => AppState::MainMenu,
-    })
-    .add_plugins((
+    app.insert_state(AppState::MainMenu).add_plugins((
         renderer::ExampleRendererPlugin,
         projectile::ProjectileRenderPlugin,
         fragment::FragmentRenderPlugin,
@@ -78,7 +72,7 @@ fn main() {
     app.run();
 }
 
-fn base_app(_config: &LaunchConfig) -> App {
+fn base_app() -> App {
     let mut app = App::new();
 
     #[cfg(feature = "gui")]
@@ -113,17 +107,10 @@ fn base_app(_config: &LaunchConfig) -> App {
 
     #[cfg(not(feature = "gui"))]
     {
-        let plugins = match _config.mode {
-            #[cfg(feature = "client")]
-            LaunchMode::JoinEdgegap | LaunchMode::JoinLocal => {
-                MinimalPlugins.set(bevy::app::ScheduleRunnerPlugin::run_loop(
-                    Duration::from_secs_f64(1.0 / HEADLESS_CLIENT_LOOP_HZ),
-                ))
-            }
-            _ => MinimalPlugins.build(),
-        };
         app.add_plugins((
-            plugins,
+            MinimalPlugins.set(bevy::app::ScheduleRunnerPlugin::run_loop(
+                Duration::from_secs_f64(1.0 / HEADLESS_CLIENT_LOOP_HZ),
+            )),
             TransformPlugin,
             bevy::input::InputPlugin,
             log_plugin(),

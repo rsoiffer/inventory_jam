@@ -27,7 +27,7 @@ use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
-use crate::app::{AppState, LaunchConfig, LaunchMode};
+use crate::app::{AppState, LaunchMode, StartGame};
 #[cfg(feature = "client")]
 use crate::app::{LocalUsername, client_id_from_username};
 
@@ -117,32 +117,18 @@ struct KickoffDiscovery;
 #[derive(Component)]
 struct ServerStarted;
 
-#[derive(Message)]
-pub enum ConnectAction {
-    #[cfg(feature = "client")]
-    JoinEdgegap,
-    #[cfg(feature = "client")]
-    JoinLocal,
-    #[cfg(feature = "server")]
-    StartServer,
-}
-
 #[derive(Resource, Default)]
 pub struct ConnectionStatus {
     pub message: String,
 }
 
-pub fn configure_networking(app: &mut App, mode: LaunchMode) {
+pub fn configure_networking(app: &mut App) {
     app.init_resource::<ConnectionStatus>();
-    app.add_message::<ConnectAction>();
-    app.add_systems(Startup, start_configured_mode);
-    app.add_systems(Update, handle_connect_actions);
+    app.add_systems(Update, handle_start_game);
 
     #[cfg(feature = "client")]
-    if mode.starts_client() {
-        if !app.is_plugin_added::<ReqwestPlugin>() {
-            app.add_plugins(ReqwestPlugin::default());
-        }
+    {
+        app.add_plugins(ReqwestPlugin::default());
         app.add_systems(
             Update,
             (
@@ -159,29 +145,7 @@ pub fn configure_networking(app: &mut App, mode: LaunchMode) {
     }
 
     #[cfg(feature = "server")]
-    if mode.starts_server() {
-        app.add_systems(Update, start_pending_servers);
-    }
-}
-
-fn start_configured_mode(config: Res<LaunchConfig>, mut actions: MessageWriter<ConnectAction>) {
-    match config.mode {
-        #[cfg(feature = "client")]
-        LaunchMode::JoinEdgegap => {
-            actions.write(ConnectAction::JoinEdgegap);
-        }
-        #[cfg(feature = "client")]
-        LaunchMode::JoinLocal => {
-            actions.write(ConnectAction::JoinLocal);
-        }
-        #[cfg(feature = "server")]
-        LaunchMode::HostLocal | LaunchMode::DedicatedServer => {
-            actions.write(ConnectAction::StartServer);
-        }
-        LaunchMode::Menu => {}
-        #[allow(unreachable_patterns)]
-        _ => {}
-    }
+    app.add_systems(Update, start_pending_servers);
 }
 
 fn link_conditioner() -> Option<RecvLinkConditioner> {
@@ -197,30 +161,31 @@ fn link_conditioner() -> Option<RecvLinkConditioner> {
     }
 }
 
-fn handle_connect_actions(
+fn handle_start_game(
     mut commands: Commands,
-    mut actions: MessageReader<ConnectAction>,
+    mut starts: MessageReader<StartGame>,
     mut status: ResMut<ConnectionStatus>,
     mut next_state: Option<ResMut<NextState<AppState>>>,
     #[cfg(feature = "client")] clients: Query<Entity, With<Client>>,
-    #[cfg(feature = "client")] username: Res<LocalUsername>,
+    #[cfg(feature = "client")] mut username: ResMut<LocalUsername>,
     #[cfg(feature = "server")] servers: Query<Entity, With<Server>>,
 ) {
-    for action in actions.read() {
-        match action {
+    for start in starts.read() {
+        match start.mode {
             #[cfg(feature = "client")]
-            ConnectAction::JoinEdgegap => {
+            LaunchMode::JoinEdgegap => {
                 if !clients.is_empty() {
                     status.message = "already connected".into();
                     continue;
                 }
+                username.0.clone_from(&start.username);
                 let config = NetworkingConfig::for_client(false);
                 commands.insert_resource(NetworkingRuntime {
                     certificate_digest: config.certificate_digest.clone(),
                 });
                 commands.insert_resource(ServerDiscovery::new());
                 commands.insert_resource(ClientConnection {
-                    client_id: client_id_from_username(&username.0),
+                    client_id: client_id_from_username(&start.username),
                     config,
                 });
                 commands.insert_resource(KickoffDiscovery);
@@ -230,11 +195,12 @@ fn handle_connect_actions(
                 }
             }
             #[cfg(feature = "client")]
-            ConnectAction::JoinLocal => {
+            LaunchMode::JoinLocal => {
                 if !clients.is_empty() {
                     status.message = "already connected".into();
                     continue;
                 }
+                username.0.clone_from(&start.username);
                 let config = NetworkingConfig::for_client(true);
                 commands.insert_resource(NetworkingRuntime {
                     certificate_digest: config.certificate_digest.clone(),
@@ -246,14 +212,14 @@ fn handle_connect_actions(
                 }
                 spawn_client(
                     &mut commands,
-                    client_id_from_username(&username.0),
+                    client_id_from_username(&start.username),
                     config.server_addr,
                     &config,
                     link_conditioner(),
                 );
             }
             #[cfg(feature = "server")]
-            ConnectAction::StartServer => {
+            LaunchMode::HostLocal | LaunchMode::DedicatedServer => {
                 if !servers.is_empty() {
                     status.message = "server already running".into();
                     continue;
@@ -288,6 +254,9 @@ fn handle_connect_actions(
                     },
                 ));
             }
+            LaunchMode::Menu => {}
+            #[allow(unreachable_patterns)]
+            _ => {}
         }
     }
 }

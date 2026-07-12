@@ -1,4 +1,6 @@
-use crate::protocol::rooms::{GameRoom, GameRooms};
+use crate::protocol::rooms::GameRoom;
+#[cfg(feature = "server")]
+use crate::protocol::rooms::GameRooms;
 use bevy::math::Curve;
 use bevy::prelude::*;
 use lightyear::prelude::*;

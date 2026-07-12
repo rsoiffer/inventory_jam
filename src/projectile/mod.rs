@@ -1,3 +1,4 @@
+#[cfg(feature = "gui")]
 use bevy::prelude::*;
 
 #[cfg(feature = "client")]

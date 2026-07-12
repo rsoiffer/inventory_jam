@@ -4,9 +4,12 @@ mod appstate;
 mod args;
 mod username;
 
-pub use appstate::{AppState, LaunchConfig, LaunchMode, config_from_env};
+pub use appstate::{AppState, LaunchConfig, LaunchMode, LaunchPlugin, StartGame, config_from_env};
 pub use username::LocalUsername;
 
-pub(crate) use username::{
-    MAX_USERNAME_LEN, client_id_from_username, temporary_username, validate_username,
-};
+#[cfg(feature = "gui")]
+pub(crate) use username::MAX_USERNAME_LEN;
+#[cfg(feature = "client")]
+pub(crate) use username::client_id_from_username;
+#[cfg(feature = "server")]
+pub(crate) use username::{temporary_username, validate_username};

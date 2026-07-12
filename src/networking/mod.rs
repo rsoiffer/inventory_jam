@@ -10,7 +10,7 @@ mod shared;
 
 #[cfg(feature = "server")]
 pub use server::apply_server_link_conditioner;
-pub use setup::{ConnectAction, ConnectionStatus, configure_networking};
+pub use setup::{ConnectionStatus, configure_networking};
 pub use shared::FIXED_TIMESTEP_HZ;
 #[cfg(feature = "server")]
 pub use shared::SEND_INTERVAL;

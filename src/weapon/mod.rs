@@ -42,7 +42,8 @@ impl Plugin for WeaponServerPlugin {
                 server::fire_equipped_weapons,
             )
                 .chain()
-                .in_set(FixedGameplaySet::WeaponSimulation),
+                .in_set(FixedGameplaySet::WeaponSimulation)
+                .run_if(any_with_component::<lightyear::prelude::Server>),
         );
     }
 }

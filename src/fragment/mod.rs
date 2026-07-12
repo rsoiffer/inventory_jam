@@ -36,7 +36,11 @@ pub struct FragmentClientPlugin;
 impl Plugin for FragmentClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(client::initialize_fragment);
-        app.add_systems(FixedUpdate, client::simulate_client_fragments);
+        app.add_systems(
+            FixedUpdate,
+            client::simulate_client_fragments
+                .run_if(any_with_component::<lightyear::prelude::Client>),
+        );
     }
 }
 
@@ -57,7 +61,8 @@ impl Plugin for FragmentServerPlugin {
                 server::spawn_requested_fragment_pools,
                 server::simulate_server_fragments,
             )
-                .chain(),
+                .chain()
+                .run_if(any_with_component::<lightyear::prelude::Server>),
         );
     }
 }

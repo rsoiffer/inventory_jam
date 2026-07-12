@@ -1,7 +1,7 @@
 //! Main menu UI: username entry and connection actions.
 
-use crate::app::{AppState, LocalUsername, MAX_USERNAME_LEN};
-use crate::networking::{ConnectAction, ConnectionStatus};
+use crate::app::{AppState, LaunchMode, LocalUsername, MAX_USERNAME_LEN, StartGame};
+use crate::networking::ConnectionStatus;
 use bevy::color::palettes::tailwind::{SLATE_300, SLATE_700, SLATE_900};
 use bevy::input_focus::AutoFocus;
 use bevy::input_focus::tab_navigation::{TabGroup, TabIndex, TabNavigationPlugin};
@@ -274,7 +274,7 @@ fn handle_menu_buttons(
     inputs: Query<&EditableText, With<UsernameInput>>,
     mut username: ResMut<LocalUsername>,
     mut status: ResMut<ConnectionStatus>,
-    mut actions: MessageWriter<ConnectAction>,
+    mut starts: MessageWriter<StartGame>,
 ) {
     for (interaction, button) in &interactions {
         if *interaction != Interaction::Pressed {
@@ -288,20 +288,29 @@ fn handle_menu_buttons(
         match button {
             MenuButton::Join => match username.validated() {
                 Ok(name) => {
-                    username.0 = name;
-                    actions.write(ConnectAction::JoinEdgegap);
+                    username.0.clone_from(&name);
+                    starts.write(StartGame {
+                        mode: LaunchMode::JoinEdgegap,
+                        username: name,
+                    });
                 }
                 Err(error) => status.message = error,
             },
             #[cfg(all(feature = "dev", feature = "server", not(target_family = "wasm")))]
             MenuButton::HostLocal => {
-                actions.write(ConnectAction::StartServer);
+                starts.write(StartGame {
+                    mode: LaunchMode::HostLocal,
+                    username: String::new(),
+                });
             }
             #[cfg(all(feature = "dev", feature = "client", not(target_family = "wasm")))]
             MenuButton::JoinLocal => match username.validated() {
                 Ok(name) => {
-                    username.0 = name;
-                    actions.write(ConnectAction::JoinLocal);
+                    username.0.clone_from(&name);
+                    starts.write(StartGame {
+                        mode: LaunchMode::JoinLocal,
+                        username: name,
+                    });
                 }
                 Err(error) => status.message = error,
             },

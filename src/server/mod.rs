@@ -25,19 +25,31 @@ impl Plugin for ExampleServerPlugin {
             FixedUpdate,
             (authoritative_player_movement, update_player_aim_direction)
                 .chain()
-                .in_set(FixedGameplaySet::PlayerSimulation),
+                .in_set(FixedGameplaySet::PlayerSimulation)
+                .run_if(any_with_component::<Server>),
         );
 
         app.add_systems(
             FixedUpdate,
             (simulate_server_projectiles, expire_server_impacts)
                 .chain()
-                .in_set(FixedGameplaySet::ProjectileSimulation),
+                .in_set(FixedGameplaySet::ProjectileSimulation)
+                .run_if(any_with_component::<Server>),
         );
-        app.add_systems(FixedUpdate, debug_switch_rooms);
+        app.add_systems(
+            FixedUpdate,
+            debug_switch_rooms.run_if(any_with_component::<Server>),
+        );
 
-        app.add_systems(FixedUpdate, spawn_enemy);
-        app.add_systems(Update, (apply_username_messages, send_debug_server_message));
+        app.add_systems(
+            FixedUpdate,
+            spawn_enemy.run_if(any_with_component::<Server>),
+        );
+        app.add_systems(
+            Update,
+            (apply_username_messages, send_debug_server_message)
+                .run_if(any_with_component::<Server>),
+        );
     }
 }
 
