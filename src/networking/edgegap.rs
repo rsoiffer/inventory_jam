@@ -196,17 +196,11 @@ mod discovery {
     }
 
     /// Sends the initial Edgegap discovery request.
-    pub fn start_server_discovery(
-        discovery: Option<ResMut<ServerDiscovery>>,
-        mut client: BevyReqwest,
-    ) {
-        let Some(mut discovery) = discovery else {
-            return;
-        };
+    pub fn start_server_discovery(discovery: &mut ServerDiscovery, client: &mut BevyReqwest) {
         if !matches!(discovery.state, ServerDiscoveryState::Discovering) {
             return;
         }
-        if let Err(error) = send_edgegap_request(&mut client, EdgegapRequest::ListDeployments) {
+        if let Err(error) = send_edgegap_request(client, EdgegapRequest::ListDeployments) {
             discovery.fail(error);
         }
     }
@@ -451,11 +445,14 @@ mod discovery {
             ));
             return;
         }
-        commands.spawn(PendingStatusRequest {
-            request_id,
-            remaining_polls: remaining_polls - 1,
-            timer: Timer::new(Duration::from_secs(POLL_INTERVAL_SECS), TimerMode::Once),
-        });
+        commands.spawn((
+            Name::new("Pending Status Request"),
+            PendingStatusRequest {
+                request_id,
+                remaining_polls: remaining_polls - 1,
+                timer: Timer::new(Duration::from_secs(POLL_INTERVAL_SECS), TimerMode::Once),
+            },
+        ));
     }
 
     /// Handles transport-level Edgegap request failures.

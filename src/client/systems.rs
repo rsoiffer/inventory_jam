@@ -3,6 +3,7 @@ use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
 use crate::app::username::LocalUsername;
+use crate::protocol::rooms::GameRoom;
 use crate::{
     client::player::SmoothedAimDirection,
     protocol::{
@@ -29,14 +30,17 @@ const CAMERA_DECAY_RATE: f32 = 2.;
 /// If we were predicting more entities, we would have to only apply movement to the player owned one.
 pub(crate) fn player_movement(
     synced_client: Query<(), (With<Client>, With<IsSynced<InputTimeline>>)>,
-    mut position_query: Query<(&mut PlayerPosition, &ActionState<PlayerAction>), With<Predicted>>,
+    mut player_query: Query<
+        (&mut PlayerPosition, &GameRoom, &ActionState<PlayerAction>),
+        With<Predicted>,
+    >,
 ) {
     if synced_client.is_empty() {
         return;
     }
 
-    for (position, actions) in position_query.iter_mut() {
-        shared::shared_movement_behaviour(position, actions);
+    for (position, room, actions) in player_query.iter_mut() {
+        shared::shared_movement_behaviour(position, room, actions);
     }
 }
 
@@ -82,15 +86,16 @@ pub(crate) fn send_local_username(
 pub(crate) fn handle_predicted_spawn(
     trigger: On<Add, (PlayerId, Predicted)>,
     mut commands: Commands,
-    mut predicted: Query<&mut PlayerColor, With<Predicted>>,
+    mut predicted: Query<(&mut PlayerColor, &PlayerId), With<Predicted>>,
 ) {
     let entity = trigger.entity;
 
-    commands
-        .entity(entity)
-        .insert(SmoothedAimDirection::default());
+    if let Ok((mut color, player_id)) = predicted.get_mut(entity) {
+        commands
+            .entity(entity)
+            .insert(SmoothedAimDirection::default())
+            .insert(Name::new(format!("Player (Predicted): {:?}", player_id.0)));
 
-    if let Ok(mut color) = predicted.get_mut(entity) {
         let hsva = Hsva {
             saturation: 0.4,
             ..Hsva::from(color.0)

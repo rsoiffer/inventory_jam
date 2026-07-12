@@ -1,3 +1,5 @@
+use bevy::prelude::*;
+
 #[cfg(feature = "client")]
 pub(crate) mod client;
 
@@ -10,3 +12,13 @@ pub(crate) mod render;
 pub(crate) mod server;
 
 pub mod shared;
+
+#[cfg(feature = "gui")]
+pub struct ProjectileRenderPlugin;
+
+#[cfg(feature = "gui")]
+impl Plugin for ProjectileRenderPlugin {
+    fn build(&self, app: &mut App) {
+        render::register(app);
+    }
+}

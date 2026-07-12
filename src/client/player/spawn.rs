@@ -1,14 +1,22 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
-use crate::protocol::PlayerColor;
 use crate::protocol::messages::*;
+use crate::protocol::{PlayerColor, PlayerId};
 
 pub(crate) fn handle_interpolated_spawn(
     trigger: On<Add, Interpolated>,
-    mut interpolated: Query<&mut PlayerColor>,
+    mut commands: Commands,
+    mut interpolated: Query<(&mut PlayerColor, &PlayerId)>,
 ) {
-    if let Ok(mut color) = interpolated.get_mut(trigger.entity) {
+    let entity = trigger.entity;
+
+    if let Ok((mut color, player_id)) = interpolated.get_mut(entity) {
+        commands.entity(entity).insert(Name::new(format!(
+            "Player (Interpolated): {:?}",
+            player_id.0
+        )));
+
         let hsva = Hsva {
             saturation: 0.1,
             ..Hsva::from(color.0)

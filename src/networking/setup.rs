@@ -97,9 +97,9 @@ impl NetworkingConfig {
 }
 
 #[cfg(feature = "client")]
-#[derive(Resource, Clone)]
-pub struct NetworkingRuntime {
-    pub certificate_digest: String,
+#[derive(Resource)]
+struct NetworkingRuntime {
+    certificate_digest: String,
 }
 
 #[cfg(feature = "client")]
@@ -108,14 +108,6 @@ struct ClientConnection {
     client_id: u64,
     config: NetworkingConfig,
 }
-
-#[cfg(feature = "client")]
-#[derive(Resource)]
-struct KickoffDiscovery;
-
-#[cfg(feature = "server")]
-#[derive(Component)]
-struct ServerStarted;
 
 #[derive(Message)]
 pub enum ConnectAction {
@@ -140,16 +132,12 @@ pub fn configure_networking(app: &mut App, mode: LaunchMode) {
 
     #[cfg(feature = "client")]
     if mode.starts_client() {
-        app.insert_resource(NetworkingRuntime {
-            certificate_digest: CERT_DIGEST.into(),
-        });
         if !app.is_plugin_added::<ReqwestPlugin>() {
             app.add_plugins(ReqwestPlugin::default());
         }
         app.add_systems(
             Update,
             (
-                kickoff_discovery,
                 send_due_status_requests,
                 spawn_discovered_client,
                 connect_client_once,
@@ -163,7 +151,7 @@ pub fn configure_networking(app: &mut App, mode: LaunchMode) {
 
     #[cfg(feature = "server")]
     if mode.starts_server() {
-        app.add_systems(Update, start_pending_servers);
+        app.add_observer(start_server);
     }
 }
 
@@ -207,6 +195,7 @@ fn handle_connect_actions(
     mut next_state: Option<ResMut<NextState<AppState>>>,
     #[cfg(feature = "client")] clients: Query<Entity, With<Client>>,
     #[cfg(feature = "client")] username: Res<LocalUsername>,
+    #[cfg(feature = "client")] mut http_client: bevy_mod_reqwest::BevyReqwest,
     #[cfg(feature = "server")] servers: Query<Entity, With<Server>>,
 ) {
     for action in actions.read() {
@@ -221,12 +210,13 @@ fn handle_connect_actions(
                 commands.insert_resource(NetworkingRuntime {
                     certificate_digest: config.certificate_digest.clone(),
                 });
-                commands.insert_resource(ServerDiscovery::new());
+                let mut discovery = ServerDiscovery::new();
+                start_server_discovery(&mut discovery, &mut http_client);
+                commands.insert_resource(discovery);
                 commands.insert_resource(ClientConnection {
                     client_id: client_id_from_username(&username.0),
                     config,
                 });
-                commands.insert_resource(KickoffDiscovery);
                 status.message = "searching for Edgegap server...".into();
                 if let Some(next_state) = next_state.as_mut() {
                     next_state.set(AppState::Connecting);
@@ -282,28 +272,17 @@ fn handle_connect_actions(
                 if let Some(next_state) = next_state.as_mut() {
                     next_state.set(AppState::Hosting);
                 }
-                commands.spawn(NetworkServer {
-                    conditioner: link_conditioner(),
-                    transport: server_transport(&config),
-                    shared: SHARED_SETTINGS,
-                });
+                commands.spawn((
+                    Name::new("Network Server"),
+                    NetworkServer {
+                        conditioner: link_conditioner(),
+                        transport: server_transport(&config),
+                        shared: SHARED_SETTINGS,
+                    },
+                ));
             }
         }
     }
-}
-
-#[cfg(feature = "client")]
-fn kickoff_discovery(
-    mut commands: Commands,
-    kickoff: Option<Res<KickoffDiscovery>>,
-    discovery: Option<ResMut<ServerDiscovery>>,
-    client: bevy_mod_reqwest::BevyReqwest,
-) {
-    if kickoff.is_none() {
-        return;
-    }
-    commands.remove_resource::<KickoffDiscovery>();
-    start_server_discovery(discovery, client);
 }
 
 #[cfg(feature = "client")]
@@ -349,15 +328,18 @@ fn spawn_client(
     config: &NetworkingConfig,
     conditioner: Option<RecvLinkConditioner>,
 ) {
-    commands.spawn(NetworkClient {
-        client_id,
-        client_port: CLIENT_PORT,
-        server_addr,
-        conditioner,
-        transport: client_transport(config),
-        certificate_digest: config.certificate_digest.clone(),
-        shared: SHARED_SETTINGS,
-    });
+    commands.spawn((
+        Name::new("Network Client"),
+        NetworkClient {
+            client_id,
+            client_port: CLIENT_PORT,
+            server_addr,
+            conditioner,
+            transport: client_transport(config),
+            certificate_digest: config.certificate_digest.clone(),
+            shared: SHARED_SETTINGS,
+        },
+    ));
 }
 
 #[cfg(feature = "client")]
@@ -389,14 +371,10 @@ fn server_transport(config: &NetworkingConfig) -> ServerTransports {
 }
 
 #[cfg(feature = "server")]
-fn start_pending_servers(
-    mut commands: Commands,
-    servers: Query<Entity, (With<Server>, Without<ServerStarted>)>,
-) {
-    for entity in &servers {
-        commands.trigger(Start { entity });
-        commands.entity(entity).insert(ServerStarted);
-    }
+fn start_server(trigger: On<Add, Server>, mut commands: Commands) {
+    commands.trigger(Start {
+        entity: trigger.entity,
+    });
 }
 
 #[cfg(feature = "client")]
@@ -417,9 +395,12 @@ fn connect_client_once(
 
 #[cfg(feature = "client")]
 fn patch_webtransport_digest(
-    config: Res<NetworkingRuntime>,
+    config: Option<Res<NetworkingRuntime>>,
     mut clients: Query<&mut WebTransportClientIo, With<Client>>,
 ) {
+    let Some(config) = config else {
+        return;
+    };
     if config.certificate_digest.is_empty() || clients.is_empty() {
         return;
     }

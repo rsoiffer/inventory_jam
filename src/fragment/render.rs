@@ -21,6 +21,7 @@ pub(crate) fn draw_fragments(mut gizmos: Gizmos, fragments: Query<&FragmentPosit
 
 pub(crate) fn setup_fragment_balance(mut commands: Commands) {
     commands.spawn((
+        Name::new("Fragment Balance"),
         Text::new("Fragments: 0"),
         FragmentBalanceText,
         Node {

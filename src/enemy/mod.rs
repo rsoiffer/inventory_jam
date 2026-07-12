@@ -6,6 +6,4 @@ pub(crate) mod render;
 #[cfg(feature = "server")]
 pub(crate) mod server;
 
-/// Installs only client-side fragment presentation behavior.
-#[cfg(feature = "client")]
-pub struct EnemyClientPlugin;
+pub mod shared;

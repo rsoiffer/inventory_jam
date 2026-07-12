@@ -1,72 +1,22 @@
 use bevy::prelude::*;
-use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
+use crate::protocol::rooms::GameRoom;
 use crate::{
+    enemy::{
+        protocol::{EnemyHealth, EnemyPosition},
+        shared::ENEMY_COLLISION_RADIUS,
+    },
     projectile::{
-        protocol::PlayerProjectile,
+        protocol::{PlayerProjectile, ProjectileImpact},
         shared::{
-            self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
+            self as projectile_shared, ImpactLifetime, ProjectileLifetime, ProjectilePosition,
+            ServerImpact, ServerProjectile,
         },
     },
-    protocol::{PlayerAction, PlayerAimDirection, PlayerPosition},
-    shared,
 };
 
-pub(crate) fn fire_player_projectiles(
-    mut commands: Commands,
-    players: Query<(
-        &PlayerPosition,
-        &PlayerAimDirection,
-        &ActionState<PlayerAction>,
-        Has<Predicted>,
-    )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
-) {
-    let is_host_server = !host_server.is_empty();
-
-    for (player_position, aim_direction, actions, predicted) in &players {
-        if is_host_server && predicted {
-            continue;
-        }
-
-        if !actions.just_pressed(&PlayerAction::Fire) {
-            continue;
-        }
-
-        let direction = aim_direction.0.normalize_or_zero();
-
-        if direction == Vec2::ZERO {
-            warn!("Projectile skipped because aim direction was zero");
-            continue;
-        }
-
-        let spawn_position =
-            projectile_shared::projectile_spawn_position(player_position.0, direction);
-
-        /* info!(
-            position = ?player_position.0,
-            ?direction,
-            "SERVER firing projectile"
-        ); */
-
-        commands.spawn((
-            PlayerProjectile {
-                origin: spawn_position,
-                direction,
-                speed_per_tick: projectile_shared::PROJECTILE_SPEED_PER_TICK,
-            },
-            ProjectilePosition(spawn_position),
-            ProjectileLifetime {
-                remaining_ticks: projectile_shared::PROJECTILE_LIFETIME_TICKS,
-            },
-            ServerProjectile,
-            Replicate::to_clients(NetworkTarget::All),
-            Name::new("Server Projectile"),
-        ));
-    }
-}
-
+/// Simulates authoritative projectile motion, hit detection, damage, and death.
 pub(crate) fn simulate_server_projectiles(
     mut commands: Commands,
     mut projectiles: Query<
@@ -75,24 +25,83 @@ pub(crate) fn simulate_server_projectiles(
             &PlayerProjectile,
             &mut ProjectilePosition,
             &mut ProjectileLifetime,
+            &GameRoom,
         ),
         With<ServerProjectile>,
     >,
+    mut enemies: Query<(Entity, &EnemyPosition, &mut EnemyHealth)>,
 ) {
-    for (entity, projectile, mut position, mut lifetime) in &mut projectiles {
+    for (projectile_entity, projectile, mut position, mut lifetime, room) in &mut projectiles {
         projectile_shared::move_projectile(&mut position, projectile);
+
+        let mut hit_enemy = None;
+
+        for (enemy_entity, enemy_position, mut health) in &mut enemies {
+            if health.current == 0 {
+                continue;
+            }
+
+            let collision_radius = projectile.radius + ENEMY_COLLISION_RADIUS;
+            let hit = position.0.distance_squared(enemy_position.0)
+                <= collision_radius * collision_radius;
+
+            if !hit {
+                continue;
+            }
+
+            health.current = health.current.saturating_sub(projectile.damage);
+            hit_enemy = Some((enemy_entity, health.current == 0));
+            break;
+        }
+
+        if let Some((enemy_entity, enemy_died)) = hit_enemy {
+            commands.spawn((
+                ProjectileImpact {
+                    position: position.0,
+                    weapon: projectile.weapon,
+                    damage: projectile.damage,
+                },
+                ImpactLifetime {
+                    remaining_ticks: projectile_shared::IMPACT_LIFETIME_TICKS,
+                },
+                ServerImpact,
+                Replicate::to_clients(NetworkTarget::All),
+                Name::new("Server Projectile Impact"),
+            ));
+
+            commands.entity(projectile_entity).despawn();
+
+            if enemy_died {
+                commands.entity(enemy_entity).despawn();
+            }
+
+            continue;
+        }
 
         lifetime.remaining_ticks = lifetime.remaining_ticks.saturating_sub(1);
 
-        if lifetime.remaining_ticks == 0 || projectile_is_outside_world(position.0) {
+        if lifetime.remaining_ticks == 0
+            || projectile_shared::projectile_reached_max_range(*position, projectile)
+            || projectile_is_outside_world(position.0, room)
+        {
+            commands.entity(projectile_entity).despawn();
+        }
+    }
+}
+
+pub(crate) fn expire_server_impacts(
+    mut commands: Commands,
+    mut impacts: Query<(Entity, &mut ImpactLifetime), With<ServerImpact>>,
+) {
+    for (entity, mut lifetime) in &mut impacts {
+        lifetime.remaining_ticks = lifetime.remaining_ticks.saturating_sub(1);
+
+        if lifetime.remaining_ticks == 0 {
             commands.entity(entity).despawn();
         }
     }
 }
 
-fn projectile_is_outside_world(position: Vec2) -> bool {
-    let margin = Vec2::splat(100.0);
-    let limit = shared::WORLD_HALF_SIZE + margin;
-
-    position.x.abs() > limit.x || position.y.abs() > limit.y
+fn projectile_is_outside_world(position: Vec2, room: &GameRoom) -> bool {
+    !room.bounds().contains(position)
 }

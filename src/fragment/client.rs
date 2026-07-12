@@ -25,9 +25,17 @@ pub(crate) fn initialize_fragment(
         return;
     }
 
-    commands
-        .entity(entity)
-        .insert((FragmentPosition(fragment.origin), ClientFragment));
+    let fragment_owner_string = if let Some(f) = fragment.collector {
+        f.to_string()
+    } else {
+        "?".to_string()
+    };
+
+    commands.entity(entity).insert((
+        Name::new(format!("Fragment: {}", fragment_owner_string)),
+        FragmentPosition(fragment.origin),
+        ClientFragment,
+    ));
 }
 
 /// Animates collected fragments locally. The server already awarded the

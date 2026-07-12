@@ -3,6 +3,7 @@ use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 use rand::Rng;
 
+use crate::protocol::rooms::GameRoom;
 use crate::{
     fragment::{
         SpawnFragmentPool,
@@ -10,7 +11,6 @@ use crate::{
         shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
     },
     protocol::{PlayerAction, PlayerId, PlayerPosition},
-    shared,
 };
 
 const MIN_FRAGMENTS_PER_DEBUG_POOL: u16 = 50;
@@ -42,14 +42,19 @@ pub(crate) fn ensure_player_fragment_wallets(
 /// Temporary debug adapter: Shift requests a pool from the Fragment feature.
 /// Replace this system later with requests emitted by enemy deaths.
 pub(crate) fn request_debug_fragment_pool(
-    players: Query<(&PlayerPosition, &ActionState<PlayerAction>, Has<Predicted>)>,
+    players: Query<(
+        &PlayerPosition,
+        &GameRoom,
+        &ActionState<PlayerAction>,
+        Has<Predicted>,
+    )>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     mut requests: MessageWriter<SpawnFragmentPool>,
 ) {
     let is_host_server = !host_server.is_empty();
     let mut rng = rand::rng();
 
-    for (player_position, actions, predicted) in &players {
+    for (player_position, room, actions, predicted) in &players {
         if is_host_server && predicted {
             continue;
         }
@@ -61,6 +66,7 @@ pub(crate) fn request_debug_fragment_pool(
         requests.write(SpawnFragmentPool::new(
             player_position.0,
             rng.random_range(MIN_FRAGMENTS_PER_DEBUG_POOL..=MAX_FRAGMENTS_PER_DEBUG_POOL),
+            *room,
         ));
     }
 }
@@ -74,11 +80,23 @@ pub(crate) fn spawn_requested_fragment_pools(
     let mut rng = rand::rng();
 
     for request in requests.read() {
-        spawn_fragment_pool(&mut commands, &mut rng, request.center, request.count);
+        spawn_fragment_pool(
+            &mut commands,
+            &mut rng,
+            request.center,
+            request.count,
+            request.room,
+        );
     }
 }
 
-fn spawn_fragment_pool(commands: &mut Commands, rng: &mut impl Rng, center: Vec2, count: u16) {
+fn spawn_fragment_pool(
+    commands: &mut Commands,
+    rng: &mut impl Rng,
+    center: Vec2,
+    count: u16,
+    room: GameRoom,
+) {
     info!(?center, count, "SERVER spawning Fragment pool");
 
     for _ in 0..count {
@@ -95,6 +113,7 @@ fn spawn_fragment_pool(commands: &mut Commands, rng: &mut impl Rng, center: Vec2
             FragmentLifetime {
                 remaining_ticks: fragment_shared::FRAGMENT_LIFETIME_TICKS,
             },
+            room,
             ServerFragment,
             Replicate::to_clients(NetworkTarget::All),
             Name::new("Server Fragment"),
@@ -110,6 +129,7 @@ pub(crate) fn simulate_server_fragments(
             &mut Fragment,
             &mut FragmentPosition,
             &mut FragmentLifetime,
+            &GameRoom,
         ),
         With<ServerFragment>,
     >,
@@ -119,7 +139,7 @@ pub(crate) fn simulate_server_fragments(
 ) {
     let is_host_server = !host_server.is_empty();
 
-    for (fragment_entity, mut fragment, mut position, mut lifetime) in &mut fragments {
+    for (fragment_entity, mut fragment, mut position, mut lifetime, room) in &mut fragments {
         if let Some(collector) = fragment.collector {
             simulate_collected_fragment(
                 &mut commands,
@@ -160,7 +180,7 @@ pub(crate) fn simulate_server_fragments(
 
         lifetime.remaining_ticks = lifetime.remaining_ticks.saturating_sub(1);
 
-        if lifetime.remaining_ticks == 0 || fragment_is_outside_world(position.0) {
+        if lifetime.remaining_ticks == 0 || fragment_is_outside_world(position.0, room) {
             commands.entity(fragment_entity).despawn();
         }
     }
@@ -234,9 +254,6 @@ fn random_position_in_annulus(
     center + direction * radius
 }
 
-fn fragment_is_outside_world(position: Vec2) -> bool {
-    let margin = Vec2::splat(100.0);
-    let limit = shared::WORLD_HALF_SIZE + margin;
-
-    position.x.abs() > limit.x || position.y.abs() > limit.y
+fn fragment_is_outside_world(position: Vec2, room: &GameRoom) -> bool {
+    !room.bounds().contains(position)
 }

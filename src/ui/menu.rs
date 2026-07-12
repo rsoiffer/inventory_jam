@@ -290,21 +290,18 @@ fn handle_menu_buttons(
             MenuButton::Join => match username.validated() {
                 Ok(name) => {
                     username.0 = name;
-                    status.message = "joining Edgegap...".into();
                     actions.write(ConnectAction::JoinEdgegap);
                 }
                 Err(error) => status.message = error,
             },
             #[cfg(all(feature = "dev", feature = "server", not(target_family = "wasm")))]
             MenuButton::HostLocal => {
-                status.message = "starting local server...".into();
                 actions.write(ConnectAction::StartServer);
             }
             #[cfg(all(feature = "dev", feature = "client", not(target_family = "wasm")))]
             MenuButton::JoinLocal => match username.validated() {
                 Ok(name) => {
                     username.0 = name;
-                    status.message = "joining local server...".into();
                     actions.write(ConnectAction::JoinLocal);
                 }
                 Err(error) => status.message = error,

@@ -14,7 +14,7 @@ use inventory_jam::server::ExampleServerPlugin;
 use inventory_jam::shared::SharedPlugin;
 #[cfg(feature = "gui")]
 use inventory_jam::ui::MenuPlugin;
-use inventory_jam::{fragment, networking};
+use inventory_jam::{fragment, networking, weapon};
 use std::time::Duration;
 
 const TICK_DURATION: Duration =
@@ -43,7 +43,11 @@ fn main() {
         });
     }
 
-    app.add_plugins(SharedPlugin);
+    app.add_plugins((
+        SharedPlugin,
+        fragment::FragmentProtocolPlugin,
+        weapon::WeaponProtocolPlugin,
+    ));
     networking::configure_networking(&mut app, config.mode);
 
     #[cfg(feature = "server")]

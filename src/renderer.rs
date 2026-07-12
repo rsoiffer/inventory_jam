@@ -1,6 +1,7 @@
 use crate::app::appstate::AppState;
 use crate::enemy::render::draw_enemy_boxes;
-use crate::{projectile::render::draw_projectiles, protocol::*, shared};
+use crate::protocol::*;
+use crate::shared::{ARENA_WORLD_BOUNDS, SHOP_WORLD_BOUNDS};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
@@ -19,9 +20,8 @@ impl Plugin for ExampleRendererPlugin {
         app.add_systems(
             Update,
             (
-                draw_test_world,
+                draw_test_worlds,
                 draw_player_boxes,
-                draw_projectiles,
                 draw_enemy_boxes,
                 sync_username_labels,
             )
@@ -34,7 +34,6 @@ fn init(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
 
-/// System that draws the boxes of the player positions.
 pub(crate) fn draw_player_boxes(
     mut gizmos: Gizmos,
     players: Query<(&PlayerPosition, &PlayerColor)>,
@@ -48,36 +47,55 @@ pub(crate) fn draw_player_boxes(
     }
 }
 
+fn draw_test_worlds(mut gizmos: Gizmos) {
+    draw_test_world(&mut gizmos, ARENA_WORLD_BOUNDS);
+    draw_test_world(&mut gizmos, SHOP_WORLD_BOUNDS);
+}
+
 /// Draws a simple top-down test arena with a grid and visible boundaries.
-fn draw_test_world(mut gizmos: Gizmos) {
-    let half = shared::WORLD_HALF_SIZE;
+fn draw_test_world(gizmos: &mut Gizmos, bounds: Rect) {
     let grid_color = Color::srgba(0.35, 0.38, 0.42, 0.35);
     let axis_color = Color::srgba(0.7, 0.72, 0.75, 0.7);
     let boundary_color = Color::srgb(0.95, 0.25, 0.2);
 
-    let mut x = -half.x;
-    while x <= half.x {
+    // Vertical grid lines
+    let mut x = bounds.min.x;
+    while x <= bounds.max.x {
         let color = if x.abs() < f32::EPSILON {
             axis_color
         } else {
             grid_color
         };
-        gizmos.line_2d(Vec2::new(x, -half.y), Vec2::new(x, half.y), color);
+        gizmos.line_2d(
+            Vec2::new(x, bounds.min.y),
+            Vec2::new(x, bounds.max.y),
+            color,
+        );
         x += GRID_SPACING;
     }
 
-    let mut y = -half.y;
-    while y <= half.y {
+    // Horizontal grid lines
+    let mut y = bounds.min.y;
+    while y <= bounds.max.y {
         let color = if y.abs() < f32::EPSILON {
             axis_color
         } else {
             grid_color
         };
-        gizmos.line_2d(Vec2::new(-half.x, y), Vec2::new(half.x, y), color);
+        gizmos.line_2d(
+            Vec2::new(bounds.min.x, y),
+            Vec2::new(bounds.max.x, y),
+            color,
+        );
         y += GRID_SPACING;
     }
 
-    gizmos.rect_2d(Isometry2d::IDENTITY, half * 2.0, boundary_color);
+    // Boundary rectangle
+    gizmos.rect_2d(
+        Isometry2d::from_translation(bounds.center()),
+        bounds.size(),
+        boundary_color,
+    );
 }
 
 #[derive(Component)]
@@ -91,7 +109,10 @@ struct UsernameLabel {
 fn setup_instructions(mut commands: Commands) {
     commands.spawn((
         InstructionsText,
-        Text::new("Move with WASD\n Aim with Mouse \n Fire with Left Click \n Shift to use Skill"),
+        Name::new("Input Control Instructions"),
+        Text::new(
+            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nN spawns an enemy (host/server debug)\nShift uses Skill",
+        ),
         Node {
             position_type: PositionType::Absolute,
             bottom: px(12),

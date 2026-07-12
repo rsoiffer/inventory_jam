@@ -18,6 +18,8 @@ pub enum PlayerAction {
     Fire,
     Interact,
     UseSkill,
+
+    DebugSwitchRooms,
 }
 
 impl PlayerAction {
@@ -38,6 +40,8 @@ impl PlayerAction {
         // Secondary skill: either Shift key
         input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
         input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
+
+        input_map.insert(Self::DebugSwitchRooms, KeyCode::Digit5);
 
         input_map
     }

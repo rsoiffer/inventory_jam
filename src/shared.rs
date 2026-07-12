@@ -1,27 +1,42 @@
+use crate::fragment::FragmentProtocolPlugin;
+use crate::protocol::rooms::GameRoom;
+use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::fragment::FragmentProtocolPlugin;
-use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
-
-pub const WORLD_HALF_SIZE: Vec2 = Vec2::new(800.0, 600.0);
+pub static ARENA_WORLD_BOUNDS: Rect =
+    Rect::from_center_size(Vec2::new(0.0, 0.0), Vec2::new(1600.0, 1200.0));
+pub static SHOP_WORLD_BOUNDS: Rect =
+    Rect::from_center_size(Vec2::new(1700.0, 0.0), Vec2::new(1600.0, 1200.0));
 pub const PLAYER_HALF_SIZE: f32 = 25.0;
 
-pub const PROJECTILE_SPEED_PER_TICK: f32 = 20.0;
-pub const PROJECTILE_LIFETIME_TICKS: u16 = 90;
-pub const PROJECTILE_RADIUS: f32 = 8.0;
-pub const PROJECTILE_SPAWN_OFFSET: f32 = PLAYER_HALF_SIZE + PROJECTILE_RADIUS + 2.0;
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FixedGameplaySet {
+    PlayerSimulation,
+    WeaponSimulation,
+    ProjectileSimulation,
+}
 
 pub struct SharedPlugin;
 
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((ProtocolPlugin, FragmentProtocolPlugin));
+        app.configure_sets(
+            FixedUpdate,
+            (
+                FixedGameplaySet::PlayerSimulation,
+                FixedGameplaySet::WeaponSimulation,
+                FixedGameplaySet::ProjectileSimulation,
+            )
+                .chain(),
+        );
     }
 }
 
 pub(crate) fn shared_movement_behaviour(
     mut position: Mut<PlayerPosition>,
+    room: &GameRoom,
     actions: &ActionState<PlayerAction>,
 ) {
     const MOVE_SPEED: f32 = 10.0;
@@ -31,8 +46,9 @@ pub(crate) fn shared_movement_behaviour(
     if movement != Vec2::ZERO {
         position.0 += movement * MOVE_SPEED;
 
-        let limit = WORLD_HALF_SIZE - Vec2::splat(PLAYER_HALF_SIZE);
-        position.0 = position.0.clamp(-limit, limit);
+        let local_bounds = room.bounds().inflate(-PLAYER_HALF_SIZE);
+
+        position.0 = position.0.clamp(local_bounds.min, local_bounds.max);
     }
 
     if actions.just_pressed(&PlayerAction::Fire) {

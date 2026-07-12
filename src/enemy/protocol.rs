@@ -17,8 +17,25 @@ impl Ease for EnemyPosition {
     }
 }
 
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnemyHealth {
+    pub current: u32,
+    pub maximum: u32,
+}
+
+impl EnemyHealth {
+    pub const fn new(maximum: u32) -> Self {
+        Self {
+            current: maximum,
+            maximum,
+        }
+    }
+}
+
 pub fn register(app: &mut App) {
     app.component::<EnemyPosition>()
         .replicate()
         .add_linear_interpolation();
+
+    app.component::<EnemyHealth>().replicate();
 }
