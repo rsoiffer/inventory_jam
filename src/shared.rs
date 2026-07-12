@@ -6,6 +6,11 @@ use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 pub const WORLD_HALF_SIZE: Vec2 = Vec2::new(800.0, 600.0);
 pub const PLAYER_HALF_SIZE: f32 = 25.0;
 
+pub const PROJECTILE_SPEED_PER_TICK: f32 = 20.0;
+pub const PROJECTILE_LIFETIME_TICKS: u16 = 90;
+pub const PROJECTILE_RADIUS: f32 = 8.0;
+pub const PROJECTILE_SPAWN_OFFSET: f32 = PLAYER_HALF_SIZE + PROJECTILE_RADIUS + 2.0;
+
 pub struct SharedPlugin;
 
 impl Plugin for SharedPlugin {
@@ -30,20 +35,14 @@ pub(crate) fn shared_movement_behaviour(
     }
 
     if actions.just_pressed(&PlayerAction::Fire) {
-        info!("Fire Pressed!");
+        //info!("Fire Pressed!");
     }
 
     if actions.just_pressed(&PlayerAction::Interact) {
-        info!("Interact Pressed!");
+        //info!("Interact Pressed!");
     }
 
     if actions.just_pressed(&PlayerAction::UseSkill) {
-        info!("UseSkill Pressed!");
-    }
-
-    let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
-
-    if aim != Vec2::ZERO {
-        info!(?aim, "Aim");
+        //info!("UseSkill Pressed!");
     }
 }

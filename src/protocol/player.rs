@@ -8,6 +8,7 @@ pub(crate) struct PlayerBundle {
     id: PlayerId,
     position: PlayerPosition,
     color: PlayerColor,
+    aim_direction: PlayerAimDirection,
 }
 
 impl PlayerBundle {
@@ -19,6 +20,7 @@ impl PlayerBundle {
             id: PlayerId(id),
             position: PlayerPosition(position),
             color: PlayerColor(color),
+            aim_direction: PlayerAimDirection::default(),
         }
     }
 }
@@ -37,6 +39,16 @@ impl Ease for PlayerPosition {
     }
 }
 
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct PlayerAimDirection(pub Vec2);
+
+impl Default for PlayerAimDirection {
+    fn default() -> Self {
+        let default_direction = Vec2 { x: 5.0, y: 4.0 };
+        Self(default_direction) // Defaults to [5,4] for debug since it's a weird direction
+    }
+}
+
 #[derive(Component, Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct PlayerColor(pub(crate) Color);
 
@@ -47,6 +59,8 @@ pub fn register(app: &mut App) {
         .replicate()
         .predict()
         .add_linear_interpolation();
+
+    app.component::<PlayerAimDirection>().replicate().predict();
 
     app.component::<PlayerColor>().replicate();
 }

@@ -28,9 +28,6 @@ impl PlayerAction {
         input_map.insert_dual_axis(Self::Move, VirtualDPad::wasd());
         input_map.insert_dual_axis(Self::Move, VirtualDPad::arrow_keys());
 
-        // Aim: relative mouse movement
-        input_map.insert_dual_axis(Self::Aim, MouseMove::default());
-
         // Fire
         input_map.insert(Self::Fire, KeyCode::Space);
         input_map.insert(Self::Fire, MouseButton::Left);

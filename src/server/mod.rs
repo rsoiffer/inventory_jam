@@ -4,6 +4,8 @@ use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
+use crate::enemy::server::spawn_enemy;
+use crate::projectile::server::{fire_player_projectiles, simulate_server_projectiles};
 use crate::networking::SEND_INTERVAL;
 use crate::protocol::messages::DebugServerMessage;
 use crate::protocol::*;
@@ -18,7 +20,17 @@ impl Plugin for ExampleServerPlugin {
         app.add_observer(handle_new_client);
         app.add_observer(handle_connected);
 
-        app.add_systems(FixedUpdate, authoritative_player_movement);
+        app.add_systems(
+            FixedUpdate,
+            (
+                authoritative_player_movement,
+                update_player_aim_direction,
+                fire_player_projectiles,
+                simulate_server_projectiles,
+                spawn_enemy,
+            )
+                .chain(),
+        );
         app.add_systems(Update, send_debug_server_message);
     }
 }
@@ -37,7 +49,7 @@ pub(crate) fn send_debug_server_message(
     if input.is_some_and(|input| input.just_pressed(KeyCode::KeyM)) {
         let message = DebugServerMessage(5);
 
-        info!("Sending message: {:?}", message);
+        //info!("Sending message: {:?}", message);
 
         sender
             .send::<_, ServerEventsChannel>(&message, server.into_inner(), &NetworkTarget::All)

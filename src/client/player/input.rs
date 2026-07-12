@@ -6,7 +6,10 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
-use crate::protocol::{PlayerAction, PlayerId};
+use crate::{
+    client::systems::CachedCursorAim,
+    protocol::{PlayerAction, PlayerId},
+};
 
 pub(crate) fn handle_controlled_spawn(
     trigger: On<Add, Controlled>,
@@ -16,7 +19,7 @@ pub(crate) fn handle_controlled_spawn(
 ) {
     let entity = trigger.entity;
 
-    let Ok((player_id, controlled_by)) = players.get(entity) else {
+    let Ok((_player_id, controlled_by)) = players.get(entity) else {
         return;
     };
 
@@ -26,9 +29,10 @@ pub(crate) fn handle_controlled_spawn(
         return;
     }
 
-    info!("Adding Leafwing InputMap to controlled player {entity:?} {player_id:?}");
+    //info!("Adding Leafwing InputMap to controlled player {entity:?} {player_id:?}");
 
-    commands
-        .entity(entity)
-        .insert(PlayerAction::default_input_map());
+    commands.entity(entity).insert((
+        PlayerAction::default_input_map(),
+        CachedCursorAim::default(),
+    ));
 }

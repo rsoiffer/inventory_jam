@@ -21,7 +21,7 @@ pub(crate) fn handle_interpolated_spawn(
 pub(crate) fn receive_debug_server_message(
     mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>,
 ) {
-    for message in receiver.receive() {
-        info!("Received message: {:?}", message);
+    for _message in receiver.receive() {
+        //info!("Received message: {:?}", message);
     }
 }

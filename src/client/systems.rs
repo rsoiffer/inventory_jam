@@ -1,11 +1,21 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
 use crate::{
+    client::player::SmoothedAimDirection,
     protocol::{DebugServerMessage, PlayerAction, PlayerColor, PlayerId, PlayerPosition},
     shared,
 };
+
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct CachedCursorAim(pub Vec2);
+
+impl Default for CachedCursorAim {
+    fn default() -> Self {
+        Self(Vec2::X)
+    }
+}
 
 /// How quickly should the camera snap to the desired location.
 const CAMERA_DECAY_RATE: f32 = 2.;
@@ -41,8 +51,8 @@ pub(crate) fn update_camera(
 
 /// System to receive messages on the client
 pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
-    for message in receiver.receive() {
-        info!("Received message: {:?}", message);
+    for _message in receiver.receive() {
+        //info!("Received message: {:?}", message);
     }
 }
 
@@ -55,31 +65,61 @@ pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugSe
 /// The `With<Predicted>` filter ensures we only add the `InputMarker` once.
 pub(crate) fn handle_predicted_spawn(
     trigger: On<Add, (PlayerId, Predicted)>,
+    mut commands: Commands,
     mut predicted: Query<&mut PlayerColor, With<Predicted>>,
 ) {
     let entity = trigger.entity;
+
+    commands
+        .entity(entity)
+        .insert(SmoothedAimDirection::default());
+
     if let Ok(mut color) = predicted.get_mut(entity) {
         let hsva = Hsva {
             saturation: 0.4,
             ..Hsva::from(color.0)
         };
+
         color.0 = Color::from(hsva);
     }
 }
 
-/// When the predicted copy of the client-owned entity is spawned, do stuff
-/// - assign it a different saturation
-/// - keep track of it in the Global resource
-#[allow(dead_code)]
-pub(crate) fn handle_interpolated_spawn(
-    trigger: On<Add, Interpolated>,
-    mut interpolated: Query<&mut PlayerColor>,
+pub(crate) fn sample_cursor_aim(
+    window: Single<&Window, With<PrimaryWindow>>,
+    camera: Single<(&Camera, &GlobalTransform), With<Camera2d>>,
+    predicted_player: Single<&PlayerPosition, With<Predicted>>,
+    mut input_entity: Single<
+        &mut CachedCursorAim,
+        (With<Controlled>, With<InputMap<PlayerAction>>),
+    >,
 ) {
-    if let Ok(mut color) = interpolated.get_mut(trigger.entity) {
-        let hsva = Hsva {
-            saturation: 0.1,
-            ..Hsva::from(color.0)
-        };
-        color.0 = Color::from(hsva);
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
+
+    let (camera, camera_transform) = camera.into_inner();
+
+    let Ok(cursor_world_position) = camera.viewport_to_world_2d(camera_transform, cursor_position)
+    else {
+        return;
+    };
+
+    let direction = (cursor_world_position - predicted_player.0).normalize_or_zero();
+
+    if direction == Vec2::ZERO {
+        return;
     }
+
+    input_entity.0 = direction;
+}
+
+pub(crate) fn write_cursor_aim_to_leafwing(
+    input_entity: Single<
+        (&CachedCursorAim, &mut ActionState<PlayerAction>),
+        (With<Controlled>, With<InputMap<PlayerAction>>),
+    >,
+) {
+    let (cached_aim, mut actions) = input_entity.into_inner();
+
+    actions.set_axis_pair(&PlayerAction::Aim, cached_aim.0);
 }

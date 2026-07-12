@@ -6,7 +6,7 @@ use lightyear::connection::host::HostServer;
 use lightyear::prelude::*;
 
 use crate::protocol::player::PlayerBundle;
-use crate::protocol::{PlayerAction, PlayerPosition};
+use crate::protocol::{PlayerAction, PlayerAimDirection, PlayerPosition};
 use crate::shared;
 
 pub(crate) fn handle_connected(
@@ -50,7 +50,7 @@ pub(crate) fn authoritative_player_movement(
     )>,
 ) {
     let is_host_server = !host_server.is_empty();
-    let tick = timeline.tick();
+    let _tick = timeline.tick();
 
     for (position, actions, predicted) in position_query.iter_mut() {
         if is_host_server && predicted {
@@ -58,13 +58,36 @@ pub(crate) fn authoritative_player_movement(
         }
 
         if actions.just_pressed(&PlayerAction::Fire) {
-            info!(tick = tick.0, "SERVER received Fire");
+            //info!(tick = tick.0, "SERVER received Fire");
         }
 
         if actions.just_pressed(&PlayerAction::Interact) {
-            info!(tick = tick.0, "SERVER received Interact");
+            //info!(tick = tick.0, "SERVER received Interact");
         }
 
         shared::shared_movement_behaviour(position, actions);
+    }
+}
+
+pub(crate) fn update_player_aim_direction(
+    mut players: Query<(
+        &ActionState<PlayerAction>,
+        &mut PlayerAimDirection,
+        Has<Predicted>,
+    )>,
+    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+) {
+    let is_host_server = !host_server.is_empty();
+
+    for (actions, mut aim_direction, predicted) in &mut players {
+        if is_host_server && predicted {
+            continue;
+        }
+
+        let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
+
+        if aim.length_squared() > 0.0001 {
+            aim_direction.0 = aim.normalize_or_zero();
+        }
     }
 }

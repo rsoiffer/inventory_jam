@@ -1,4 +1,5 @@
-use crate::{protocol::*, shared};
+use crate::enemy::render::draw_enemy_boxes;
+use crate::{projectile::render::draw_projectiles, protocol::*, shared};
 use bevy::prelude::*;
 
 const GRID_SPACING: f32 = 100.0;
@@ -9,17 +10,28 @@ pub struct ExampleRendererPlugin;
 impl Plugin for ExampleRendererPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (init, setup_instructions));
-        app.add_systems(Update, (draw_test_world, draw_boxes));
+
+        app.add_systems(
+            Update,
+            (
+                draw_test_world,
+                draw_player_boxes,
+                draw_projectiles,
+                draw_enemy_boxes,
+            ),
+        );
     }
 }
-
 fn init(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
 
 /// System that draws the boxes of the player positions.
 /// The components should be replicated from the server to the client
-pub(crate) fn draw_boxes(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
+pub(crate) fn draw_player_boxes(
+    mut gizmos: Gizmos,
+    players: Query<(&PlayerPosition, &PlayerColor)>,
+) {
     for (position, color) in &players {
         gizmos.rect_2d(
             Isometry2d::from_translation(position.0),
