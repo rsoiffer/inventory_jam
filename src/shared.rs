@@ -1,4 +1,3 @@
-use crate::fragment::FragmentProtocolPlugin;
 use crate::protocol::rooms::GameRoom;
 use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 use bevy::prelude::*;
@@ -21,7 +20,7 @@ pub struct SharedPlugin;
 
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((ProtocolPlugin, FragmentProtocolPlugin));
+        app.add_plugins(ProtocolPlugin);
         app.configure_sets(
             FixedUpdate,
             (
