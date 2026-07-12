@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
+use crate::app::AppState;
 use crate::enemy::server::spawn_enemy;
 use crate::networking::SEND_INTERVAL;
 use crate::projectile::server::{expire_server_impacts, simulate_server_projectiles};
@@ -26,7 +27,7 @@ impl Plugin for ExampleServerPlugin {
             (authoritative_player_movement, update_player_aim_direction)
                 .chain()
                 .in_set(FixedGameplaySet::PlayerSimulation)
-                .run_if(any_with_component::<Server>),
+                .run_if(in_state(AppState::Hosting)),
         );
 
         app.add_systems(
@@ -34,21 +35,18 @@ impl Plugin for ExampleServerPlugin {
             (simulate_server_projectiles, expire_server_impacts)
                 .chain()
                 .in_set(FixedGameplaySet::ProjectileSimulation)
-                .run_if(any_with_component::<Server>),
+                .run_if(in_state(AppState::Hosting)),
         );
         app.add_systems(
             FixedUpdate,
-            debug_switch_rooms.run_if(any_with_component::<Server>),
+            debug_switch_rooms.run_if(in_state(AppState::Hosting)),
         );
 
-        app.add_systems(
-            FixedUpdate,
-            spawn_enemy.run_if(any_with_component::<Server>),
-        );
+        app.add_systems(FixedUpdate, spawn_enemy.run_if(in_state(AppState::Hosting)));
         app.add_systems(
             Update,
             (apply_username_messages, send_debug_server_message)
-                .run_if(any_with_component::<Server>),
+                .run_if(in_state(AppState::Hosting)),
         );
     }
 }

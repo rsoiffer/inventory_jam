@@ -1,4 +1,3 @@
-#[cfg(feature = "gui")]
 use crate::app::AppState;
 use bevy::prelude::*;
 
@@ -38,8 +37,7 @@ impl Plugin for FragmentClientPlugin {
         app.add_observer(client::initialize_fragment);
         app.add_systems(
             FixedUpdate,
-            client::simulate_client_fragments
-                .run_if(any_with_component::<lightyear::prelude::Client>),
+            client::simulate_client_fragments.run_if(in_state(AppState::Playing)),
         );
     }
 }
@@ -62,7 +60,7 @@ impl Plugin for FragmentServerPlugin {
                 server::simulate_server_fragments,
             )
                 .chain()
-                .run_if(any_with_component::<lightyear::prelude::Server>),
+                .run_if(in_state(AppState::Hosting)),
         );
     }
 }

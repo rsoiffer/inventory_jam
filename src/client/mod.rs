@@ -5,8 +5,8 @@ pub mod player;
 mod systems;
 
 use bevy::prelude::*;
-use lightyear::prelude::Client;
 
+use crate::app::AppState;
 use player::*;
 use systems::{
     handle_predicted_spawn, player_movement, receive_message1, sample_cursor_aim,
@@ -25,12 +25,12 @@ impl Plugin for ExampleClientPlugin {
             Update,
             (update_camera, sample_cursor_aim)
                 .chain()
-                .run_if(any_with_component::<Client>),
+                .run_if(in_state(AppState::Playing)),
         );
 
         app.add_systems(
             FixedPreUpdate,
-            write_cursor_aim_to_leafwing.run_if(any_with_component::<Client>),
+            write_cursor_aim_to_leafwing.run_if(in_state(AppState::Playing)),
         );
 
         app.add_systems(
@@ -41,20 +41,17 @@ impl Plugin for ExampleClientPlugin {
                 simulate_client_projectiles,
             )
                 .chain()
-                .run_if(any_with_component::<Client>),
+                .run_if(in_state(AppState::Playing)),
         );
 
         app.add_systems(
             Update,
             (smooth_local_aim_visual, draw_local_aimstick)
                 .chain()
-                .run_if(any_with_component::<Client>),
+                .run_if(in_state(AppState::Playing)),
         );
 
-        app.add_systems(
-            Update,
-            receive_message1.run_if(any_with_component::<Client>),
-        );
+        app.add_systems(Update, receive_message1.run_if(in_state(AppState::Playing)));
 
         app.add_observer(handle_predicted_spawn);
         app.add_observer(handle_controlled_spawn);

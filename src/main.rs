@@ -60,8 +60,10 @@ fn main() {
     #[cfg(feature = "client")]
     app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
 
+    app.insert_state(AppState::MainMenu);
+
     #[cfg(feature = "gui")]
-    app.insert_state(AppState::MainMenu).add_plugins((
+    app.add_plugins((
         renderer::ExampleRendererPlugin,
         projectile::ProjectileRenderPlugin,
         fragment::FragmentRenderPlugin,

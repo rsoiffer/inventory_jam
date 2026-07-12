@@ -165,7 +165,7 @@ fn handle_start_game(
     mut commands: Commands,
     mut starts: MessageReader<StartGame>,
     mut status: ResMut<ConnectionStatus>,
-    mut next_state: Option<ResMut<NextState<AppState>>>,
+    mut next_state: ResMut<NextState<AppState>>,
     #[cfg(feature = "client")] clients: Query<Entity, With<Client>>,
     #[cfg(feature = "client")] mut username: ResMut<LocalUsername>,
     #[cfg(feature = "server")] servers: Query<Entity, With<Server>>,
@@ -190,9 +190,7 @@ fn handle_start_game(
                 });
                 commands.insert_resource(KickoffDiscovery);
                 status.message = "searching for Edgegap server...".into();
-                if let Some(next_state) = next_state.as_mut() {
-                    next_state.set(AppState::Connecting);
-                }
+                next_state.set(AppState::Connecting);
             }
             #[cfg(feature = "client")]
             LaunchMode::JoinLocal => {
@@ -207,9 +205,7 @@ fn handle_start_game(
                 });
                 info!("connecting client to {}", config.server_addr);
                 status.message = format!("connecting to {}...", config.server_addr);
-                if let Some(next_state) = next_state.as_mut() {
-                    next_state.set(AppState::Connecting);
-                }
+                next_state.set(AppState::Connecting);
                 spawn_client(
                     &mut commands,
                     client_id_from_username(&start.username),
@@ -242,9 +238,7 @@ fn handle_start_game(
                     );
                 }
                 status.message = format!("server running on port {}", config.server_port);
-                if let Some(next_state) = next_state.as_mut() {
-                    next_state.set(AppState::Hosting);
-                }
+                next_state.set(AppState::Hosting);
                 commands.spawn((
                     Name::new("Network Server"),
                     NetworkServer {
@@ -416,27 +410,18 @@ fn patch_webtransport_digest(
 fn watch_client_connection_state(
     connected: Query<(), (With<Client>, With<Connected>)>,
     mut status: ResMut<ConnectionStatus>,
-    mut next_state: Option<ResMut<NextState<AppState>>>,
-    current: Option<Res<State<AppState>>>,
+    mut next_state: ResMut<NextState<AppState>>,
+    current: Res<State<AppState>>,
     mut was_connected: Local<bool>,
 ) {
     let is_connected = !connected.is_empty();
     if is_connected && !*was_connected {
         status.message = "connected".into();
-        if let Some(next_state) = next_state.as_mut() {
-            next_state.set(AppState::Playing);
-        }
+        next_state.set(AppState::Playing);
     }
-    if !is_connected
-        && *was_connected
-        && current
-            .as_ref()
-            .is_some_and(|state| *state.get() == AppState::Playing)
-    {
+    if !is_connected && *was_connected && *current.get() == AppState::Playing {
         status.message = "disconnected".into();
-        if let Some(next_state) = next_state.as_mut() {
-            next_state.set(AppState::MainMenu);
-        }
+        next_state.set(AppState::MainMenu);
     }
     *was_connected = is_connected;
 }
