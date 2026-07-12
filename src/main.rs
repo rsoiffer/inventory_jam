@@ -149,8 +149,7 @@ fn build_app(mode: RunMode, tick_duration: Duration) -> App {
 fn create_app(mode: RunMode) -> App {
     #[cfg(feature = "gui")]
     {
-        let _ = mode;
-        new_gui_app()
+        new_gui_app(mode)
     }
     #[cfg(not(feature = "gui"))]
     {
@@ -165,9 +164,16 @@ fn create_app(mode: RunMode) -> App {
 }
 
 #[cfg(feature = "gui")]
-fn new_gui_app() -> App {
+fn new_gui_app(mode: RunMode) -> App {
     use bevy::window::PresentMode;
     use bevy::winit::WinitSettings;
+
+    let mode_string = match mode {
+        #[cfg(feature = "server")]
+        RunMode::Server => ": Server",
+        _ => "",
+    };
+    let window_title = format!("{}{}", env!("CARGO_PKG_NAME"), mode_string);
 
     let mut app = App::new();
     app.add_plugins(
@@ -180,7 +186,7 @@ fn new_gui_app() -> App {
             .set(log_plugin())
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: env!("CARGO_PKG_NAME").to_string(),
+                    title: window_title,
                     resolution: (1024, 768).into(),
                     present_mode: PresentMode::AutoVsync,
                     prevent_default_event_handling: true,
