@@ -103,5 +103,5 @@ pub(crate) fn expire_server_impacts(
 }
 
 fn projectile_is_outside_world(position: Vec2, room: &GameRoom) -> bool {
-    !room.bounds().inflate(-100.0).contains(position)
+    !room.bounds().contains(position)
 }
