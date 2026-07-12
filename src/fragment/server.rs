@@ -235,5 +235,5 @@ fn random_position_in_annulus(
 }
 
 fn fragment_is_outside_world(position: Vec2) -> bool {
-    ARENA_WORLD_BOUNDS.inflate(-100.0).contains(position)
+    !ARENA_WORLD_BOUNDS.inflate(-100.0).contains(position)
 }
