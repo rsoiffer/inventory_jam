@@ -2,6 +2,7 @@ pub mod channels;
 pub mod inputs;
 pub mod messages;
 pub mod player;
+pub mod rooms;
 
 use bevy::prelude::*;
 

@@ -1,9 +1,12 @@
+use crate::protocol::rooms::{GameRoom, GameRooms};
+use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
-
-pub const WORLD_HALF_SIZE: Vec2 = Vec2::new(800.0, 600.0);
+pub static ARENA_WORLD_BOUNDS: Rect =
+    Rect::from_center_size(Vec2::new(0.0, 0.0), Vec2::new(1600.0, 1200.0));
+pub static SHOP_WORLD_BOUNDS: Rect =
+    Rect::from_center_size(Vec2::new(1700.0, 0.0), Vec2::new(1600.0, 1200.0));
 pub const PLAYER_HALF_SIZE: f32 = 25.0;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -32,6 +35,7 @@ impl Plugin for SharedPlugin {
 
 pub(crate) fn shared_movement_behaviour(
     mut position: Mut<PlayerPosition>,
+    room: &GameRoom,
     actions: &ActionState<PlayerAction>,
 ) {
     const MOVE_SPEED: f32 = 10.0;
@@ -41,8 +45,13 @@ pub(crate) fn shared_movement_behaviour(
     if movement != Vec2::ZERO {
         position.0 += movement * MOVE_SPEED;
 
-        let limit = WORLD_HALF_SIZE - Vec2::splat(PLAYER_HALF_SIZE);
-        position.0 = position.0.clamp(-limit, limit);
+        let local_bounds = match room.room {
+            GameRooms::Arena => ARENA_WORLD_BOUNDS,
+            GameRooms::Pit => SHOP_WORLD_BOUNDS,
+        }
+        .inflate(-PLAYER_HALF_SIZE);
+
+        position.0 = position.0.clamp(local_bounds.min, local_bounds.max);
     }
 
     if actions.just_pressed(&PlayerAction::Fire) {

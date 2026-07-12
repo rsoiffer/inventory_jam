@@ -3,6 +3,7 @@ use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 use rand::Rng;
 
+use crate::shared::ARENA_WORLD_BOUNDS;
 use crate::{
     fragment::{
         SpawnFragmentPool,
@@ -10,7 +11,6 @@ use crate::{
         shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
     },
     protocol::{PlayerAction, PlayerId, PlayerPosition},
-    shared,
 };
 
 const MIN_FRAGMENTS_PER_DEBUG_POOL: u16 = 50;
@@ -235,8 +235,5 @@ fn random_position_in_annulus(
 }
 
 fn fragment_is_outside_world(position: Vec2) -> bool {
-    let margin = Vec2::splat(100.0);
-    let limit = shared::WORLD_HALF_SIZE + margin;
-
-    position.x.abs() > limit.x || position.y.abs() > limit.y
+    ARENA_WORLD_BOUNDS.inflate(-100.0).contains(position)
 }

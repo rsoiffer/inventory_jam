@@ -1,3 +1,4 @@
+use crate::protocol::rooms::{GameRoom, GameRooms};
 use bevy::math::Curve;
 use bevy::prelude::*;
 use lightyear::prelude::*;
@@ -9,6 +10,7 @@ pub(crate) struct PlayerBundle {
     position: PlayerPosition,
     color: PlayerColor,
     aim_direction: PlayerAimDirection,
+    game_room: GameRoom,
 }
 
 impl PlayerBundle {
@@ -21,6 +23,9 @@ impl PlayerBundle {
             position: PlayerPosition(position),
             color: PlayerColor(color),
             aim_direction: PlayerAimDirection::default(),
+            game_room: GameRoom {
+                room: GameRooms::Arena,
+            },
         }
     }
 }
@@ -63,4 +68,6 @@ pub fn register(app: &mut App) {
     app.component::<PlayerAimDirection>().replicate().predict();
 
     app.component::<PlayerColor>().replicate();
+
+    app.component::<GameRoom>().replicate();
 }

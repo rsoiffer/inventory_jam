@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
+use crate::shared::ARENA_WORLD_BOUNDS;
 use crate::{
     enemy::{
         protocol::{EnemyHealth, EnemyPosition},
@@ -13,7 +14,6 @@ use crate::{
             ServerImpact, ServerProjectile,
         },
     },
-    shared,
 };
 
 /// Simulates authoritative projectile motion, hit detection, damage, and death.
@@ -102,8 +102,5 @@ pub(crate) fn expire_server_impacts(
 }
 
 fn projectile_is_outside_world(position: Vec2) -> bool {
-    let margin = Vec2::splat(100.0);
-    let limit = shared::WORLD_HALF_SIZE + margin;
-
-    position.x.abs() > limit.x || position.y.abs() > limit.y
+    ARENA_WORLD_BOUNDS.inflate(-100.0).contains(position)
 }
