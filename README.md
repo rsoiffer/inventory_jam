@@ -15,30 +15,42 @@ https://github.com/cBournhonesque/lightyear/assets/8112632/7b57d48a-d8b0-4cdd-a1
 
 ## Running locally
 
-- Run the server with a gui: `cargo run -- server`
-- Run client with id 1 (Edgegap): `cargo run -- client -c 1`
-- Run client against local server: `cargo run -- client -c 1 --dev`
-- Run the server without a gui: `cargo run --no-default-features --features=server -- server`
-- Run a headless client without a gui:
-  `cargo run --no-default-features --features=client,netcode,webtransport -- client -c 1`
+GUI builds open a **main menu** by default. Enter a username, then:
 
-You can control the behaviour of the example by changing the list of features. By default, all features are enabled (
-client, server, gui).
-For example you can run the server in headless mode (without gui) by running
-`cargo run --no-default-features --features=server,webtransport,netcode`.
+- **Join** — discover/connect via Edgegap
+- **Host Local Server** / **Join Local Server** — available in the default development build
+
+Skip the menu with CLI flags:
+
+- Dedicated server: `cargo run -- --mode server`
+- Join Edgegap: `cargo run -- --mode edgegap --user Ada`
+- Host local: `cargo run -- --mode host`
+- Join local: `cargo run -- --mode local --user Ada`
+
+Netcode client ids are derived from `--user` / the menu username, so each player needs a distinct name.
+
+Headless:
+
+- Server: `cargo run --no-default-features --features=server,netcode,webtransport -- --mode server`
+- Client: `cargo run --no-default-features --features=client,netcode,webtransport -- --mode edgegap --user Ada`
+
+Local multi-client smoke test: `just dev` / `just dev 3` (starts a local host plus N named clients).
+
+The default features enable client, server, GUI, development tools, UDP, netcode, and WebTransport. Production and
+headless builds should use `--no-default-features` with only the required features.
 
 ### Client configuration
 
 Hardcoded client settings live in [`src/networking/`](src/networking/):
 
 - `CERT_DIGEST` in `setup.rs` — WebTransport certificate fingerprint
-- `--dev` on the client — connect with local UDP to `127.0.0.1:5888` instead of Edgegap
+- `--mode local` — connect with local UDP to `127.0.0.1:5888` instead of Edgegap
 - Edgegap API token and app name/version in `edgegap.rs`
 
-Then run the client normally:
+Menu Join (no flags):
 
 ```powershell
-cargo run -- client -c 1
+cargo run
 ```
 
 ## Edgegap dedicated servers
@@ -54,7 +66,7 @@ Configure your Edgegap app version with a `gameport` mapped to the internal list
 
 ### Direct Edgegap discovery
 
-On startup, clients call the Edgegap API directly:
+When joining via the menu **Join** button or `--mode edgegap`, clients call the Edgegap API:
 
 1. `GET /v1/deployments` — find a running `inventory-jam@dev` deployment
 2. If none is available, `POST /v2/deployments` — start a new deployment near Portland, OR

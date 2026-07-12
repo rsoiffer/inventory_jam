@@ -2,9 +2,13 @@ use bevy::{prelude::*, window::PrimaryWindow};
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
+use crate::app::username::LocalUsername;
 use crate::{
     client::player::SmoothedAimDirection,
-    protocol::{DebugServerMessage, PlayerAction, PlayerColor, PlayerId, PlayerPosition},
+    protocol::{
+        ClientEventsChannel, DebugServerMessage, PlayerAction, PlayerColor, PlayerId,
+        PlayerPosition, SetUsername,
+    },
     shared,
 };
 
@@ -49,11 +53,23 @@ pub(crate) fn update_camera(
         .smooth_nudge(&target, CAMERA_DECAY_RATE, time.delta_secs());
 }
 
-/// System to receive messages on the client
 pub(crate) fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
     for _message in receiver.receive() {
         //info!("Received message: {:?}", message);
     }
+}
+
+pub(crate) fn send_local_username(
+    trigger: On<Add, Connected>,
+    mut senders: Query<&mut MessageSender<SetUsername>, With<Client>>,
+    username: Res<LocalUsername>,
+) {
+    senders
+        .get_mut(trigger.entity)
+        .unwrap()
+        .send::<ClientEventsChannel>(SetUsername {
+            name: username.0.clone(),
+        });
 }
 
 /// When the predicted copy of the client-owned entity is spawned, do stuff

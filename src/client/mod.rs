@@ -11,8 +11,8 @@ use bevy::prelude::*;
 
 use player::*;
 use systems::{
-    handle_predicted_spawn, player_movement, receive_message1, sample_cursor_aim, update_camera,
-    write_cursor_aim_to_leafwing,
+    handle_predicted_spawn, player_movement, receive_message1, sample_cursor_aim,
+    send_local_username, update_camera, write_cursor_aim_to_leafwing,
 };
 
 use crate::projectile::client::{initialize_projectile, simulate_client_projectiles};
@@ -48,5 +48,6 @@ impl Plugin for ExampleClientPlugin {
         app.add_observer(handle_controlled_spawn);
         app.add_observer(handle_interpolated_spawn);
         app.add_observer(initialize_projectile);
+        app.add_observer(send_local_username);
     }
 }

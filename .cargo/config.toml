@@ -9,10 +9,6 @@ runner = "wasm-server-runner"
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
 
-[alias]
-run-dev = "run --features dev"
-check-dev = "check --features dev"
-
 [build]
 # it is a good idea to specify your target here, to avoid losing incremental compilation when compiling to wasm
 # target = "aarch64-apple-darwin"

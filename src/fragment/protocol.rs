@@ -13,6 +13,7 @@ pub struct Fragment {
     pub collector: Option<PeerId>,
 }
 
+#[cfg(feature = "server")]
 impl Fragment {
     pub const fn available(origin: Vec2) -> Self {
         Self {

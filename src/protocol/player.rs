@@ -3,14 +3,20 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use crate::app::username::temporary_username;
+
+#[cfg(feature = "server")]
 #[derive(Bundle)]
 pub(crate) struct PlayerBundle {
     id: PlayerId,
     position: PlayerPosition,
     color: PlayerColor,
     aim_direction: PlayerAimDirection,
+    username: PlayerUsername,
 }
 
+#[cfg(feature = "server")]
 impl PlayerBundle {
     pub(crate) fn new(id: PeerId, position: Vec2) -> Self {
         let h = (((id.to_bits().wrapping_mul(30)) % 360) as f32) / 360.0;
@@ -21,6 +27,7 @@ impl PlayerBundle {
             position: PlayerPosition(position),
             color: PlayerColor(color),
             aim_direction: PlayerAimDirection::default(),
+            username: PlayerUsername(temporary_username(id.to_bits())),
         }
     }
 }
@@ -52,6 +59,9 @@ impl Default for PlayerAimDirection {
 #[derive(Component, Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct PlayerColor(pub(crate) Color);
 
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Deref)]
+pub struct PlayerUsername(pub String);
+
 pub fn register(app: &mut App) {
     app.component::<PlayerId>().replicate();
 
@@ -63,4 +73,6 @@ pub fn register(app: &mut App) {
     app.component::<PlayerAimDirection>().replicate().predict();
 
     app.component::<PlayerColor>().replicate();
+
+    app.component::<PlayerUsername>().replicate();
 }

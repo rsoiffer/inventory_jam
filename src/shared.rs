@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
+use crate::fragment::FragmentProtocolPlugin;
 use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 
 pub const WORLD_HALF_SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -15,7 +16,7 @@ pub struct SharedPlugin;
 
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(ProtocolPlugin);
+        app.add_plugins((ProtocolPlugin, FragmentProtocolPlugin));
     }
 }
 

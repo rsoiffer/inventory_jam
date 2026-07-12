@@ -1,201 +1,137 @@
-//! Run with:
-//! - `cargo run -- server`
-//! - `cargo run -- client -c 1`
-
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-#[cfg(feature = "client")]
-mod client;
-mod enemy;
-mod fragment;
-mod networking;
-mod projectile;
-mod protocol;
-#[cfg(feature = "gui")]
-mod renderer;
-#[cfg(feature = "server")]
-mod server;
-mod shared;
-
-#[cfg(feature = "client")]
-use crate::client::ExampleClientPlugin;
-use crate::networking::{spawn_connections, RunMode, FIXED_TIMESTEP_HZ};
-#[cfg(feature = "server")]
-use crate::server::ExampleServerPlugin;
-use crate::shared::SharedPlugin;
 use bevy::log::{Level, LogPlugin};
 use bevy::prelude::*;
-use core::time::Duration;
+#[cfg(feature = "gui")]
+use bevy::window::PresentMode;
+#[cfg(feature = "gui")]
+use bevy::winit::WinitSettings;
+use inventory_jam::app::*;
+#[cfg(feature = "client")]
+use inventory_jam::client::ExampleClientPlugin;
+#[cfg(feature = "gui")]
+use inventory_jam::renderer;
+#[cfg(feature = "server")]
+use inventory_jam::server::ExampleServerPlugin;
+use inventory_jam::shared::SharedPlugin;
+#[cfg(feature = "gui")]
+use inventory_jam::ui::MenuPlugin;
+use inventory_jam::{fragment, networking};
+use std::time::Duration;
+
+const TICK_DURATION: Duration =
+    Duration::from_nanos((1_000_000_000.0 / networking::FIXED_TIMESTEP_HZ) as u64);
 
 #[cfg(all(not(feature = "gui"), feature = "client"))]
 const HEADLESS_CLIENT_LOOP_HZ: f64 = 60.0;
 
 fn main() {
-    let mode = run_mode();
-    let mut app = build_app(mode, Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ));
-    app.add_plugins(SharedPlugin);
-    spawn_connections(&mut app, mode);
+    let config = config_from_env();
+    let mut app = base_app(&config);
+    app.insert_resource(config.clone())
+        .insert_resource(LocalUsername(config.username.clone()));
 
-    match mode {
-        #[cfg(feature = "client")]
-        RunMode::Client { .. } => {
-            app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
-        }
-        #[cfg(feature = "server")]
-        RunMode::Server => {
-            app.add_plugins((ExampleServerPlugin, fragment::FragmentServerPlugin));
-        }
+    #[cfg(feature = "server")]
+    if config.mode.starts_server() {
+        app.add_plugins(lightyear::prelude::server::ServerPlugins {
+            tick_duration: TICK_DURATION,
+        });
+    }
+
+    #[cfg(feature = "client")]
+    if config.mode.starts_client() {
+        app.add_plugins(lightyear::prelude::client::ClientPlugins {
+            tick_duration: TICK_DURATION,
+        });
+    }
+
+    app.add_plugins(SharedPlugin);
+    networking::configure_networking(&mut app, config.mode);
+
+    #[cfg(feature = "server")]
+    if config.mode.starts_server() {
+        app.add_observer(networking::apply_server_link_conditioner);
+        app.add_plugins((ExampleServerPlugin, fragment::FragmentServerPlugin));
+    }
+
+    #[cfg(feature = "client")]
+    if config.mode.starts_client() {
+        app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
     }
 
     #[cfg(feature = "gui")]
-    app.add_plugins((
+    app.insert_state(match config.mode {
+        LaunchMode::DedicatedServer | LaunchMode::HostLocal => AppState::Hosting,
+        LaunchMode::JoinEdgegap | LaunchMode::JoinLocal => AppState::Connecting,
+        LaunchMode::Menu => AppState::MainMenu,
+    })
+    .add_plugins((
         renderer::ExampleRendererPlugin,
         fragment::FragmentRenderPlugin,
+        MenuPlugin,
     ));
 
     app.run();
 }
 
-fn run_mode() -> RunMode {
-    #[cfg(target_family = "wasm")]
-    {
-        RunMode::Client {
-            client_id: rand::random(),
-            use_local_server: false,
-        }
-    }
-    #[cfg(not(target_family = "wasm"))]
-    {
-        let args: Vec<String> = std::env::args().skip(1).collect();
-        let use_local_server = args.iter().any(|arg| arg == "--dev");
-        match args.first().map(String::as_str) {
-            #[cfg(feature = "server")]
-            Some("server") => RunMode::Server,
-            #[cfg(feature = "client")]
-            Some("client") => RunMode::Client {
-                client_id: parse_client_id(args.iter().skip(1).cloned()),
-                use_local_server,
-            },
-            #[cfg(all(feature = "server", not(feature = "client")))]
-            _ => RunMode::Server,
-            #[cfg(feature = "client")]
-            _ => RunMode::Client {
-                client_id: 1,
-                use_local_server,
-            },
-        }
-    }
-}
+fn base_app(_config: &LaunchConfig) -> App {
+    let mut app = App::new();
 
-#[cfg(all(not(target_family = "wasm"), feature = "client"))]
-fn parse_client_id(args: impl Iterator<Item = String>) -> u64 {
-    let mut client_id = 1;
-    let mut args = args;
-    while let Some(arg) = args.next() {
-        if arg == "-c" {
-            if let Some(id) = args.next().and_then(|value| value.parse().ok()) {
-                client_id = id;
-            }
-        } else if let Ok(id) = arg.parse() {
-            client_id = id;
-        }
-    }
-    client_id
-}
-
-fn build_app(mode: RunMode, tick_duration: Duration) -> App {
-    let mut app = create_app(mode);
-    #[cfg(feature = "server")]
-    app.add_observer(crate::networking::apply_server_link_conditioner);
-    match mode {
-        #[cfg(feature = "client")]
-        RunMode::Client { .. } => {
-            app.add_plugins(lightyear::prelude::client::ClientPlugins { tick_duration });
-        }
-        #[cfg(feature = "server")]
-        RunMode::Server => {
-            app.add_plugins(lightyear::prelude::server::ServerPlugins { tick_duration });
-        }
-    }
-    app
-}
-
-fn create_app(mode: RunMode) -> App {
     #[cfg(feature = "gui")]
     {
-        let _ = mode;
-        new_gui_app()
-    }
-    #[cfg(not(feature = "gui"))]
-    {
-        let loop_wait = match mode {
-            #[cfg(feature = "client")]
-            RunMode::Client { .. } => Some(Duration::from_secs_f64(1.0 / HEADLESS_CLIENT_LOOP_HZ)),
-            #[cfg(feature = "server")]
-            RunMode::Server => None,
-        };
-        new_headless_app(loop_wait)
-    }
-}
-
-#[cfg(feature = "gui")]
-fn new_gui_app() -> App {
-    use bevy::window::PresentMode;
-    use bevy::winit::WinitSettings;
-
-    let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .build()
-            .set(AssetPlugin {
-                meta_check: bevy::asset::AssetMetaCheck::Never,
-                ..default()
-            })
-            .set(log_plugin())
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: env!("CARGO_PKG_NAME").to_string(),
-                    resolution: (1024, 768).into(),
-                    present_mode: PresentMode::AutoVsync,
-                    prevent_default_event_handling: true,
+        app.add_plugins(
+            DefaultPlugins
+                .build()
+                .set(AssetPlugin {
+                    meta_check: bevy::asset::AssetMetaCheck::Never,
+                    ..default()
+                })
+                .set(log_plugin())
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: env!("CARGO_PKG_NAME").into(),
+                        resolution: (1024, 768).into(),
+                        present_mode: PresentMode::AutoVsync,
+                        prevent_default_event_handling: true,
+                        ..default()
+                    }),
                     ..default()
                 }),
-                ..default()
-            }),
-    );
-    app.insert_resource(WinitSettings::continuous());
-    #[cfg(feature = "dev")]
-    app.add_plugins((
-        bevy_inspector_egui::bevy_egui::EguiPlugin::default(),
-        bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
-    ));
-    app
-}
+        )
+        .insert_resource(WinitSettings::continuous());
+        #[cfg(feature = "dev")]
+        app.add_plugins((
+            bevy_inspector_egui::bevy_egui::EguiPlugin::default(),
+            bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
+        ));
+        app
+    }
 
-#[cfg(not(feature = "gui"))]
-fn new_headless_app(loop_wait: Option<Duration>) -> App {
-    let mut app = App::new();
-    let minimal_plugins = match loop_wait {
-        Some(wait) => MinimalPlugins.set(bevy::app::ScheduleRunnerPlugin::run_loop(wait)),
-        None => MinimalPlugins.build(),
-    };
-    app.add_plugins((
-        minimal_plugins,
-        TransformPlugin,
-        bevy::input::InputPlugin,
-        log_plugin(),
-        bevy::state::app::StatesPlugin,
-        bevy::diagnostic::DiagnosticsPlugin,
-    ));
-    app
+    #[cfg(not(feature = "gui"))]
+    {
+        let plugins = match _config.mode {
+            #[cfg(feature = "client")]
+            LaunchMode::JoinEdgegap | LaunchMode::JoinLocal => {
+                MinimalPlugins.set(bevy::app::ScheduleRunnerPlugin::run_loop(
+                    Duration::from_secs_f64(1.0 / HEADLESS_CLIENT_LOOP_HZ),
+                ))
+            }
+            _ => MinimalPlugins.build(),
+        };
+        app.add_plugins((
+            plugins,
+            TransformPlugin,
+            bevy::input::InputPlugin,
+            log_plugin(),
+            bevy::state::app::StatesPlugin,
+            bevy::diagnostic::DiagnosticsPlugin,
+        ));
+        app
+    }
 }
 
 fn log_plugin() -> LogPlugin {
     LogPlugin {
         level: Level::INFO,
-        filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn".to_string(),
+        filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn".into(),
         ..default()
     }
 }

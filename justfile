@@ -1,18 +1,19 @@
-# The 'Just' utility lets you run common project actions.
 # Install with: cargo install just
-# Usage: just dev
-#        just dev 3
 
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 [unix]
 dev n="2":
-    cargo run -- server &
+    cargo build
+    cargo run -- --mode host &
+    sleep 1
     for i in $(seq 1 {{n}}); do \
-        cargo run -- client -c $i --dev & \
+        cargo run -- --mode local --user "Player$i" & \
     done
 
 [windows]
 dev n="2":
-    Start-Process -NoNewWindow cargo -ArgumentList @('run','--','server')
-    1..{{n}} | ForEach-Object { Start-Process -NoNewWindow cargo -ArgumentList @('run','--','client','-c',$_,'--dev') }
+    cargo build
+    Start-Process -NoNewWindow cargo -ArgumentList @('run','--','--mode','host')
+    Start-Sleep -Seconds 1
+    1..{{n}} | ForEach-Object { Start-Process -NoNewWindow cargo -ArgumentList @('run','--','--mode','local','--user',"Player$_") }

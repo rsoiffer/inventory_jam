@@ -1,3 +1,5 @@
+#[cfg(feature = "gui")]
+use crate::app::appstate::AppState;
 use bevy::prelude::*;
 
 pub mod api;
@@ -67,11 +69,20 @@ pub struct FragmentRenderPlugin;
 #[cfg(feature = "gui")]
 impl Plugin for FragmentRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, render::setup_fragment_balance);
+        app.add_systems(OnEnter(AppState::Playing), render::setup_fragment_balance);
+        app.add_systems(
+            OnExit(AppState::Playing),
+            |mut commands: Commands, texts: Query<Entity, With<render::FragmentBalanceText>>| {
+                for entity in &texts {
+                    commands.entity(entity).despawn();
+                }
+            },
+        );
 
         app.add_systems(
             Update,
-            (render::draw_fragments, render::update_fragment_balance),
+            (render::draw_fragments, render::update_fragment_balance)
+                .run_if(in_state(AppState::Playing)),
         );
     }
 }
