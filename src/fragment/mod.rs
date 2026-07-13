@@ -16,7 +16,7 @@ pub(crate) mod server;
 
 pub mod shared;
 
-pub use api::SpawnFragmentPool;
+use api::SpawnFragmentPool;
 
 /// Installs network component registration on every peer.
 pub struct FragmentProtocolPlugin;

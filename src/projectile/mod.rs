@@ -1,28 +1,24 @@
+#[cfg(feature = "client")]
+mod client;
+mod protocol;
+#[cfg(feature = "gui")]
+mod render;
+#[cfg(feature = "server")]
+mod server;
+pub mod shared;
+
 use crate::app::AppState;
 use crate::projectile::client::{
     initialize_projectile, initialize_projectile_impact, simulate_client_projectiles,
 };
 use crate::projectile::protocol::ProjectileImpact;
+use crate::projectile::server::{expire_server_impacts, simulate_server_projectiles};
+use crate::shared::FixedGameplaySet;
 #[cfg(feature = "gui")]
 use bevy::prelude::*;
 use lightyear::prelude::AppComponentExt;
 
-#[cfg(feature = "client")]
-mod client;
-
-mod protocol;
-
-#[cfg(feature = "gui")]
-mod render;
-
-#[cfg(feature = "server")]
-mod server;
-
-pub mod shared;
-
 pub use crate::projectile::protocol::PlayerProjectile;
-use crate::projectile::server::{expire_server_impacts, simulate_server_projectiles};
-use crate::shared::FixedGameplaySet;
 
 #[cfg(feature = "gui")]
 pub struct ProjectileRenderPlugin;
