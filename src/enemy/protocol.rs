@@ -5,6 +5,18 @@ use serde::{Deserialize, Serialize};
 
 pub const ENEMY_SIZE: f32 = 50.0;
 
+pub struct EnemyProtocolPlugin;
+
+impl Plugin for EnemyProtocolPlugin {
+    fn build(&self, app: &mut App) {
+        app.component::<EnemyPosition>()
+            .replicate()
+            .add_linear_interpolation();
+
+        app.component::<EnemyHealth>().replicate();
+    }
+}
+
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Deref, DerefMut)]
 pub struct EnemyPosition(pub Vec2);
 
@@ -29,12 +41,4 @@ impl EnemyHealth {
             maximum,
         }
     }
-}
-
-pub fn register(app: &mut App) {
-    app.component::<EnemyPosition>()
-        .replicate()
-        .add_linear_interpolation();
-
-    app.component::<EnemyHealth>().replicate();
 }

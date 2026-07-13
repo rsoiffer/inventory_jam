@@ -1,5 +1,3 @@
-use bevy::prelude::*;
-
 use crate::{
     app::game_is_active,
     projectile::{
@@ -11,23 +9,28 @@ use crate::{
     },
     weapon::protocol::WeaponKind,
 };
+use bevy::prelude::*;
 
-pub(super) fn register(app: &mut App) {
-    app.add_systems(Startup, load_projectile_visual_assets);
+pub struct ProjectileRenderPlugin;
 
-    app.add_systems(
-        Update,
-        (
-            ensure_projectile_sprites,
-            sync_projectile_sprites,
-            cleanup_projectile_sprites,
-            ensure_impact_sprites,
-            sync_impact_sprites,
-            animate_weapon_effect_sprites,
-        )
-            .chain()
-            .run_if(game_is_active),
-    );
+impl Plugin for ProjectileRenderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, load_projectile_visual_assets);
+
+        app.add_systems(
+            Update,
+            (
+                ensure_projectile_sprites,
+                sync_projectile_sprites,
+                cleanup_projectile_sprites,
+                ensure_impact_sprites,
+                sync_impact_sprites,
+                animate_weapon_effect_sprites,
+            )
+                .chain()
+                .run_if(game_is_active),
+        );
+    }
 }
 
 #[derive(Resource)]

@@ -1,3 +1,4 @@
+#[cfg(feature = "server")]
 mod api;
 #[cfg(feature = "client")]
 mod client;
@@ -8,78 +9,21 @@ mod render;
 mod server;
 mod shared;
 
-use crate::app::{AppState, game_is_active};
-use api::SpawnFragmentPool;
-use bevy::prelude::*;
+use bevy::app::{App, Plugin};
 
-/// Installs network component registration on every peer.
-pub struct FragmentProtocolPlugin;
+pub struct FragmentPlugin;
 
-impl Plugin for FragmentProtocolPlugin {
+impl Plugin for FragmentPlugin {
     fn build(&self, app: &mut App) {
-        protocol::register(app);
-    }
-}
+        app.add_plugins(protocol::FragmentProtocolPlugin);
 
-/// Installs only client-side fragment presentation behavior.
-#[cfg(feature = "client")]
-pub struct FragmentClientPlugin;
+        #[cfg(feature = "client")]
+        app.add_plugins(client::FragmentClientPlugin);
 
-#[cfg(feature = "client")]
-impl Plugin for FragmentClientPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_observer(client::initialize_fragment);
-        app.add_systems(
-            FixedUpdate,
-            client::simulate_client_fragments.run_if(in_state(AppState::Playing)),
-        );
-    }
-}
+        #[cfg(feature = "server")]
+        app.add_plugins(server::FragmentServerPlugin);
 
-/// Installs only server-authoritative fragment behavior.
-#[cfg(feature = "server")]
-pub struct FragmentServerPlugin;
-
-#[cfg(feature = "server")]
-impl Plugin for FragmentServerPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_message::<SpawnFragmentPool>();
-
-        app.add_systems(
-            FixedUpdate,
-            (
-                server::request_debug_fragment_pool,
-                server::spawn_requested_fragment_pools,
-                server::simulate_server_fragments,
-            )
-                .chain()
-                .before(crate::shared::FixedGameplaySet::Persistence)
-                .run_if(in_state(AppState::Hosting)),
-        );
-    }
-}
-
-/// Installs fragment rendering without exposing rendering internals elsewhere.
-#[cfg(feature = "gui")]
-pub struct FragmentRenderPlugin;
-
-#[cfg(feature = "gui")]
-impl Plugin for FragmentRenderPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Playing), render::setup_fragment_balance);
-        app.add_systems(
-            OnExit(AppState::Playing),
-            |mut commands: Commands, texts: Query<Entity, With<render::FragmentBalanceText>>| {
-                for entity in &texts {
-                    commands.entity(entity).despawn();
-                }
-            },
-        );
-
-        app.add_systems(Update, render::draw_fragments.run_if(game_is_active));
-        app.add_systems(
-            Update,
-            render::update_fragment_balance.run_if(in_state(AppState::Playing)),
-        );
+        #[cfg(feature = "gui")]
+        app.add_plugins(render::FragmentRenderPlugin);
     }
 }

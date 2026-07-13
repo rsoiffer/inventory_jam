@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
+use crate::app::AppState;
 use crate::enemy::{EnemyHealth, EnemyPosition};
 use crate::protocol::rooms::GameRoom;
+use crate::shared::FixedGameplaySet;
 use crate::{
     enemy::shared::ENEMY_COLLISION_RADIUS,
     projectile::{
@@ -14,8 +16,22 @@ use crate::{
     },
 };
 
+pub struct ProjectileServerPlugin;
+
+impl Plugin for ProjectileServerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            FixedUpdate,
+            (simulate_server_projectiles, expire_server_impacts)
+                .chain()
+                .in_set(FixedGameplaySet::Projectile)
+                .run_if(in_state(AppState::Hosting)),
+        );
+    }
+}
+
 /// Simulates authoritative projectile motion, hit detection, damage, and death.
-pub(crate) fn simulate_server_projectiles(
+fn simulate_server_projectiles(
     mut commands: Commands,
     mut projectiles: Query<
         (
@@ -87,7 +103,7 @@ pub(crate) fn simulate_server_projectiles(
     }
 }
 
-pub(crate) fn expire_server_impacts(
+fn expire_server_impacts(
     mut commands: Commands,
     mut impacts: Query<(Entity, &mut ImpactLifetime), With<ServerImpact>>,
 ) {

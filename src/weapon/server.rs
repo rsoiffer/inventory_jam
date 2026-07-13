@@ -2,10 +2,12 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
+use crate::app::AppState;
+use crate::player::{PlayerAimDirection, PlayerId, PlayerPosition};
 use crate::projectile::PlayerProjectile;
 use crate::protocol::inputs::PlayerAction;
-use crate::protocol::player::{PlayerAimDirection, PlayerId, PlayerPosition};
 use crate::protocol::rooms::GameRoom;
+use crate::shared::FixedGameplaySet;
 use crate::{
     projectile::shared::{
         self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
@@ -15,6 +17,28 @@ use crate::{
         shared::{WeaponCooldown, weapon_stats},
     },
 };
+
+/// Installs server-authoritative weapon state and firing behavior.
+#[cfg(feature = "server")]
+pub struct WeaponServerPlugin;
+
+#[cfg(feature = "server")]
+impl Plugin for WeaponServerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            FixedUpdate,
+            (
+                ensure_player_weapons,
+                ensure_weapon_cooldowns,
+                tick_weapon_cooldowns,
+                fire_equipped_weapons,
+            )
+                .chain()
+                .in_set(FixedGameplaySet::Weapon)
+                .run_if(in_state(AppState::Hosting)),
+        );
+    }
+}
 
 /// Gives every authoritative player a starter weapon.
 ///

@@ -1,5 +1,4 @@
-use bevy::prelude::*;
-
+use crate::app::AppState;
 use crate::projectile::{
     protocol::{PlayerProjectile, ProjectileImpact},
     shared::{
@@ -7,8 +6,24 @@ use crate::projectile::{
         ProjectileLifetime, ProjectilePosition, ServerImpact, ServerProjectile,
     },
 };
+use bevy::prelude::*;
 
-pub(crate) fn initialize_projectile(
+pub struct ProjectileClientPlugin;
+
+impl Plugin for ProjectileClientPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_observer(initialize_projectile);
+        app.add_observer(initialize_projectile_impact);
+        app.add_systems(
+            FixedUpdate,
+            simulate_client_projectiles
+                .chain()
+                .run_if(in_state(AppState::Playing)),
+        );
+    }
+}
+
+fn initialize_projectile(
     trigger: On<Add, PlayerProjectile>,
     mut commands: Commands,
     projectiles: Query<(&PlayerProjectile, Option<&ServerProjectile>)>,
@@ -33,7 +48,7 @@ pub(crate) fn initialize_projectile(
     ));
 }
 
-pub(crate) fn initialize_projectile_impact(
+fn initialize_projectile_impact(
     trigger: On<Add, ProjectileImpact>,
     mut commands: Commands,
     impacts: Query<(&ProjectileImpact, Option<&ServerImpact>)>,
@@ -55,7 +70,7 @@ pub(crate) fn initialize_projectile_impact(
     ));
 }
 
-pub(crate) fn simulate_client_projectiles(
+fn simulate_client_projectiles(
     mut commands: Commands,
     mut projectiles: Query<
         (

@@ -1,3 +1,7 @@
+use crate::app::game_is_active;
+use crate::enemy::protocol::{ENEMY_SIZE, EnemyHealth, EnemyPosition};
+use bevy::app::{App, Plugin, Update};
+use bevy::prelude::IntoScheduleConfigs;
 use bevy::{
     color::Color,
     ecs::system::Query,
@@ -5,9 +9,15 @@ use bevy::{
     math::{Isometry2d, Vec2},
 };
 
-use crate::enemy::protocol::{ENEMY_SIZE, EnemyHealth, EnemyPosition};
+pub struct EnemyRenderPlugin;
 
-pub(crate) fn draw_enemy_boxes(mut gizmos: Gizmos, enemies: Query<(&EnemyPosition, &EnemyHealth)>) {
+impl Plugin for EnemyRenderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, draw_enemy_boxes.run_if(game_is_active));
+    }
+}
+
+fn draw_enemy_boxes(mut gizmos: Gizmos, enemies: Query<(&EnemyPosition, &EnemyHealth)>) {
     for (position, health) in &enemies {
         gizmos.rect_2d(
             Isometry2d::from_translation(position.0),

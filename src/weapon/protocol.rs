@@ -1,6 +1,17 @@
+use crate::weapon::protocol;
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
+
+/// Installs weapon component registration on every peer before connections are
+/// spawned.
+pub struct WeaponProtocolPlugin;
+
+impl Plugin for WeaponProtocolPlugin {
+    fn build(&self, app: &mut App) {
+        protocol::register(app);
+    }
+}
 
 /// Stable gameplay identifier replicated over the network.
 ///

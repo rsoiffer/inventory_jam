@@ -1,11 +1,26 @@
+use crate::app::AppState;
 use bevy::prelude::*;
 use lightyear::{prediction::Predicted, prelude::PeerId};
 
+/// Installs only client-side fragment presentation behavior.
+pub struct FragmentClientPlugin;
+
+impl Plugin for FragmentClientPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_observer(client::initialize_fragment);
+        app.add_systems(
+            FixedUpdate,
+            client::simulate_client_fragments.run_if(in_state(AppState::Playing)),
+        );
+    }
+}
+
 use crate::fragment::{
+    client,
     protocol::Fragment,
     shared::{self as fragment_shared, ClientFragment, FragmentPosition, ServerFragment},
 };
-use crate::protocol::player::{PlayerId, PlayerPosition};
+use crate::player::{PlayerId, PlayerPosition};
 
 /// Creates client-only presentation state when a replicated fragment arrives.
 pub(crate) fn initialize_fragment(

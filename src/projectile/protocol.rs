@@ -1,8 +1,16 @@
+use crate::weapon::protocol::WeaponKind;
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::weapon::protocol::WeaponKind;
+pub struct ProjectileProtocolPlugin;
+
+impl Plugin for ProjectileProtocolPlugin {
+    fn build(&self, app: &mut App) {
+        app.component::<PlayerProjectile>().replicate();
+        app.component::<ProjectileImpact>().replicate();
+    }
+}
 
 /// Authoritative attack snapshot carried by a projectile.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]

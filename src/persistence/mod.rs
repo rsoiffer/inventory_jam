@@ -33,8 +33,19 @@ use systems::{
 #[cfg(feature = "server")]
 use worker::{PersistenceFlushClock, spawn_worker};
 
+pub struct PersistencePlugin;
+
+impl Plugin for PersistencePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(PersistenceProtocolPlugin);
+
+        #[cfg(feature = "server")]
+        app.add_plugins(PersistenceServerPlugin);
+    }
+}
+
 /// Registers replicated persistence components on every peer.
-pub struct PersistenceProtocolPlugin;
+struct PersistenceProtocolPlugin;
 
 impl Plugin for PersistenceProtocolPlugin {
     fn build(&self, app: &mut App) {
@@ -43,10 +54,10 @@ impl Plugin for PersistenceProtocolPlugin {
 }
 
 #[cfg(feature = "server")]
-pub struct PersistencePlugin;
+struct PersistenceServerPlugin;
 
 #[cfg(feature = "server")]
-impl Plugin for PersistencePlugin {
+impl Plugin for PersistenceServerPlugin {
     fn build(&self, app: &mut App) {
         let config = PersistenceConfig::from_env().unwrap_or_else(|error| {
             panic!("persistence configuration error: {error}");

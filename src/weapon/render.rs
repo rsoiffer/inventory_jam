@@ -1,19 +1,26 @@
 use bevy::prelude::*;
 use lightyear::prelude::{Interpolated, Predicted, Replicate};
 
-use crate::protocol::player::{PlayerAimDirection, PlayerPosition};
+use crate::player::{PlayerAimDirection, PlayerPosition};
 use crate::{
     app::game_is_active,
     weapon::protocol::{EquippedWeapon, WeaponKind},
 };
 
-pub(super) fn register(app: &mut App) {
-    app.add_systems(
-        Update,
-        (ensure_weapon_sprites, sync_weapon_sprites)
-            .chain()
-            .run_if(game_is_active),
-    );
+/// Installs client-only held-weapon rendering.
+#[cfg(feature = "gui")]
+pub struct WeaponRenderPlugin;
+
+#[cfg(feature = "gui")]
+impl Plugin for WeaponRenderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (ensure_weapon_sprites, sync_weapon_sprites)
+                .chain()
+                .run_if(game_is_active),
+        );
+    }
 }
 
 #[derive(Component, Clone, Copy, Debug)]

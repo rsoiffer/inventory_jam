@@ -9,6 +9,27 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "server")]
 use crate::app::temporary_username;
 
+pub struct PlayerProtocolPlugin;
+
+impl Plugin for PlayerProtocolPlugin {
+    fn build(&self, app: &mut App) {
+        app.component::<PlayerId>().replicate();
+
+        app.component::<PlayerPosition>()
+            .replicate()
+            .predict()
+            .add_linear_interpolation();
+
+        app.component::<PlayerAimDirection>().replicate().predict();
+
+        app.component::<PlayerColor>().replicate();
+
+        app.component::<GameRoom>().replicate();
+
+        app.component::<PlayerUsername>().replicate();
+    }
+}
+
 #[cfg(feature = "server")]
 #[derive(Bundle)]
 pub(crate) struct PlayerBundle {
@@ -69,19 +90,20 @@ pub struct PlayerColor(pub(crate) Color);
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Deref)]
 pub struct PlayerUsername(pub String);
 
-pub fn register(app: &mut App) {
-    app.component::<PlayerId>().replicate();
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct CachedCursorAim(pub Vec2);
 
-    app.component::<PlayerPosition>()
-        .replicate()
-        .predict()
-        .add_linear_interpolation();
+impl Default for CachedCursorAim {
+    fn default() -> Self {
+        Self(Vec2::X)
+    }
+}
 
-    app.component::<PlayerAimDirection>().replicate().predict();
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct SmoothedAimDirection(pub Vec2);
 
-    app.component::<PlayerColor>().replicate();
-
-    app.component::<GameRoom>().replicate();
-
-    app.component::<PlayerUsername>().replicate();
+impl Default for SmoothedAimDirection {
+    fn default() -> Self {
+        Self(Vec2::X)
+    }
 }

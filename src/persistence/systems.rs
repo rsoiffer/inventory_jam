@@ -7,8 +7,8 @@ use lightyear::connection::host::HostServer;
 use lightyear::prelude::*;
 
 use crate::app::validate_username;
+use crate::player::PlayerUsername;
 use crate::protocol::messages::SetUsername;
-use crate::protocol::player::PlayerUsername;
 
 use super::api::{AddFragments, PersistenceIdentity, PersistenceLoading, PersistenceReady};
 use super::queue::PersistenceQueue;

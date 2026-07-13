@@ -1,22 +1,17 @@
 mod app;
 mod protocol;
 
-#[cfg(feature = "client")]
-mod client;
-
 #[cfg(feature = "server")]
 mod server;
 
 mod enemy;
 mod fragment;
 mod persistence;
+mod player;
 mod projectile;
-mod weapon;
-
-#[cfg(feature = "gui")]
-mod renderer;
-#[cfg(feature = "gui")]
 mod ui;
+mod weapon;
+mod world;
 
 mod shared;
 
@@ -29,16 +24,18 @@ use bevy::prelude::*;
 use bevy::window::PresentMode;
 #[cfg(feature = "gui")]
 use bevy::winit::WinitSettings;
-#[cfg(feature = "client")]
-use client::ExampleClientPlugin;
-#[cfg(feature = "server")]
+use enemy::EnemyPlugin;
+use fragment::FragmentPlugin;
 use persistence::PersistencePlugin;
+use player::PlayerPlugin;
+use projectile::ProjectilePlugin;
 #[cfg(feature = "server")]
 use server::ExampleServerPlugin;
 use shared::SharedPlugin;
 use std::time::Duration;
-#[cfg(feature = "gui")]
-use ui::MenuPlugin;
+use ui::UiPlugin;
+use weapon::WeaponPlugin;
+use world::WorldPlugin;
 
 const TICK_DURATION: Duration =
     Duration::from_nanos((1_000_000_000.0 / networking::FIXED_TIMESTEP_HZ) as u64);
@@ -62,37 +59,25 @@ fn main() {
         tick_duration: TICK_DURATION,
     });
 
+    app.insert_state(AppState::MainMenu);
+
     app.add_plugins((
+        WorldPlugin,
+        UiPlugin,
         LaunchPlugin,
         SharedPlugin,
-        fragment::FragmentProtocolPlugin,
-        persistence::PersistenceProtocolPlugin,
-        weapon::WeaponProtocolPlugin,
+        PlayerPlugin,
+        EnemyPlugin,
+        ProjectilePlugin,
+        WeaponPlugin,
+        FragmentPlugin,
+        PersistencePlugin,
     ));
     networking::configure_networking(&mut app);
 
     #[cfg(feature = "server")]
     app.add_observer(networking::apply_server_link_conditioner)
-        .add_plugins((
-            ExampleServerPlugin,
-            PersistencePlugin,
-            fragment::FragmentServerPlugin,
-            weapon::WeaponServerPlugin,
-        ));
-
-    #[cfg(feature = "client")]
-    app.add_plugins((ExampleClientPlugin, fragment::FragmentClientPlugin));
-
-    app.insert_state(AppState::MainMenu);
-
-    #[cfg(feature = "gui")]
-    app.add_plugins((
-        renderer::ExampleRendererPlugin,
-        projectile::ProjectileRenderPlugin,
-        fragment::FragmentRenderPlugin,
-        weapon::WeaponRenderPlugin,
-        MenuPlugin,
-    ));
+        .add_plugins(ExampleServerPlugin);
 
     app.run();
 }

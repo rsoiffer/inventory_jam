@@ -1,8 +1,34 @@
+use crate::app::{AppState, game_is_active};
+use crate::fragment::{
+    render,
+    shared::{self as fragment_shared, FragmentPosition},
+};
+use crate::persistence::CachedPersistentState;
 use bevy::prelude::*;
 use lightyear::prelude::Controlled;
 
-use crate::fragment::shared::{self as fragment_shared, FragmentPosition};
-use crate::persistence::CachedPersistentState;
+/// Installs fragment rendering without exposing rendering internals elsewhere.
+pub struct FragmentRenderPlugin;
+
+impl Plugin for FragmentRenderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(OnEnter(AppState::Playing), render::setup_fragment_balance);
+        app.add_systems(
+            OnExit(AppState::Playing),
+            |mut commands: Commands, texts: Query<Entity, With<render::FragmentBalanceText>>| {
+                for entity in &texts {
+                    commands.entity(entity).despawn();
+                }
+            },
+        );
+
+        app.add_systems(Update, render::draw_fragments.run_if(game_is_active));
+        app.add_systems(
+            Update,
+            render::update_fragment_balance.run_if(in_state(AppState::Playing)),
+        );
+    }
+}
 
 #[derive(Component)]
 pub(crate) struct FragmentBalanceText;

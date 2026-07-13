@@ -66,7 +66,7 @@ impl NetworkClient {
                 protocol_id: settings.shared.protocol_id,
             };
             let netcode_config = NetcodeConfig {
-                client_timeout_secs: 3,
+                client_timeout_secs: 10,
                 token_expire_secs: -1,
                 ..default()
             };

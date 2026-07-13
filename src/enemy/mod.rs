@@ -5,26 +5,20 @@ mod render;
 mod server;
 pub mod shared;
 
-use crate::app::{AppState, game_is_active};
-use crate::enemy::render::draw_enemy_boxes;
-use crate::enemy::server::spawn_enemy;
-use bevy::app::{App, FixedUpdate, Plugin, Update};
-use bevy::prelude::{IntoScheduleConfigs, in_state};
+use bevy::app::{App, Plugin};
 
-pub use protocol::{EnemyHealth, EnemyPosition, register};
+pub use protocol::{EnemyHealth, EnemyPosition};
 
-pub struct EnemyClientPlugin;
+pub struct EnemyPlugin;
 
-impl Plugin for EnemyClientPlugin {
+impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, draw_enemy_boxes.run_if(game_is_active));
-    }
-}
+        app.add_plugins(protocol::EnemyProtocolPlugin);
 
-pub struct EnemyServerPlugin;
+        #[cfg(feature = "server")]
+        app.add_plugins(server::EnemyServerPlugin);
 
-impl Plugin for EnemyServerPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, spawn_enemy.run_if(in_state(AppState::Hosting)));
+        #[cfg(feature = "gui")]
+        app.add_plugins(render::EnemyRenderPlugin);
     }
 }
