@@ -5,7 +5,6 @@ use lightyear::prelude::*;
 use crate::protocol::rooms::GameRoom;
 use crate::{
     projectile::{
-        protocol::PlayerProjectile,
         shared::{
             self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
         },
@@ -16,6 +15,7 @@ use crate::{
         shared::{WeaponCooldown, weapon_stats},
     },
 };
+use crate::projectile::PlayerProjectile;
 
 /// Gives every authoritative player a starter weapon.
 ///
