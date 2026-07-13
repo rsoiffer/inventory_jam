@@ -1,12 +1,12 @@
-pub mod api;
+mod api;
 #[cfg(feature = "client")]
-pub(crate) mod client;
-pub(crate) mod protocol;
+mod client;
+mod protocol;
 #[cfg(feature = "gui")]
-pub(crate) mod render;
+mod render;
 #[cfg(feature = "server")]
-pub(crate) mod server;
-pub mod shared;
+mod server;
+mod shared;
 
 use crate::app::{AppState, game_is_active};
 use api::SpawnFragmentPool;

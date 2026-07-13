@@ -5,9 +5,6 @@ pub const FRAGMENT_RADIUS: f32 = 8.0;
 /// How long an uncollected fragment remains in the world at 60 fixed ticks/sec.
 pub const FRAGMENT_LIFETIME_TICKS: u16 = 600;
 
-/// How long the post-award pull visual remains before the server despawns it.
-pub const FRAGMENT_PICKUP_VISUAL_TICKS: u16 = 30;
-
 /// Radius owned by the player for collecting nearby fragments.
 pub const PLAYER_COLLECTION_RADIUS: f32 = 50.0;
 
