@@ -14,7 +14,7 @@ use crate::{
 };
 
 const MIN_FRAGMENTS_PER_DEBUG_POOL: u16 = 50;
-const MAX_FRAGMENTS_PER_DEBUG_POOL: u16 = 15000;
+const MAX_FRAGMENTS_PER_DEBUG_POOL: u16 = 150;
 
 // The minimum is deliberately larger than the normal collection radius so a
 // debug pool does not disappear on the same tick that it spawns.
