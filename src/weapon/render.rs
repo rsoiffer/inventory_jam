@@ -1,13 +1,19 @@
 use bevy::prelude::*;
-use lightyear::prelude::{Interpolated, Predicted};
+use lightyear::prelude::{Interpolated, Predicted, Replicate};
 
 use crate::{
+    app::game_is_active,
     protocol::{PlayerAimDirection, PlayerPosition},
     weapon::protocol::{EquippedWeapon, WeaponKind},
 };
 
 pub(super) fn register(app: &mut App) {
-    app.add_systems(Update, (ensure_weapon_sprites, sync_weapon_sprites).chain());
+    app.add_systems(
+        Update,
+        (ensure_weapon_sprites, sync_weapon_sprites)
+            .chain()
+            .run_if(game_is_active),
+    );
 }
 
 #[derive(Component, Clone, Copy, Debug)]
@@ -15,16 +21,15 @@ struct WeaponSprite {
     kind: WeaponKind,
 }
 
+type VisiblePlayer = (
+    Or<(With<Predicted>, With<Interpolated>, With<Replicate>)>,
+    Without<WeaponSprite>,
+);
+
 fn ensure_weapon_sprites(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    players: Query<
-        (Entity, &EquippedWeapon),
-        (
-            Or<(With<Predicted>, With<Interpolated>)>,
-            Without<WeaponSprite>,
-        ),
-    >,
+    players: Query<(Entity, &EquippedWeapon), VisiblePlayer>,
 ) {
     for (entity, equipped_weapon) in &players {
         commands.entity(entity).insert((

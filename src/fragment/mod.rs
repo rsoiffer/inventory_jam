@@ -1,4 +1,4 @@
-use crate::app::AppState;
+use crate::app::{AppState, game_is_active};
 use bevy::prelude::*;
 
 pub mod api;
@@ -82,10 +82,10 @@ impl Plugin for FragmentRenderPlugin {
             },
         );
 
+        app.add_systems(Update, render::draw_fragments.run_if(game_is_active));
         app.add_systems(
             Update,
-            (render::draw_fragments, render::update_fragment_balance)
-                .run_if(in_state(AppState::Playing)),
+            render::update_fragment_balance.run_if(in_state(AppState::Playing)),
         );
     }
 }

@@ -10,6 +10,10 @@ pub enum AppState {
     Hosting,
 }
 
+pub(crate) fn game_is_active(state: Res<State<AppState>>) -> bool {
+    matches!(state.get(), AppState::Playing | AppState::Hosting)
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum LaunchMode {
     #[default]
