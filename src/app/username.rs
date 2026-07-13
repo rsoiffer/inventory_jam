@@ -3,6 +3,7 @@ use bevy::prelude::Resource;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const MAX_USERNAME_LEN: usize = 16;
+#[cfg(feature = "client")]
 const MACHINE_ID_PREFIX_LEN: usize = 6;
 
 #[derive(Resource, Debug, Clone)]
@@ -32,12 +33,14 @@ pub fn validate_username(raw: &str) -> Result<String, String> {
 
 /// Prefixes a username with a stable per-machine id so local-dev identities do
 /// not collide across computers sharing the same persistence database.
+#[cfg(feature = "client")]
 pub fn machine_local_username(raw: &str) -> Result<String, String> {
     let base = validate_username(raw)?;
     let prefix = machine_id_prefix();
     validate_username(&format!("{base}_{prefix}"))
 }
 
+#[cfg(feature = "client")]
 fn machine_id_prefix() -> String {
     let mut hasher = DefaultHasher::new();
     machine_name().hash(&mut hasher);
@@ -48,6 +51,7 @@ fn machine_id_prefix() -> String {
         .collect()
 }
 
+#[cfg(feature = "client")]
 fn machine_name() -> String {
     #[cfg(windows)]
     {
