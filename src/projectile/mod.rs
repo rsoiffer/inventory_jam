@@ -18,7 +18,7 @@ use crate::shared::FixedGameplaySet;
 use bevy::prelude::*;
 use lightyear::prelude::AppComponentExt;
 
-pub use crate::projectile::protocol::PlayerProjectile;
+pub use protocol::PlayerProjectile;
 
 #[cfg(feature = "gui")]
 pub struct ProjectileRenderPlugin;
