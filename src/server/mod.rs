@@ -5,7 +5,7 @@ use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
 use crate::app::AppState;
-use crate::enemy::server::spawn_enemy;
+use crate::enemy::EnemyServerPlugin;
 use crate::networking::SEND_INTERVAL;
 use crate::protocol::channels::ServerEventsChannel;
 use crate::protocol::messages::DebugServerMessage;
@@ -37,7 +37,7 @@ impl Plugin for ExampleServerPlugin {
             debug_switch_rooms.run_if(in_state(AppState::Hosting)),
         );
 
-        app.add_systems(FixedUpdate, spawn_enemy.run_if(in_state(AppState::Hosting)));
+        app.add_plugins(EnemyServerPlugin);
         app.add_systems(
             Update,
             (apply_username_messages, send_debug_server_message)
