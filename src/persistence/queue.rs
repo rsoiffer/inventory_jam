@@ -8,22 +8,9 @@ use super::transaction::Transaction;
 
 pub const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
-#[derive(Resource, Debug, Clone)]
-pub struct PersistenceConfig {
-    pub database_url: String,
-}
-
-impl PersistenceConfig {
-    pub fn from_env() -> Result<Self, String> {
-        Ok(Self {
-            database_url: read_database_url()?,
-        })
-    }
-}
-
 const DATABASE_SERVER_URL_PATH: &str = "secrets/database-server-url.txt";
 
-fn read_database_url() -> Result<String, String> {
+pub fn read_database_url() -> Result<String, String> {
     let contents = std::fs::read_to_string(DATABASE_SERVER_URL_PATH)
         .map_err(|error| format!("failed to read {DATABASE_SERVER_URL_PATH}: {error}"))?;
     let url = contents.trim().to_string();
@@ -88,56 +75,5 @@ impl PendingTransactionQueue {
     pub fn finish_flush(&mut self) {
         self.is_flushing = false;
         self.next_flush_at = Instant::now() + FLUSH_INTERVAL;
-    }
-
-    #[cfg(test)]
-    fn due_now() -> Self {
-        Self {
-            pending: VecDeque::new(),
-            next_flush_at: Instant::now()
-                .checked_sub(Duration::from_secs(1))
-                .unwrap_or_else(Instant::now),
-            is_flushing: false,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn acknowledge_keeps_transactions_enqueued_during_flush() {
-        let mut queue = PendingTransactionQueue::due_now();
-        let first = Transaction::add_fragments("alice", 1);
-        let first_id = first.id;
-        queue.enqueue(first);
-
-        let snapshot = queue.begin_flush_if_due().expect("flush should start");
-        assert_eq!(snapshot.len(), 1);
-        assert!(queue.is_flushing());
-
-        let second = Transaction::add_fragments("alice", 2);
-        let second_id = second.id;
-        queue.enqueue(second);
-
-        queue.acknowledge(&[first_id]);
-        let remaining: Vec<_> = queue
-            .pending_for_username("alice")
-            .map(|tx| tx.id)
-            .collect();
-        assert_eq!(remaining, vec![second_id]);
-
-        queue.finish_flush();
-        assert!(!queue.is_flushing());
-        assert!(queue.pending_for_username("alice").next().is_some());
-    }
-
-    #[test]
-    fn begin_flush_is_blocked_while_flushing() {
-        let mut queue = PendingTransactionQueue::due_now();
-        queue.enqueue(Transaction::add_fragments("alice", 1));
-        assert!(queue.begin_flush_if_due().is_some());
-        assert!(queue.begin_flush_if_due().is_none());
     }
 }

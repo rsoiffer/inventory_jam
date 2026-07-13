@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 use std::thread;
-use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use bevy::prelude::*;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::{PgPool, Row};
+use sqlx::{Connection, PgConnection, Row};
 use uuid::Uuid;
 
 use super::state::PersistentState;
@@ -17,7 +15,6 @@ pub enum PersistenceRequest {
     },
     Flush {
         transactions: Vec<Transaction>,
-        usernames: Vec<String>,
         expected_hashes: HashMap<String, String>,
     },
 }
@@ -33,15 +30,50 @@ pub enum PersistenceResponse {
 }
 
 #[derive(Debug, Clone)]
+pub struct TransactionResult {
+    pub id: Uuid,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct FlushResult {
-    pub acknowledged_ids: Vec<Uuid>,
+    pub transaction_results: Vec<TransactionResult>,
     pub reloaded_states: HashMap<String, PersistentState>,
 }
 
 #[derive(Resource)]
 pub struct PersistenceChannels {
-    pub request_tx: std::sync::mpsc::Sender<PersistenceRequest>,
-    pub response_rx: std::sync::Mutex<std::sync::mpsc::Receiver<PersistenceResponse>>,
+    request_tx: std::sync::mpsc::Sender<PersistenceRequest>,
+    response_rx: std::sync::Mutex<std::sync::mpsc::Receiver<PersistenceResponse>>,
+}
+
+impl PersistenceChannels {
+    pub fn load_player(&self, username: String) -> Result<(), String> {
+        self.request_tx
+            .send(PersistenceRequest::LoadPlayer { username })
+            .map_err(|_| "persistence worker is unavailable".into())
+    }
+
+    pub fn flush(
+        &self,
+        transactions: Vec<Transaction>,
+        expected_hashes: HashMap<String, String>,
+    ) -> Result<(), String> {
+        self.request_tx
+            .send(PersistenceRequest::Flush {
+                transactions,
+                expected_hashes,
+            })
+            .map_err(|_| "persistence worker is unavailable".into())
+    }
+
+    pub fn drain_responses(&self) -> Vec<PersistenceResponse> {
+        self.response_rx
+            .lock()
+            .expect("persistence response channel poisoned")
+            .try_iter()
+            .collect()
+    }
 }
 
 pub fn spawn_worker(database_url: String) -> Result<PersistenceChannels> {
@@ -88,21 +120,16 @@ async fn worker_main(
     response_tx: std::sync::mpsc::Sender<PersistenceResponse>,
     ready_tx: std::sync::mpsc::Sender<Result<()>>,
 ) -> Result<()> {
-    let pool = match connect_database(&database_url).await {
-        Ok(pool) => {
+    let mut connection = match connect_database(&database_url).await {
+        Ok(connection) => {
             let _ = ready_tx.send(Ok(()));
-            pool
+            connection
         }
         Err(error) => {
             let _ = ready_tx.send(Err(anyhow!(error.to_string())));
             return Err(error);
         }
     };
-
-    let mut connection = pool
-        .acquire()
-        .await
-        .context("failed to acquire dedicated persistence connection")?;
 
     while let Ok(request) = request_rx.recv() {
         match request {
@@ -115,12 +142,10 @@ async fn worker_main(
             }
             PersistenceRequest::Flush {
                 transactions,
-                usernames,
                 expected_hashes,
             } => {
                 let result =
-                    flush_and_reload(&mut connection, &transactions, &usernames, &expected_hashes)
-                        .await;
+                    flush_and_reload(&mut connection, &transactions, &expected_hashes).await;
                 let _ = response_tx.send(PersistenceResponse::Flush {
                     result: result.map_err(|error| format!("{error:#}")),
                 });
@@ -131,17 +156,14 @@ async fn worker_main(
     Ok(())
 }
 
-async fn connect_database(database_url: &str) -> Result<PgPool> {
-    PgPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_secs(10))
-        .connect(database_url)
+async fn connect_database(database_url: &str) -> Result<PgConnection> {
+    PgConnection::connect(database_url)
         .await
         .context("failed to connect to database")
 }
 
 async fn load_player_state(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    connection: &mut PgConnection,
     username: &str,
 ) -> Result<PersistentState> {
     let mut states = get_player_states(connection, &[username.to_string()]).await?;
@@ -151,7 +173,7 @@ async fn load_player_state(
 }
 
 async fn get_player_states(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    connection: &mut PgConnection,
     usernames: &[String],
 ) -> Result<HashMap<String, PersistentState>> {
     if usernames.is_empty() {
@@ -160,7 +182,7 @@ async fn get_player_states(
 
     let rows = sqlx::query("SELECT username, state FROM get_player_states($1)")
         .bind(usernames)
-        .fetch_all(&mut **connection)
+        .fetch_all(&mut *connection)
         .await
         .context("get_player_states failed")?;
 
@@ -176,26 +198,41 @@ async fn get_player_states(
 }
 
 async fn flush_and_reload(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    connection: &mut PgConnection,
     transactions: &[Transaction],
-    usernames: &[String],
     expected_hashes: &HashMap<String, String>,
 ) -> Result<FlushResult> {
     let transactions_json =
         serde_json::to_value(transactions).context("failed to serialize transactions")?;
 
-    let rows = sqlx::query("SELECT username, state_hash FROM flush_player_transactions($1, $2)")
-        .bind(transactions_json)
-        .bind(usernames)
-        .fetch_all(&mut **connection)
-        .await
-        .context("flush_player_transactions failed")?;
+    let usernames: Vec<_> = expected_hashes.keys().cloned().collect();
+    let rows = sqlx::query(
+        "SELECT transaction_id, applied, error_message, username, state_hash \
+         FROM flush_player_transactions($1, $2)",
+    )
+    .bind(transactions_json)
+    .bind(&usernames)
+    .fetch_all(&mut *connection)
+    .await
+    .context("flush_player_transactions failed")?;
 
-    let mut actual_hashes = HashMap::with_capacity(rows.len());
+    let mut transaction_results = Vec::with_capacity(transactions.len());
+    let mut actual_hashes = HashMap::with_capacity(expected_hashes.len());
     for row in rows {
-        let username: String = row.try_get("username")?;
-        let state_hash: String = row.try_get("state_hash")?;
-        actual_hashes.insert(username, state_hash);
+        if let Some(id) = row.try_get::<Option<Uuid>, _>("transaction_id")? {
+            let applied = row.try_get::<Option<bool>, _>("applied")? == Some(true);
+            let error = row.try_get::<Option<String>, _>("error_message")?;
+            transaction_results.push(TransactionResult {
+                id,
+                error: (!applied)
+                    .then(|| error.unwrap_or_else(|| "PostgreSQL rejected the transaction".into())),
+            });
+        } else if let (Some(username), Some(state_hash)) = (
+            row.try_get::<Option<String>, _>("username")?,
+            row.try_get::<Option<String>, _>("state_hash")?,
+        ) {
+            actual_hashes.insert(username, state_hash);
+        }
     }
 
     let mismatches: Vec<String> = expected_hashes
@@ -209,10 +246,7 @@ async fn flush_and_reload(
     let reloaded_states = get_player_states(connection, &mismatches).await?;
 
     Ok(FlushResult {
-        acknowledged_ids: transactions
-            .iter()
-            .map(|transaction| transaction.id)
-            .collect(),
+        transaction_results,
         reloaded_states,
     })
 }

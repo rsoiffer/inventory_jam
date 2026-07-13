@@ -19,13 +19,13 @@ use crate::app::AppState;
 use crate::shared::FixedGameplaySet;
 
 #[cfg(feature = "server")]
-pub use api::{PersistenceIdentity, PersistenceReady};
+pub use api::PersistenceReady;
 pub use state::CachedPersistentState;
 #[cfg(feature = "server")]
 pub use transaction::Transaction;
 
 #[cfg(feature = "server")]
-use queue::{PendingTransactionQueue, PersistenceConfig};
+use queue::{PendingTransactionQueue, read_database_url};
 
 #[cfg(feature = "server")]
 use systems::{
@@ -61,15 +61,14 @@ struct PersistenceServerPlugin;
 #[cfg(feature = "server")]
 impl Plugin for PersistenceServerPlugin {
     fn build(&self, app: &mut App) {
-        let config = PersistenceConfig::from_env().unwrap_or_else(|error| {
+        let database_url = read_database_url().unwrap_or_else(|error| {
             panic!("persistence configuration error: {error}");
         });
-        let channels = spawn_worker(config.database_url.clone()).unwrap_or_else(|error| {
+        let channels = spawn_worker(database_url).unwrap_or_else(|error| {
             panic!("failed to start persistence worker: {error:#}");
         });
 
         app.add_message::<Transaction>()
-            .insert_resource(config)
             .insert_resource(channels)
             .insert_resource(PendingTransactionQueue::default())
             .add_systems(

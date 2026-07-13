@@ -166,17 +166,27 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION flush_player_transactions(
+DROP FUNCTION IF EXISTS flush_player_transactions(JSONB, TEXT[]);
+
+CREATE FUNCTION flush_player_transactions(
     p_transactions JSONB,
     p_usernames TEXT[]
 )
-RETURNS TABLE (username TEXT, state_hash TEXT)
+RETURNS TABLE (
+    transaction_id UUID,
+    applied BOOLEAN,
+    error_message TEXT,
+    username TEXT,
+    state_hash TEXT
+)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
     tx JSONB;
+    current_transaction_id UUID;
+    player_record RECORD;
 BEGIN
     IF jsonb_typeof(p_transactions) <> 'array' THEN
         RAISE EXCEPTION 'transactions must be a JSON array';
@@ -184,19 +194,46 @@ BEGIN
 
     FOR tx IN SELECT value FROM jsonb_array_elements(p_transactions) AS value
     LOOP
-        PERFORM apply_persistence_transaction(
-            (tx->>'id')::UUID,
-            COALESCE(tx->'changes', '[]'::JSONB)
-        );
+        current_transaction_id := NULL;
+        BEGIN
+            current_transaction_id := (tx->>'id')::UUID;
+            PERFORM apply_persistence_transaction(
+                current_transaction_id,
+                COALESCE(tx->'changes', '[]'::JSONB)
+            );
+
+            transaction_id := current_transaction_id;
+            applied := true;
+            error_message := NULL;
+            username := NULL;
+            state_hash := NULL;
+            RETURN NEXT;
+        EXCEPTION WHEN OTHERS THEN
+            transaction_id := current_transaction_id;
+            applied := false;
+            error_message := SQLERRM;
+            username := NULL;
+            state_hash := NULL;
+            RETURN NEXT;
+        END;
     END LOOP;
 
     PERFORM ensure_player(u)
     FROM unnest(COALESCE(p_usernames, ARRAY[]::TEXT[])) AS u;
 
-    RETURN QUERY
-    SELECT ps.username, player_state_hash(ps.username, ps.state)
-    FROM player_state AS ps
-    WHERE ps.username = ANY (p_usernames);
+    FOR player_record IN
+        SELECT ps.username, player_state_hash(ps.username, ps.state) AS state_hash
+        FROM player_state AS ps
+        WHERE ps.username = ANY (p_usernames)
+        ORDER BY ps.username
+    LOOP
+        transaction_id := NULL;
+        applied := NULL;
+        error_message := NULL;
+        username := player_record.username;
+        state_hash := player_record.state_hash;
+        RETURN NEXT;
+    END LOOP;
 END;
 $$;
 
