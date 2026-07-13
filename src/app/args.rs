@@ -1,51 +1,42 @@
 use super::appstate::{LaunchConfig, LaunchMode};
 use super::username::validate_username;
+use clap::{Parser, ValueEnum};
 
-pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<LaunchConfig, String> {
-    let mut args = args.into_iter();
-    let mut mode = LaunchMode::Menu;
-    let mut username = None;
-
-    while let Some(flag) = args.next() {
-        match flag.as_str() {
-            "--mode" => {
-                mode = match args.next().as_deref() {
-                    Some("server") => LaunchMode::DedicatedServer,
-                    Some("host") => LaunchMode::HostLocal,
-                    Some("edgegap") => LaunchMode::JoinEdgegap,
-                    Some("local") => LaunchMode::JoinLocal,
-                    Some(value) => {
-                        return Err(format!(
-                            "invalid --mode '{value}', expected server|host|edgegap|local"
-                        ));
-                    }
-                    None => {
-                        return Err("--mode requires a value: server|host|edgegap|local".into());
-                    }
-                };
-            }
-            "--user" => {
-                username = Some(args.next().ok_or("--user requires a value")?);
-            }
-            other if other.starts_with('-') => return Err(format!("unknown flag '{other}'")),
-            other => return Err(format!("unexpected argument '{other}'")),
-        }
-    }
-
-    let username = match (mode, username) {
-        (LaunchMode::JoinEdgegap | LaunchMode::JoinLocal, None) => {
-            return Err("--user is required for --mode edgegap|local".into());
-        }
-        (_, Some(name)) => validate_username(&name)?,
-        (_, None) => String::new(),
-    };
-
-    Ok(LaunchConfig { username, mode })
+#[derive(Parser)]
+#[command(about, version)]
+struct Args {
+    #[arg(
+        long,
+        value_enum,
+        required = cfg!(all(not(feature = "gui"), feature = "client"))
+    )]
+    mode: Option<Mode>,
+    #[arg(
+        long,
+        value_parser = validate_username,
+        required_if_eq_any = [("mode", "edgegap"), ("mode", "local")]
+    )]
+    user: Option<String>,
 }
 
-pub const USAGE: &str = "usage:
-  cargo run
-  cargo run -- --mode server
-  cargo run -- --mode host
-  cargo run -- --mode edgegap --user Ada
-  cargo run -- --mode local --user Ada";
+#[derive(Clone, Copy, ValueEnum)]
+enum Mode {
+    Server,
+    Host,
+    Edgegap,
+    Local,
+}
+
+pub fn parse_args() -> LaunchConfig {
+    let args = Args::parse();
+    LaunchConfig {
+        username: args.user.unwrap_or_default(),
+        mode: match args.mode {
+            Some(Mode::Server) => LaunchMode::DedicatedServer,
+            Some(Mode::Host) => LaunchMode::HostLocal,
+            Some(Mode::Edgegap) => LaunchMode::JoinEdgegap,
+            Some(Mode::Local) => LaunchMode::JoinLocal,
+            None => LaunchMode::Menu,
+        },
+    }
+}

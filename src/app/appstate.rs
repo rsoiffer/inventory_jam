@@ -1,4 +1,4 @@
-use super::args::{USAGE, parse_args};
+use super::args::parse_args;
 use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
@@ -62,10 +62,7 @@ pub fn config_from_env() -> LaunchConfig {
     };
 
     #[cfg(not(target_family = "wasm"))]
-    let config = parse_args(std::env::args().skip(1)).unwrap_or_else(|error| {
-        eprintln!("error: {error}\n{USAGE}");
-        std::process::exit(2);
-    });
+    let config = parse_args();
 
     #[cfg(all(not(feature = "gui"), feature = "server", not(feature = "client")))]
     let config = if config.mode == LaunchMode::Menu {
@@ -76,12 +73,6 @@ pub fn config_from_env() -> LaunchConfig {
     } else {
         config
     };
-
-    #[cfg(all(not(feature = "gui"), feature = "client"))]
-    if config.mode == LaunchMode::Menu {
-        eprintln!("headless builds require --mode and client modes require --user\n{USAGE}");
-        std::process::exit(2);
-    }
 
     config
 }
