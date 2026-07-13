@@ -1,4 +1,4 @@
-pub mod protocol;
+mod protocol;
 #[cfg(feature = "gui")]
 mod render;
 #[cfg(feature = "server")]
@@ -10,6 +10,8 @@ use crate::enemy::render::draw_enemy_boxes;
 use crate::enemy::server::spawn_enemy;
 use bevy::app::{App, FixedUpdate, Plugin, Update};
 use bevy::prelude::{IntoScheduleConfigs, in_state};
+
+pub use protocol::{EnemyHealth, EnemyPosition, register};
 
 pub struct EnemyClientPlugin;
 

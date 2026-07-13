@@ -1,12 +1,10 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 
+use crate::enemy::{EnemyHealth, EnemyPosition};
 use crate::protocol::rooms::GameRoom;
 use crate::{
-    enemy::{
-        protocol::{EnemyHealth, EnemyPosition},
-        shared::ENEMY_COLLISION_RADIUS,
-    },
+    enemy::shared::ENEMY_COLLISION_RADIUS,
     projectile::{
         protocol::{PlayerProjectile, ProjectileImpact},
         shared::{
