@@ -47,6 +47,9 @@ DROP FUNCTION IF EXISTS flush_player_transactions(JSONB, TEXT[]);
 DROP FUNCTION IF EXISTS get_player_states(TEXT[]);
 DROP FUNCTION IF EXISTS player_hashes(TEXT[]);
 DROP FUNCTION IF EXISTS apply_player_transaction(UUID, TEXT, TEXT, JSONB);
+DROP FUNCTION IF EXISTS apply_player_change(TEXT, TEXT, JSONB);
+DROP FUNCTION IF EXISTS apply_player_change(TEXT, BIGINT);
+DROP FUNCTION IF EXISTS apply_persistence_transaction(UUID, JSONB);
 DROP FUNCTION IF EXISTS ensure_player(TEXT);
 DROP FUNCTION IF EXISTS player_state_hash(TEXT, JSONB);
 "@

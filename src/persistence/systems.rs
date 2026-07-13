@@ -10,12 +10,13 @@ use crate::app::validate_username;
 use crate::player::PlayerUsername;
 use crate::protocol::messages::SetUsername;
 
-use super::api::{AddFragments, PersistenceIdentity, PersistenceLoading, PersistenceReady};
-use super::queue::PersistenceQueue;
+use super::api::{PersistenceIdentity, PersistenceLoading, PersistenceReady};
+use super::queue::PendingTransactionQueue;
 use super::state::{CachedPersistentState, PersistentState};
-use super::transaction::PersistenceTransaction;
+use super::transaction::Transaction;
 use super::worker::{
-    PersistenceChannels, PersistenceFlushClock, PersistenceRequest, PersistenceResponse,
+    FlushResult, PersistenceChannels, PersistenceFlushClock, PersistenceRequest,
+    PersistenceResponse,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -34,7 +35,6 @@ pub(crate) fn apply_username_messages(
     loading: Query<&PersistenceLoading>,
     identities: Query<&PersistenceIdentity>,
     channels: Res<PersistenceChannels>,
-    mut clock: ResMut<PersistenceFlushClock>,
     host_server: Query<(), With<HostServer>>,
 ) {
     let is_host_server = !host_server.is_empty();
@@ -73,14 +73,10 @@ pub(crate) fn apply_username_messages(
                 continue;
             }
 
-            let request_id = clock.next_request_id;
-            clock.next_request_id = clock.next_request_id.saturating_add(1);
-
             if channels
                 .request_tx
                 .send(PersistenceRequest::LoadPlayer {
                     username: name.clone(),
-                    request_id,
                 })
                 .is_err()
             {
@@ -90,7 +86,6 @@ pub(crate) fn apply_username_messages(
 
             username.0 = name.clone();
             commands.entity(player_entity).insert(PersistenceLoading {
-                request_id,
                 username: name.clone(),
             });
             info!("loading persistent state for {player_entity:?} as {name}");
@@ -101,7 +96,7 @@ pub(crate) fn apply_username_messages(
 pub(crate) fn poll_persistence_responses(
     mut commands: Commands,
     channels: Res<PersistenceChannels>,
-    mut queue: ResMut<PersistenceQueue>,
+    mut queue: ResMut<PendingTransactionQueue>,
     mut clock: ResMut<PersistenceFlushClock>,
     mut loading_players: Query<
         (
@@ -124,200 +119,265 @@ pub(crate) fn poll_persistence_responses(
         .try_recv()
     {
         match response {
-            PersistenceResponse::LoadPlayer {
-                request_id,
-                username,
-                result,
-            } => {
-                let Some((player_entity, loading, mut player_username, cache)) = loading_players
-                    .iter_mut()
-                    .find(|(_, loading, _, _)| loading.request_id == request_id)
-                else {
-                    warn!(
-                        %username,
-                        request_id,
-                        "load response for unknown player"
-                    );
-                    continue;
-                };
-
-                if loading.username != username {
-                    warn!(
-                        expected = %loading.username,
-                        got = %username,
-                        "load response username mismatch"
-                    );
-                }
-
-                match result {
-                    Ok(state) => {
-                        player_username.0 = username.clone();
-                        match cache {
-                            Some(mut cache) => cache.0 = state,
-                            None => {
-                                commands
-                                    .entity(player_entity)
-                                    .insert(CachedPersistentState(state));
-                            }
-                        }
-                        commands
-                            .entity(player_entity)
-                            .remove::<PersistenceLoading>()
-                            .insert((
-                                PersistenceIdentity {
-                                    username: username.clone(),
-                                },
-                                PersistenceReady,
-                            ));
-                        info!(%username, "loaded persistent state for {player_entity:?}");
-                    }
-                    Err(error) => {
-                        warn!(%username, %error, "failed to load persistent state");
-                        commands
-                            .entity(player_entity)
-                            .remove::<PersistenceLoading>();
-                    }
-                }
+            PersistenceResponse::LoadPlayer { username, result } => {
+                handle_load_player_response(
+                    &mut commands,
+                    &queue,
+                    &mut loading_players,
+                    &mut ready_players,
+                    username,
+                    result,
+                );
             }
             PersistenceResponse::Flush { flush_id, result } => {
-                if !clock.awaiting_flush {
-                    warn!(flush_id, "received unexpected flush response");
-                    continue;
-                }
-                clock.awaiting_flush = false;
-                clock.schedule_next();
-
-                match result {
-                    Ok(flush) => {
-                        let mismatches: Vec<String> = queue
-                            .flush_boundary_hashes
-                            .iter()
-                            .filter_map(|(username, expected)| match flush.hashes.get(username) {
-                                Some(actual) if actual == expected => None,
-                                Some(_) | None => Some(username.clone()),
-                            })
-                            .collect();
-
-                        queue.clear_in_flight();
-
-                        for username in mismatches {
-                            warn!(
-                                %username,
-                                "persistent state hash mismatch; reloading from database"
-                            );
-                            request_reload(&channels, username);
-                        }
-                    }
-                    Err(error) => {
-                        if error.contains("flush_player_transactions failed") {
-                            error!(
-                                %error,
-                                "flush rejected a transaction; abandoning in-flight work and reloading touched players"
-                            );
-                            let touched: HashSet<String> = queue
-                                .in_flight
-                                .iter()
-                                .map(|transaction| transaction.username.clone())
-                                .collect();
-                            queue.abandon_in_flight();
-                            for username in touched {
-                                request_reload(&channels, username);
-                            }
-                        } else {
-                            error!(
-                                %error,
-                                "transient flush failure; will retry in-flight transactions"
-                            );
-                        }
-                    }
-                }
-            }
-            PersistenceResponse::ReloadPlayer { username, result } => {
-                let Some((_, _, mut cache)) = ready_players
-                    .iter_mut()
-                    .find(|(_, identity, _)| identity.username == username)
-                else {
-                    warn!(%username, "reload response for disconnected player");
-                    continue;
-                };
-
-                match result {
-                    Ok(state) => {
-                        let mut next_state = state;
-                        for transaction in queue.pending_for_username(&username) {
-                            if let Err(error) = transaction.apply_to(&mut next_state) {
-                                error!(
-                                    %username,
-                                    %error,
-                                    transaction_id = %transaction.id,
-                                    "failed to reapply pending transaction after reload"
-                                );
-                            }
-                        }
-                        cache.0 = next_state;
-                        info!(%username, "reloaded and reconciled persistent state");
-                    }
-                    Err(error) => {
-                        error!(%username, %error, "failed to reload persistent state");
-                    }
-                }
+                handle_flush_response(&channels, &mut queue, &mut clock, flush_id, result);
             }
         }
     }
 }
 
-fn request_reload(channels: &PersistenceChannels, username: String) {
+fn handle_load_player_response(
+    commands: &mut Commands,
+    queue: &PendingTransactionQueue,
+    loading_players: &mut Query<
+        (
+            Entity,
+            &PersistenceLoading,
+            &mut PlayerUsername,
+            Option<&mut CachedPersistentState>,
+        ),
+        With<PersistenceLoading>,
+    >,
+    ready_players: &mut Query<
+        (Entity, &PersistenceIdentity, &mut CachedPersistentState),
+        Without<PersistenceLoading>,
+    >,
+    username: String,
+    result: Result<PersistentState, String>,
+) {
+    if let Some((player_entity, _, mut player_username, cache)) = loading_players
+        .iter_mut()
+        .find(|(_, loading, _, _)| loading.username == username)
+    {
+        apply_initial_load(
+            commands,
+            player_entity,
+            &mut player_username,
+            cache,
+            username,
+            result,
+        );
+        return;
+    }
+
+    let Some((_, _, mut cache)) = ready_players
+        .iter_mut()
+        .find(|(_, identity, _)| identity.username == username)
+    else {
+        warn!(%username, "load response for unknown player");
+        return;
+    };
+
+    reconcile_reloaded_state(queue, &mut cache, username, result);
+}
+
+fn apply_initial_load(
+    commands: &mut Commands,
+    player_entity: Entity,
+    player_username: &mut PlayerUsername,
+    cache: Option<Mut<CachedPersistentState>>,
+    username: String,
+    result: Result<PersistentState, String>,
+) {
+    match result {
+        Ok(state) => {
+            player_username.0 = username.clone();
+            match cache {
+                Some(mut cache) => cache.0 = state,
+                None => {
+                    commands
+                        .entity(player_entity)
+                        .insert(CachedPersistentState(state));
+                }
+            }
+            commands
+                .entity(player_entity)
+                .remove::<PersistenceLoading>()
+                .insert((
+                    PersistenceIdentity {
+                        username: username.clone(),
+                    },
+                    PersistenceReady,
+                ));
+            info!(%username, "loaded persistent state for {player_entity:?}");
+        }
+        Err(error) => {
+            warn!(%username, %error, "failed to load persistent state");
+            commands
+                .entity(player_entity)
+                .remove::<PersistenceLoading>();
+        }
+    }
+}
+
+fn reconcile_reloaded_state(
+    queue: &PendingTransactionQueue,
+    cache: &mut CachedPersistentState,
+    username: String,
+    result: Result<PersistentState, String>,
+) {
+    match result {
+        Ok(state) => {
+            let mut next_state = state;
+            for transaction in queue.pending_for_username(&username) {
+                if let Err(error) = transaction.apply_for_username(&username, &mut next_state) {
+                    error!(
+                        %username,
+                        %error,
+                        transaction_id = %transaction.id,
+                        "failed to reapply pending transaction after reload"
+                    );
+                }
+            }
+            cache.0 = next_state;
+            info!(%username, "reloaded and reconciled persistent state");
+        }
+        Err(error) => {
+            error!(%username, %error, "failed to reload persistent state");
+        }
+    }
+}
+
+fn handle_flush_response(
+    channels: &PersistenceChannels,
+    queue: &mut PendingTransactionQueue,
+    clock: &mut PersistenceFlushClock,
+    flush_id: u64,
+    result: Result<FlushResult, String>,
+) {
+    if !clock.awaiting_flush {
+        warn!(flush_id, "received unexpected flush response");
+        return;
+    }
+    clock.awaiting_flush = false;
+    clock.schedule_next();
+
+    match result {
+        Ok(flush) => {
+            let mismatches: Vec<String> = queue
+                .flush_boundary_hashes
+                .iter()
+                .filter_map(|(username, expected)| match flush.hashes.get(username) {
+                    Some(actual) if actual == expected => None,
+                    Some(_) | None => Some(username.clone()),
+                })
+                .collect();
+
+            queue.clear_in_flight();
+
+            for username in mismatches {
+                warn!(
+                    %username,
+                    "persistent state hash mismatch; reloading from database"
+                );
+                request_load(channels, username);
+            }
+        }
+        Err(error) => {
+            if error.contains("flush_player_transactions failed") {
+                error!(
+                    %error,
+                    "flush rejected a transaction; abandoning in-flight work and reloading touched players"
+                );
+                let touched: HashSet<String> = queue
+                    .in_flight
+                    .iter()
+                    .flat_map(|transaction| transaction.usernames().map(str::to_owned))
+                    .collect();
+                queue.abandon_in_flight();
+                for username in touched {
+                    request_load(channels, username);
+                }
+            } else {
+                error!(
+                    %error,
+                    "transient flush failure; will retry in-flight transactions"
+                );
+            }
+        }
+    }
+}
+
+fn request_load(channels: &PersistenceChannels, username: String) {
     let _ = channels
         .request_tx
-        .send(PersistenceRequest::ReloadPlayer { username });
+        .send(PersistenceRequest::LoadPlayer { username });
 }
 
-pub(crate) fn apply_add_fragments_messages(
-    mut messages: MessageReader<AddFragments>,
+pub(crate) fn apply_persistence_transactions(
+    mut messages: MessageReader<Transaction>,
     mut players: Query<(&PersistenceIdentity, &mut CachedPersistentState), With<PersistenceReady>>,
-    mut queue: ResMut<PersistenceQueue>,
+    mut queue: ResMut<PendingTransactionQueue>,
 ) {
     for message in messages.read() {
-        let Ok((identity, mut cache)) = players.get_mut(message.player) else {
-            warn!(
-                player = ?message.player,
-                amount = message.amount,
-                "ignored AddFragments for player that is not persistence-ready"
-            );
-            continue;
-        };
+        match apply_transaction(message, &mut players) {
+            Ok(()) => queue.enqueue(message.clone()),
+            Err(error) => {
+                error!(%error, transaction_id = %message.id, "rejected PersistenceTransaction")
+            }
+        }
+    }
+}
 
-        let transaction =
-            match PersistenceTransaction::add_fragments(&identity.username, message.amount) {
-                Ok(transaction) => transaction,
-                Err(error) => {
-                    error!(
-                        player = ?message.player,
-                        username = %identity.username,
-                        %error,
-                        "rejected AddFragments transaction"
-                    );
-                    continue;
-                }
-            };
+fn apply_transaction(
+    transaction: &Transaction,
+    players: &mut Query<(&PersistenceIdentity, &mut CachedPersistentState), With<PersistenceReady>>,
+) -> Result<(), String> {
+    if transaction.changes.is_empty() {
+        return Err("transaction must include at least one change".into());
+    }
 
-        if let Err(error) = transaction.apply_to(&mut cache.0) {
-            error!(
-                player = ?message.player,
-                username = %identity.username,
-                %error,
-                "failed to apply AddFragments transaction"
-            );
-            continue;
+    let mut seen_usernames = HashSet::new();
+    let mut next_states = Vec::with_capacity(transaction.changes.len());
+
+    for player_change in &transaction.changes {
+        if !seen_usernames.insert(player_change.username.as_str()) {
+            return Err(format!(
+                "duplicate username `{}` in one transaction",
+                player_change.username
+            ));
         }
 
-        queue.enqueue(transaction);
+        let mut next_state = players
+            .iter()
+            .find(|(identity, _)| identity.username == player_change.username)
+            .map(|(_, cache)| cache.0.clone())
+            .ok_or_else(|| {
+                format!(
+                    "player `{}` is not persistence-ready",
+                    player_change.username
+                )
+            })?;
+        player_change.apply(&mut next_state)?;
+        next_states.push((player_change.username.clone(), next_state));
     }
+
+    for (username, next_state) in next_states {
+        let Some((_, mut cache)) = players
+            .iter_mut()
+            .find(|(identity, _)| identity.username == username)
+        else {
+            return Err(format!("player `{username}` disappeared during apply"));
+        };
+        cache.0 = next_state;
+    }
+
+    Ok(())
 }
 
 pub(crate) fn flush_persistence_queue(
     channels: Res<PersistenceChannels>,
-    mut queue: ResMut<PersistenceQueue>,
+    mut queue: ResMut<PendingTransactionQueue>,
     mut clock: ResMut<PersistenceFlushClock>,
     players: Query<(&PersistenceIdentity, &CachedPersistentState), With<PersistenceReady>>,
 ) {
@@ -382,7 +442,6 @@ impl PersistenceFlushClock {
         Self {
             next_flush_at: Instant::now() + flush_interval,
             next_flush_id: 1,
-            next_request_id: 1,
             awaiting_flush: false,
             flush_interval,
         }

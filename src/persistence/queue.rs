@@ -4,7 +4,7 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use super::state::PersistentState;
-use super::transaction::PersistenceTransaction;
+use super::transaction::Transaction;
 
 pub const PERSISTENCE_FLUSH_SECONDS: u64 = 5;
 
@@ -36,21 +36,21 @@ fn read_database_url() -> Result<String, String> {
 }
 
 #[derive(Resource, Default)]
-pub struct PersistenceQueue {
-    pub pending: VecDeque<PersistenceTransaction>,
-    pub in_flight: VecDeque<PersistenceTransaction>,
+pub struct PendingTransactionQueue {
+    pub pending: VecDeque<Transaction>,
+    pub in_flight: VecDeque<Transaction>,
     pub flush_boundary_hashes: HashMap<String, String>,
 }
 
-impl PersistenceQueue {
-    pub fn enqueue(&mut self, transaction: PersistenceTransaction) {
+impl PendingTransactionQueue {
+    pub fn enqueue(&mut self, transaction: Transaction) {
         self.pending.push_back(transaction);
     }
 
     pub fn begin_flush(
         &mut self,
         connected_states: &HashMap<String, PersistentState>,
-    ) -> (Vec<PersistenceTransaction>, HashMap<String, String>) {
+    ) -> (Vec<Transaction>, HashMap<String, String>) {
         debug_assert!(self.in_flight.is_empty());
         self.in_flight = std::mem::take(&mut self.pending);
         self.flush_boundary_hashes = connected_states
@@ -76,9 +76,9 @@ impl PersistenceQueue {
     pub fn pending_for_username<'a>(
         &'a self,
         username: &'a str,
-    ) -> impl Iterator<Item = &'a PersistenceTransaction> {
+    ) -> impl Iterator<Item = &'a Transaction> {
         self.pending
             .iter()
-            .filter(move |transaction| transaction.username == username)
+            .filter(move |transaction| transaction.touches_username(username))
     }
 }

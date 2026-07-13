@@ -8,36 +8,27 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 
 use super::state::PersistentState;
-use super::transaction::PersistenceTransaction;
+use super::transaction::Transaction;
 
 pub enum PersistenceRequest {
     LoadPlayer {
         username: String,
-        request_id: u64,
     },
     Flush {
         flush_id: u64,
-        transactions: Vec<PersistenceTransaction>,
+        transactions: Vec<Transaction>,
         usernames: Vec<String>,
-    },
-    ReloadPlayer {
-        username: String,
     },
 }
 
 pub enum PersistenceResponse {
     LoadPlayer {
-        request_id: u64,
         username: String,
         result: Result<PersistentState, String>,
     },
     Flush {
         flush_id: u64,
         result: Result<FlushResult, String>,
-    },
-    ReloadPlayer {
-        username: String,
-        result: Result<PersistentState, String>,
     },
 }
 
@@ -114,20 +105,9 @@ async fn worker_main(
 
     while let Ok(request) = request_rx.recv() {
         match request {
-            PersistenceRequest::LoadPlayer {
-                username,
-                request_id,
-            } => {
+            PersistenceRequest::LoadPlayer { username } => {
                 let result = load_player_state(&mut connection, &username).await;
                 let _ = response_tx.send(PersistenceResponse::LoadPlayer {
-                    request_id,
-                    username,
-                    result: result.map_err(|error| error.to_string()),
-                });
-            }
-            PersistenceRequest::ReloadPlayer { username } => {
-                let result = load_player_state(&mut connection, &username).await;
-                let _ = response_tx.send(PersistenceResponse::ReloadPlayer {
                     username,
                     result: result.map_err(|error| error.to_string()),
                 });
@@ -195,7 +175,7 @@ async fn get_player_states(
 
 async fn flush_transactions(
     connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
-    transactions: &[PersistenceTransaction],
+    transactions: &[Transaction],
     usernames: &[String],
 ) -> Result<FlushResult> {
     let transactions_json =
@@ -221,7 +201,6 @@ async fn flush_transactions(
 pub struct PersistenceFlushClock {
     pub next_flush_at: Instant,
     pub next_flush_id: u64,
-    pub next_request_id: u64,
     pub awaiting_flush: bool,
     pub flush_interval: Duration,
 }

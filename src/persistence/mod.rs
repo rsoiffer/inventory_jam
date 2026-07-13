@@ -19,19 +19,21 @@ use crate::app::AppState;
 use crate::shared::FixedGameplaySet;
 
 #[cfg(feature = "server")]
-pub use api::{AddFragments, PersistenceReady};
+pub use api::{PersistenceIdentity, PersistenceReady};
 pub use state::CachedPersistentState;
+#[cfg(feature = "server")]
+pub use transaction::Transaction;
 
 #[cfg(feature = "server")]
-use queue::{PersistenceConfig, PersistenceQueue};
+use queue::{PendingTransactionQueue, PersistenceConfig};
 
 #[cfg(feature = "server")]
 use systems::{
-    apply_add_fragments_messages, apply_username_messages, flush_persistence_queue,
+    apply_persistence_transactions, apply_username_messages, flush_persistence_queue,
     poll_persistence_responses,
 };
 #[cfg(feature = "server")]
-use worker::{PersistenceFlushClock, spawn_worker};
+use worker::{spawn_worker, PersistenceFlushClock};
 
 pub struct PersistencePlugin;
 
@@ -66,14 +68,14 @@ impl Plugin for PersistenceServerPlugin {
             panic!("failed to start persistence worker: {error:#}");
         });
 
-        app.add_message::<AddFragments>()
+        app.add_message::<Transaction>()
             .insert_resource(config.clone())
             .insert_resource(channels)
-            .insert_resource(PersistenceQueue::default())
+            .insert_resource(PendingTransactionQueue::default())
             .insert_resource(PersistenceFlushClock::new(config.flush_interval))
             .add_systems(
                 FixedUpdate,
-                apply_add_fragments_messages
+                apply_persistence_transactions
                     .in_set(FixedGameplaySet::Persistence)
                     .run_if(in_state(AppState::Hosting)),
             )

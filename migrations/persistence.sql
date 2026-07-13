@@ -8,14 +8,12 @@ CREATE TABLE IF NOT EXISTS player_state (
 
 CREATE TABLE IF NOT EXISTS player_transaction (
     id UUID PRIMARY KEY,
-    username TEXT NOT NULL REFERENCES player_state (username),
-    kind TEXT NOT NULL,
-    payload JSONB NOT NULL,
+    changes JSONB NOT NULL,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS player_transaction_username_applied_at_idx
-    ON player_transaction (username, applied_at);
+CREATE INDEX IF NOT EXISTS player_transaction_applied_at_idx
+    ON player_transaction (applied_at);
 
 CREATE OR REPLACE FUNCTION player_state_hash(p_username TEXT, p_state JSONB)
 RETURNS TEXT
@@ -74,35 +72,19 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION apply_player_transaction(
-    p_id UUID,
+CREATE OR REPLACE FUNCTION apply_player_change(
     p_username TEXT,
-    p_kind TEXT,
-    p_payload JSONB
+    p_add_fragments BIGINT
 )
-RETURNS JSONB
+RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
     current_state JSONB;
-    amount BIGINT;
     next_count BIGINT;
 BEGIN
-    IF EXISTS (SELECT 1 FROM player_transaction WHERE id = p_id) THEN
-        SELECT state INTO current_state
-        FROM player_state
-        WHERE username = p_username
-        FOR UPDATE;
-
-        IF NOT FOUND THEN
-            RAISE EXCEPTION 'player % missing for idempotent transaction %', p_username, p_id;
-        END IF;
-
-        RETURN current_state;
-    END IF;
-
     PERFORM ensure_player(p_username);
 
     SELECT state INTO current_state
@@ -110,40 +92,60 @@ BEGIN
     WHERE username = p_username
     FOR UPDATE;
 
-    IF p_kind = 'add_fragments' THEN
-        IF jsonb_typeof(p_payload->'amount') <> 'number' THEN
-            RAISE EXCEPTION 'add_fragments payload.amount must be a number';
-        END IF;
-
-        amount := (p_payload->>'amount')::BIGINT;
-        IF amount IS NULL OR amount <= 0 OR amount > 4294967295 THEN
-            RAISE EXCEPTION 'add_fragments amount out of range: %', amount;
-        END IF;
-
-        next_count := (current_state->>'fragment_count')::BIGINT + amount;
-        IF next_count > 4294967295 THEN
-            RAISE EXCEPTION 'fragment_count overflow: %', next_count;
-        END IF;
-
-        current_state := jsonb_set(
-            current_state,
-            '{fragment_count}',
-            to_jsonb(next_count::INT8),
-            false
-        );
-    ELSE
-        RAISE EXCEPTION 'unknown transaction kind: %', p_kind;
+    IF p_add_fragments IS NULL OR p_add_fragments <= 0 OR p_add_fragments > 4294967295 THEN
+        RAISE EXCEPTION 'add_fragments out of range: %', p_add_fragments;
     END IF;
+
+    next_count := (current_state->>'fragment_count')::BIGINT + p_add_fragments;
+    IF next_count > 4294967295 THEN
+        RAISE EXCEPTION 'fragment_count overflow: %', next_count;
+    END IF;
+
+    current_state := jsonb_set(
+        current_state,
+        '{fragment_count}',
+        to_jsonb(next_count::INT8),
+        false
+    );
 
     UPDATE player_state
     SET state = current_state,
         updated_at = now()
     WHERE username = p_username;
+END;
+$$;
 
-    INSERT INTO player_transaction (id, username, kind, payload)
-    VALUES (p_id, p_username, p_kind, p_payload);
+-- Applies every player change in one atomic transaction. Idempotent on p_id.
+CREATE OR REPLACE FUNCTION apply_persistence_transaction(
+    p_id UUID,
+    p_changes JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    change JSONB;
+BEGIN
+    IF EXISTS (SELECT 1 FROM player_transaction WHERE id = p_id) THEN
+        RETURN;
+    END IF;
 
-    RETURN current_state;
+    IF jsonb_typeof(p_changes) <> 'array' OR jsonb_array_length(p_changes) = 0 THEN
+        RAISE EXCEPTION 'transaction changes must be a non-empty JSON array';
+    END IF;
+
+    FOR change IN SELECT value FROM jsonb_array_elements(p_changes) AS value
+    LOOP
+        PERFORM apply_player_change(
+            change->>'username',
+            (change->>'add_fragments')::BIGINT
+        );
+    END LOOP;
+
+    INSERT INTO player_transaction (id, changes)
+    VALUES (p_id, p_changes);
 END;
 $$;
 
@@ -182,11 +184,9 @@ BEGIN
 
     FOR tx IN SELECT value FROM jsonb_array_elements(p_transactions) AS value
     LOOP
-        PERFORM apply_player_transaction(
+        PERFORM apply_persistence_transaction(
             (tx->>'id')::UUID,
-            tx->>'username',
-            tx->>'kind',
-            COALESCE(tx->'payload', '{}'::JSONB)
+            COALESCE(tx->'changes', '[]'::JSONB)
         );
     END LOOP;
 
@@ -208,13 +208,15 @@ REVOKE ALL ON TABLE player_transaction FROM inventory_jam_server;
 
 REVOKE ALL ON FUNCTION player_state_hash(TEXT, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ensure_player(TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION apply_player_transaction(UUID, TEXT, TEXT, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION apply_player_change(TEXT, BIGINT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION apply_persistence_transaction(UUID, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_player_states(TEXT[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION flush_player_transactions(JSONB, TEXT[]) FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION player_state_hash(TEXT, JSONB) FROM inventory_jam_server;
 REVOKE ALL ON FUNCTION ensure_player(TEXT) FROM inventory_jam_server;
-REVOKE ALL ON FUNCTION apply_player_transaction(UUID, TEXT, TEXT, JSONB) FROM inventory_jam_server;
+REVOKE ALL ON FUNCTION apply_player_change(TEXT, BIGINT) FROM inventory_jam_server;
+REVOKE ALL ON FUNCTION apply_persistence_transaction(UUID, JSONB) FROM inventory_jam_server;
 
 -- Server may only call the two batch API functions.
 GRANT EXECUTE ON FUNCTION get_player_states(TEXT[]) TO inventory_jam_server;

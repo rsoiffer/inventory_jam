@@ -4,7 +4,7 @@ use crate::fragment::{
     protocol::Fragment,
     shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
 };
-use crate::persistence::{AddFragments, PersistenceReady};
+use crate::persistence::{PersistenceIdentity, PersistenceReady, Transaction};
 use crate::player::{PlayerId, PlayerPosition};
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::GameRoom;
@@ -138,8 +138,8 @@ pub(crate) fn simulate_server_fragments(
         With<ServerFragment>,
     >,
     players: Query<(Entity, &PlayerId, &PlayerPosition, Has<Predicted>)>,
-    ready_players: Query<(), With<PersistenceReady>>,
-    mut transactions: MessageWriter<AddFragments>,
+    ready_players: Query<&PersistenceIdentity, With<PersistenceReady>>,
+    mut transactions: MessageWriter<Transaction>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
 ) {
     let is_host_server = !host_server.is_empty();
@@ -160,12 +160,12 @@ pub(crate) fn simulate_server_fragments(
         if let Some((player_entity, collector)) =
             nearest_player_in_collection_range(position.0, &players, is_host_server)
         {
-            if ready_players.get(player_entity).is_err() {
+            let Ok(identity) = ready_players.get(player_entity) else {
                 // Player is not persistence-ready yet; leave the fragment available.
                 continue;
-            }
+            };
 
-            transactions.write(AddFragments::new(player_entity, 1));
+            transactions.write(Transaction::add_fragments(identity.username.clone(), 1));
             fragment.collector = Some(collector);
 
             info!(
