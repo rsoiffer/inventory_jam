@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use bevy::prelude::*;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
+use uuid::Uuid;
 
 use super::state::PersistentState;
 use super::transaction::Transaction;
@@ -15,9 +16,9 @@ pub enum PersistenceRequest {
         username: String,
     },
     Flush {
-        flush_id: u64,
         transactions: Vec<Transaction>,
         usernames: Vec<String>,
+        expected_hashes: HashMap<String, String>,
     },
 }
 
@@ -27,14 +28,14 @@ pub enum PersistenceResponse {
         result: Result<PersistentState, String>,
     },
     Flush {
-        flush_id: u64,
         result: Result<FlushResult, String>,
     },
 }
 
 #[derive(Debug, Clone)]
 pub struct FlushResult {
-    pub hashes: HashMap<String, String>,
+    pub acknowledged_ids: Vec<Uuid>,
+    pub reloaded_states: HashMap<String, PersistentState>,
 }
 
 #[derive(Resource)]
@@ -109,18 +110,19 @@ async fn worker_main(
                 let result = load_player_state(&mut connection, &username).await;
                 let _ = response_tx.send(PersistenceResponse::LoadPlayer {
                     username,
-                    result: result.map_err(|error| error.to_string()),
+                    result: result.map_err(|error| format!("{error:#}")),
                 });
             }
             PersistenceRequest::Flush {
-                flush_id,
                 transactions,
                 usernames,
+                expected_hashes,
             } => {
-                let result = flush_transactions(&mut connection, &transactions, &usernames).await;
+                let result =
+                    flush_and_reload(&mut connection, &transactions, &usernames, &expected_hashes)
+                        .await;
                 let _ = response_tx.send(PersistenceResponse::Flush {
-                    flush_id,
-                    result: result.map_err(|error| error.to_string()),
+                    result: result.map_err(|error| format!("{error:#}")),
                 });
             }
         }
@@ -173,10 +175,11 @@ async fn get_player_states(
     Ok(states)
 }
 
-async fn flush_transactions(
+async fn flush_and_reload(
     connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
     transactions: &[Transaction],
     usernames: &[String],
+    expected_hashes: &HashMap<String, String>,
 ) -> Result<FlushResult> {
     let transactions_json =
         serde_json::to_value(transactions).context("failed to serialize transactions")?;
@@ -188,19 +191,28 @@ async fn flush_transactions(
         .await
         .context("flush_player_transactions failed")?;
 
-    let mut hashes = HashMap::with_capacity(rows.len());
+    let mut actual_hashes = HashMap::with_capacity(rows.len());
     for row in rows {
         let username: String = row.try_get("username")?;
         let state_hash: String = row.try_get("state_hash")?;
-        hashes.insert(username, state_hash);
+        actual_hashes.insert(username, state_hash);
     }
-    Ok(FlushResult { hashes })
-}
 
-#[derive(Resource)]
-pub struct PersistenceFlushClock {
-    pub next_flush_at: Instant,
-    pub next_flush_id: u64,
-    pub awaiting_flush: bool,
-    pub flush_interval: Duration,
+    let mismatches: Vec<String> = expected_hashes
+        .iter()
+        .filter_map(|(username, expected)| match actual_hashes.get(username) {
+            Some(actual) if actual == expected => None,
+            Some(_) | None => Some(username.clone()),
+        })
+        .collect();
+
+    let reloaded_states = get_player_states(connection, &mismatches).await?;
+
+    Ok(FlushResult {
+        acknowledged_ids: transactions
+            .iter()
+            .map(|transaction| transaction.id)
+            .collect(),
+        reloaded_states,
+    })
 }

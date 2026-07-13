@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use lightyear::connection::client_of::ClientOf;
@@ -14,10 +13,7 @@ use super::api::{PersistenceIdentity, PersistenceLoading, PersistenceReady};
 use super::queue::PendingTransactionQueue;
 use super::state::{CachedPersistentState, PersistentState};
 use super::transaction::Transaction;
-use super::worker::{
-    FlushResult, PersistenceChannels, PersistenceFlushClock, PersistenceRequest,
-    PersistenceResponse,
-};
+use super::worker::{FlushResult, PersistenceChannels, PersistenceRequest, PersistenceResponse};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_username_messages(
@@ -97,7 +93,6 @@ pub(crate) fn poll_persistence_responses(
     mut commands: Commands,
     channels: Res<PersistenceChannels>,
     mut queue: ResMut<PendingTransactionQueue>,
-    mut clock: ResMut<PersistenceFlushClock>,
     mut loading_players: Query<
         (
             Entity,
@@ -129,8 +124,8 @@ pub(crate) fn poll_persistence_responses(
                     result,
                 );
             }
-            PersistenceResponse::Flush { flush_id, result } => {
-                handle_flush_response(&channels, &mut queue, &mut clock, flush_id, result);
+            PersistenceResponse::Flush { result } => {
+                handle_flush_response(&mut queue, &mut ready_players, result);
             }
         }
     }
@@ -249,69 +244,45 @@ fn reconcile_reloaded_state(
 }
 
 fn handle_flush_response(
-    channels: &PersistenceChannels,
     queue: &mut PendingTransactionQueue,
-    clock: &mut PersistenceFlushClock,
-    flush_id: u64,
+    ready_players: &mut Query<
+        (Entity, &PersistenceIdentity, &mut CachedPersistentState),
+        Without<PersistenceLoading>,
+    >,
     result: Result<FlushResult, String>,
 ) {
-    if !clock.awaiting_flush {
-        warn!(flush_id, "received unexpected flush response");
+    if !queue.is_flushing() {
+        warn!("received unexpected flush response");
         return;
     }
-    clock.awaiting_flush = false;
-    clock.schedule_next();
 
     match result {
         Ok(flush) => {
-            let mismatches: Vec<String> = queue
-                .flush_boundary_hashes
-                .iter()
-                .filter_map(|(username, expected)| match flush.hashes.get(username) {
-                    Some(actual) if actual == expected => None,
-                    Some(_) | None => Some(username.clone()),
-                })
-                .collect();
+            queue.acknowledge(&flush.acknowledged_ids);
 
-            queue.clear_in_flight();
+            for (username, state) in flush.reloaded_states {
+                let Some((_, _, mut cache)) = ready_players
+                    .iter_mut()
+                    .find(|(_, identity, _)| identity.username == username)
+                else {
+                    warn!(%username, "flush reload for unknown player");
+                    continue;
+                };
 
-            for username in mismatches {
                 warn!(
                     %username,
-                    "persistent state hash mismatch; reloading from database"
+                    "persistent state hash mismatch; reloaded from database"
                 );
-                request_load(channels, username);
+                reconcile_reloaded_state(queue, &mut cache, username, Ok(state));
             }
+
+            queue.finish_flush();
         }
         Err(error) => {
-            if error.contains("flush_player_transactions failed") {
-                error!(
-                    %error,
-                    "flush rejected a transaction; abandoning in-flight work and reloading touched players"
-                );
-                let touched: HashSet<String> = queue
-                    .in_flight
-                    .iter()
-                    .flat_map(|transaction| transaction.usernames().map(str::to_owned))
-                    .collect();
-                queue.abandon_in_flight();
-                for username in touched {
-                    request_load(channels, username);
-                }
-            } else {
-                error!(
-                    %error,
-                    "transient flush failure; will retry in-flight transactions"
-                );
-            }
+            error!(%error, "flush failed; will retry pending transactions");
+            queue.finish_flush();
         }
     }
-}
-
-fn request_load(channels: &PersistenceChannels, username: String) {
-    let _ = channels
-        .request_tx
-        .send(PersistenceRequest::LoadPlayer { username });
 }
 
 pub(crate) fn apply_persistence_transactions(
@@ -378,82 +349,37 @@ fn apply_transaction(
 pub(crate) fn flush_persistence_queue(
     channels: Res<PersistenceChannels>,
     mut queue: ResMut<PendingTransactionQueue>,
-    mut clock: ResMut<PersistenceFlushClock>,
     players: Query<(&PersistenceIdentity, &CachedPersistentState), With<PersistenceReady>>,
 ) {
-    if clock.awaiting_flush || Instant::now() < clock.next_flush_at {
+    let Some(transactions) = queue.begin_flush_if_due() else {
         return;
-    }
+    };
 
     let connected_states: HashMap<String, PersistentState> = players
         .iter()
         .map(|(identity, cache)| (identity.username.clone(), cache.0.clone()))
         .collect();
     let usernames: Vec<String> = connected_states.keys().cloned().collect();
+    let expected_hashes: HashMap<String, String> = connected_states
+        .iter()
+        .map(|(username, state)| (username.clone(), state.hash_hex(username)))
+        .collect();
 
-    if queue.pending.is_empty() && queue.in_flight.is_empty() && usernames.is_empty() {
-        clock.schedule_next();
+    if transactions.is_empty() && usernames.is_empty() {
+        queue.finish_flush();
         return;
     }
-
-    if !queue.in_flight.is_empty() {
-        let flush_id = clock.take_flush_id();
-        let transactions = queue.in_flight.iter().cloned().collect::<Vec<_>>();
-        if channels
-            .request_tx
-            .send(PersistenceRequest::Flush {
-                flush_id,
-                transactions,
-                usernames,
-            })
-            .is_err()
-        {
-            error!("persistence worker is unavailable");
-            return;
-        }
-        clock.awaiting_flush = true;
-        return;
-    }
-
-    let (transactions, _) = queue.begin_flush(&connected_states);
-    let flush_id = clock.take_flush_id();
 
     if channels
         .request_tx
         .send(PersistenceRequest::Flush {
-            flush_id,
             transactions,
             usernames,
+            expected_hashes,
         })
         .is_err()
     {
         error!("persistence worker is unavailable");
-        let stalled = queue.in_flight.drain(..).collect::<Vec<_>>();
-        queue.pending.extend(stalled);
-        queue.flush_boundary_hashes.clear();
-        return;
-    }
-
-    clock.awaiting_flush = true;
-}
-
-impl PersistenceFlushClock {
-    pub fn new(flush_interval: Duration) -> Self {
-        Self {
-            next_flush_at: Instant::now() + flush_interval,
-            next_flush_id: 1,
-            awaiting_flush: false,
-            flush_interval,
-        }
-    }
-
-    fn schedule_next(&mut self) {
-        self.next_flush_at = Instant::now() + self.flush_interval;
-    }
-
-    fn take_flush_id(&mut self) -> u64 {
-        let flush_id = self.next_flush_id;
-        self.next_flush_id = self.next_flush_id.saturating_add(1);
-        flush_id
+        queue.finish_flush();
     }
 }

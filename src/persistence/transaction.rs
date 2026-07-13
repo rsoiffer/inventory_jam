@@ -68,8 +68,4 @@ impl Transaction {
         }
         Ok(())
     }
-
-    pub fn usernames(&self) -> impl Iterator<Item = &str> {
-        self.changes.iter().map(|change| change.username.as_str())
-    }
 }

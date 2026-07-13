@@ -33,7 +33,7 @@ use systems::{
     poll_persistence_responses,
 };
 #[cfg(feature = "server")]
-use worker::{spawn_worker, PersistenceFlushClock};
+use worker::spawn_worker;
 
 pub struct PersistencePlugin;
 
@@ -69,10 +69,9 @@ impl Plugin for PersistenceServerPlugin {
         });
 
         app.add_message::<Transaction>()
-            .insert_resource(config.clone())
+            .insert_resource(config)
             .insert_resource(channels)
             .insert_resource(PendingTransactionQueue::default())
-            .insert_resource(PersistenceFlushClock::new(config.flush_interval))
             .add_systems(
                 FixedUpdate,
                 apply_persistence_transactions
