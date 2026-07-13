@@ -1,21 +1,17 @@
 mod app;
-mod protocol;
-
-#[cfg(feature = "server")]
-mod server;
-
 mod enemy;
 mod fragment;
+mod networking;
 mod persistence;
 mod player;
 mod projectile;
+mod protocol;
+#[cfg(feature = "server")]
+mod server;
+mod shared;
 mod ui;
 mod weapon;
 mod world;
-
-mod shared;
-
-mod networking;
 
 use app::*;
 use bevy::log::{Level, LogPlugin};
