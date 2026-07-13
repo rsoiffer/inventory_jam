@@ -5,7 +5,7 @@ mod args;
 mod username;
 
 pub(crate) use appstate::game_is_active;
-pub use appstate::{AppState, LaunchConfig, LaunchMode, LaunchPlugin, StartGame, config_from_env};
+pub use appstate::{AppState, LaunchMode, LaunchPlugin, StartGame, config_from_env};
 pub use username::LocalUsername;
 
 #[cfg(feature = "gui")]

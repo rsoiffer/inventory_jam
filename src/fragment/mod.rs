@@ -53,7 +53,7 @@ impl Plugin for FragmentServerPlugin {
                 server::simulate_server_fragments,
             )
                 .chain()
-                .before(crate::shared::FixedGameplaySet::PersistenceSimulation)
+                .before(crate::shared::FixedGameplaySet::Persistence)
                 .run_if(in_state(AppState::Hosting)),
         );
     }

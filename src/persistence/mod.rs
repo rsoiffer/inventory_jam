@@ -19,13 +19,11 @@ use crate::app::AppState;
 use crate::shared::FixedGameplaySet;
 
 #[cfg(feature = "server")]
-pub use api::{AddFragments, PersistenceIdentity, PersistenceLoading, PersistenceReady};
-pub use state::{CachedPersistentState, PersistentState};
+pub use api::{AddFragments, PersistenceReady};
+pub use state::CachedPersistentState;
 
 #[cfg(feature = "server")]
-pub use queue::{PersistenceConfig, PersistenceQueue, read_admin_database_url, read_database_url};
-#[cfg(feature = "server")]
-pub use transaction::PersistenceTransaction;
+use queue::{PersistenceConfig, PersistenceQueue};
 
 #[cfg(feature = "server")]
 use systems::{
@@ -65,7 +63,7 @@ impl Plugin for PersistencePlugin {
             .add_systems(
                 FixedUpdate,
                 apply_add_fragments_messages
-                    .in_set(FixedGameplaySet::PersistenceSimulation)
+                    .in_set(FixedGameplaySet::Persistence)
                     .run_if(in_state(AppState::Hosting)),
             )
             .add_systems(

@@ -44,7 +44,7 @@ impl Plugin for WeaponServerPlugin {
                 server::fire_equipped_weapons,
             )
                 .chain()
-                .in_set(FixedGameplaySet::WeaponSimulation)
+                .in_set(FixedGameplaySet::Weapon)
                 .run_if(in_state(AppState::Hosting)),
         );
     }

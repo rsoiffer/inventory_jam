@@ -24,22 +24,13 @@ impl PersistenceConfig {
 }
 
 const DATABASE_SERVER_URL_PATH: &str = "secrets/database-server-url.txt";
-const DATABASE_ADMIN_URL_PATH: &str = "secrets/database-admin-url.txt";
 
-pub fn read_database_url() -> Result<String, String> {
-    read_secret_url(DATABASE_SERVER_URL_PATH)
-}
-
-pub fn read_admin_database_url() -> Result<String, String> {
-    read_secret_url(DATABASE_ADMIN_URL_PATH)
-}
-
-fn read_secret_url(path: &str) -> Result<String, String> {
-    let contents =
-        std::fs::read_to_string(path).map_err(|error| format!("failed to read {path}: {error}"))?;
+fn read_database_url() -> Result<String, String> {
+    let contents = std::fs::read_to_string(DATABASE_SERVER_URL_PATH)
+        .map_err(|error| format!("failed to read {DATABASE_SERVER_URL_PATH}: {error}"))?;
     let url = contents.trim().to_string();
     if url.is_empty() {
-        return Err(format!("{path} must not be empty"));
+        return Err(format!("{DATABASE_SERVER_URL_PATH} must not be empty"));
     }
     Ok(url)
 }
@@ -75,10 +66,6 @@ impl PersistenceQueue {
     pub fn clear_in_flight(&mut self) {
         self.in_flight.clear();
         self.flush_boundary_hashes.clear();
-    }
-
-    pub fn retain_in_flight_for_retry(&mut self) {
-        // Keep in_flight and boundary hashes so an uncertain flush can be retried.
     }
 
     pub fn abandon_in_flight(&mut self) {

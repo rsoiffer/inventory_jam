@@ -1,25 +1,44 @@
+mod app;
+mod protocol;
+
+#[cfg(feature = "client")]
+mod client;
+
+#[cfg(feature = "server")]
+mod server;
+
+mod enemy;
+mod fragment;
+mod persistence;
+mod projectile;
+mod weapon;
+
+#[cfg(feature = "gui")]
+mod renderer;
+#[cfg(feature = "gui")]
+mod ui;
+
+mod shared;
+
+mod networking;
+
+use app::*;
 use bevy::log::{Level, LogPlugin};
 use bevy::prelude::*;
 #[cfg(feature = "gui")]
 use bevy::window::PresentMode;
 #[cfg(feature = "gui")]
 use bevy::winit::WinitSettings;
-use inventory_jam::app::*;
 #[cfg(feature = "client")]
-use inventory_jam::client::ExampleClientPlugin;
+use client::ExampleClientPlugin;
 #[cfg(feature = "server")]
-use inventory_jam::persistence::PersistencePlugin;
-#[cfg(feature = "gui")]
-use inventory_jam::projectile;
-#[cfg(feature = "gui")]
-use inventory_jam::renderer;
+use persistence::PersistencePlugin;
 #[cfg(feature = "server")]
-use inventory_jam::server::ExampleServerPlugin;
-use inventory_jam::shared::SharedPlugin;
-#[cfg(feature = "gui")]
-use inventory_jam::ui::MenuPlugin;
-use inventory_jam::{fragment, networking, persistence, weapon};
+use server::ExampleServerPlugin;
+use shared::SharedPlugin;
 use std::time::Duration;
+#[cfg(feature = "gui")]
+use ui::MenuPlugin;
 
 const TICK_DURATION: Duration =
     Duration::from_nanos((1_000_000_000.0 / networking::FIXED_TIMESTEP_HZ) as u64);

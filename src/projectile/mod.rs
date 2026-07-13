@@ -38,7 +38,7 @@ impl Plugin for ProjectileRenderPlugin {
             FixedUpdate,
             (simulate_server_projectiles, expire_server_impacts)
                 .chain()
-                .in_set(FixedGameplaySet::ProjectileSimulation)
+                .in_set(FixedGameplaySet::Projectile)
                 .run_if(in_state(AppState::Hosting)),
         );
         render::register(app);

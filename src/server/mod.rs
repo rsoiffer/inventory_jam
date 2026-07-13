@@ -28,7 +28,7 @@ impl Plugin for ExampleServerPlugin {
             FixedUpdate,
             (authoritative_player_movement, update_player_aim_direction)
                 .chain()
-                .in_set(FixedGameplaySet::PlayerSimulation)
+                .in_set(FixedGameplaySet::Player)
                 .run_if(in_state(AppState::Hosting)),
         );
 

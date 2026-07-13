@@ -13,10 +13,10 @@ pub const PLAYER_HALF_SIZE: f32 = 25.0;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedGameplaySet {
-    PlayerSimulation,
-    WeaponSimulation,
-    ProjectileSimulation,
-    PersistenceSimulation,
+    Player,
+    Weapon,
+    Projectile,
+    Persistence,
 }
 
 pub struct SharedPlugin;
@@ -27,10 +27,10 @@ impl Plugin for SharedPlugin {
         app.configure_sets(
             FixedUpdate,
             (
-                FixedGameplaySet::PlayerSimulation,
-                FixedGameplaySet::WeaponSimulation,
-                FixedGameplaySet::ProjectileSimulation,
-                FixedGameplaySet::PersistenceSimulation,
+                FixedGameplaySet::Player,
+                FixedGameplaySet::Weapon,
+                FixedGameplaySet::Projectile,
+                FixedGameplaySet::Persistence,
             )
                 .chain(),
         );
