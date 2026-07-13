@@ -7,10 +7,13 @@ use lightyear::prelude::*;
 use crate::app::AppState;
 use crate::enemy::server::spawn_enemy;
 use crate::networking::SEND_INTERVAL;
+use crate::protocol::channels::ServerEventsChannel;
 use crate::protocol::messages::DebugServerMessage;
-use crate::protocol::*;
+use crate::server::player::{
+    apply_username_messages, authoritative_player_movement, debug_switch_rooms, handle_connected,
+    update_player_aim_direction,
+};
 use crate::shared::FixedGameplaySet;
-use player::*;
 
 pub struct ExampleServerPlugin;
 

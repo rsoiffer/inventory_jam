@@ -1,8 +1,8 @@
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::player::{PlayerAimDirection, PlayerPosition};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
-
-use crate::protocol::{PlayerAction, PlayerAimDirection, PlayerPosition};
 
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct SmoothedAimDirection(pub Vec2);

@@ -1,8 +1,8 @@
 use crate::app::validate_username;
+use crate::protocol::inputs::PlayerAction;
 use crate::protocol::messages::SetUsername;
-use crate::protocol::player::{PlayerBundle, PlayerUsername};
+use crate::protocol::player::{PlayerAimDirection, PlayerBundle, PlayerPosition, PlayerUsername};
 use crate::protocol::rooms::{GameRoom, GameRooms};
-use crate::protocol::{PlayerAction, PlayerAimDirection, PlayerPosition};
 use crate::shared;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;

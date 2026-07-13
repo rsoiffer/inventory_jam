@@ -1,13 +1,11 @@
 use bevy::prelude::*;
 use lightyear::{prediction::Predicted, prelude::PeerId};
 
-use crate::{
-    fragment::{
-        protocol::Fragment,
-        shared::{self as fragment_shared, ClientFragment, FragmentPosition, ServerFragment},
-    },
-    protocol::{PlayerId, PlayerPosition},
+use crate::fragment::{
+    protocol::Fragment,
+    shared::{self as fragment_shared, ClientFragment, FragmentPosition, ServerFragment},
 };
+use crate::protocol::player::{PlayerId, PlayerPosition};
 
 /// Creates client-only presentation state when a replicated fragment arrives.
 pub(crate) fn initialize_fragment(

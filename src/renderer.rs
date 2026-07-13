@@ -1,6 +1,6 @@
 use crate::app::{AppState, game_is_active};
 use crate::enemy::render::draw_enemy_boxes;
-use crate::protocol::*;
+use crate::protocol::player::{PlayerColor, PlayerPosition, PlayerUsername};
 use crate::shared::{ARENA_WORLD_BOUNDS, SHOP_WORLD_BOUNDS};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;

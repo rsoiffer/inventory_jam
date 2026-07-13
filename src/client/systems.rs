@@ -3,15 +3,12 @@ use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
 use crate::app::LocalUsername;
+use crate::protocol::channels::ClientEventsChannel;
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::messages::{DebugServerMessage, SetUsername};
+use crate::protocol::player::{PlayerColor, PlayerId, PlayerPosition};
 use crate::protocol::rooms::GameRoom;
-use crate::{
-    client::player::SmoothedAimDirection,
-    protocol::{
-        ClientEventsChannel, DebugServerMessage, PlayerAction, PlayerColor, PlayerId,
-        PlayerPosition, SetUsername,
-    },
-    shared,
-};
+use crate::{client::player::SmoothedAimDirection, shared};
 
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct CachedCursorAim(pub Vec2);

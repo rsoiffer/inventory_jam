@@ -1,5 +1,7 @@
+use crate::protocol::ProtocolPlugin;
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::player::PlayerPosition;
 use crate::protocol::rooms::GameRoom;
-use crate::protocol::{PlayerAction, PlayerPosition, ProtocolPlugin};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
