@@ -35,17 +35,10 @@ pub fn validate_username(raw: &str) -> Result<String, String> {
 pub fn machine_local_username(raw: &str) -> Result<String, String> {
     let base = validate_username(raw)?;
     let prefix = machine_id_prefix();
-    let budget = MAX_USERNAME_LEN.saturating_sub(prefix.chars().count());
-    let truncated: String = base.chars().take(budget).collect();
-    if truncated.is_empty() {
-        return Err("username must not be empty after machine prefix".into());
-    }
-    validate_username(&format!("{prefix}{truncated}"))
+    validate_username(&format!("{base}_{prefix}"))
 }
 
 fn machine_id_prefix() -> String {
-    use std::hash::{DefaultHasher, Hash, Hasher};
-
     let mut hasher = DefaultHasher::new();
     machine_name().hash(&mut hasher);
     let digest = hasher.finish();
