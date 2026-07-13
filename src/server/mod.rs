@@ -7,7 +7,6 @@ use lightyear::prelude::*;
 use crate::app::AppState;
 use crate::enemy::server::spawn_enemy;
 use crate::networking::SEND_INTERVAL;
-use crate::projectile::server::{expire_server_impacts, simulate_server_projectiles};
 use crate::protocol::messages::DebugServerMessage;
 use crate::protocol::*;
 use crate::shared::FixedGameplaySet;
@@ -30,13 +29,6 @@ impl Plugin for ExampleServerPlugin {
                 .run_if(in_state(AppState::Hosting)),
         );
 
-        app.add_systems(
-            FixedUpdate,
-            (simulate_server_projectiles, expire_server_impacts)
-                .chain()
-                .in_set(FixedGameplaySet::ProjectileSimulation)
-                .run_if(in_state(AppState::Hosting)),
-        );
         app.add_systems(
             FixedUpdate,
             debug_switch_rooms.run_if(in_state(AppState::Hosting)),

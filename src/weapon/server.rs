@@ -2,12 +2,11 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
+use crate::projectile::PlayerProjectile;
 use crate::protocol::rooms::GameRoom;
 use crate::{
-    projectile::{
-        shared::{
-            self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
-        },
+    projectile::shared::{
+        self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
     },
     protocol::{PlayerAction, PlayerAimDirection, PlayerId, PlayerPosition},
     weapon::{
@@ -15,7 +14,6 @@ use crate::{
         shared::{WeaponCooldown, weapon_stats},
     },
 };
-use crate::projectile::PlayerProjectile;
 
 /// Gives every authoritative player a starter weapon.
 ///

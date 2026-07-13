@@ -13,14 +13,16 @@ mod client;
 mod protocol;
 
 #[cfg(feature = "gui")]
-pub(crate) mod render;
+mod render;
 
 #[cfg(feature = "server")]
-pub(crate) mod server;
+mod server;
 
 pub mod shared;
 
 pub use crate::projectile::protocol::PlayerProjectile;
+use crate::projectile::server::{expire_server_impacts, simulate_server_projectiles};
+use crate::shared::FixedGameplaySet;
 
 #[cfg(feature = "gui")]
 pub struct ProjectileRenderPlugin;
@@ -35,6 +37,13 @@ impl Plugin for ProjectileRenderPlugin {
             simulate_client_projectiles
                 .chain()
                 .run_if(in_state(AppState::Playing)),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (simulate_server_projectiles, expire_server_impacts)
+                .chain()
+                .in_set(FixedGameplaySet::ProjectileSimulation)
+                .run_if(in_state(AppState::Hosting)),
         );
         render::register(app);
         app.component::<PlayerProjectile>().replicate();
