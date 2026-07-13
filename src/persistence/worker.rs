@@ -6,8 +6,7 @@ use bevy::prelude::*;
 use sqlx::{Connection, PgConnection, Row};
 use uuid::Uuid;
 
-use super::state::PersistentState;
-use super::transaction::Transaction;
+use super::model::{PersistentState, Transaction};
 
 pub enum PersistenceRequest {
     LoadPlayer {
@@ -70,7 +69,10 @@ impl PersistenceChannels {
     pub fn drain_responses(&self) -> Vec<PersistenceResponse> {
         self.response_rx
             .lock()
-            .expect("persistence response channel poisoned")
+            .unwrap_or_else(|poisoned| {
+                error!("persistence response channel was poisoned");
+                poisoned.into_inner()
+            })
             .try_iter()
             .collect()
     }

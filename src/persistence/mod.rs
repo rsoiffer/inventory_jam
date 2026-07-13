@@ -1,12 +1,7 @@
-mod api;
-mod state;
+mod model;
 
 #[cfg(feature = "server")]
-mod queue;
-#[cfg(feature = "server")]
 mod systems;
-#[cfg(feature = "server")]
-mod transaction;
 #[cfg(feature = "server")]
 mod worker;
 
@@ -18,22 +13,31 @@ use crate::app::AppState;
 #[cfg(feature = "server")]
 use crate::shared::FixedGameplaySet;
 
+pub use model::CachedPersistentState;
 #[cfg(feature = "server")]
-pub use api::PersistenceReady;
-pub use state::CachedPersistentState;
-#[cfg(feature = "server")]
-pub use transaction::Transaction;
-
-#[cfg(feature = "server")]
-use queue::{PendingTransactionQueue, read_database_url};
+pub use model::{PersistenceReady, Transaction};
 
 #[cfg(feature = "server")]
 use systems::{
-    apply_persistence_transactions, apply_username_messages, flush_persistence_queue,
-    poll_persistence_responses,
+    PendingTransactionQueue, apply_persistence_transactions, apply_username_messages,
+    flush_persistence_queue, poll_persistence_responses,
 };
 #[cfg(feature = "server")]
 use worker::spawn_worker;
+
+#[cfg(feature = "server")]
+const DATABASE_SERVER_URL_PATH: &str = "secrets/database-server-url.txt";
+
+#[cfg(feature = "server")]
+fn read_database_url() -> Result<String, String> {
+    let contents = std::fs::read_to_string(DATABASE_SERVER_URL_PATH)
+        .map_err(|error| format!("failed to read {DATABASE_SERVER_URL_PATH}: {error}"))?;
+    let url = contents.trim().to_string();
+    if url.is_empty() {
+        return Err(format!("{DATABASE_SERVER_URL_PATH} must not be empty"));
+    }
+    Ok(url)
+}
 
 pub struct PersistencePlugin;
 
@@ -62,10 +66,12 @@ struct PersistenceServerPlugin;
 impl Plugin for PersistenceServerPlugin {
     fn build(&self, app: &mut App) {
         let database_url = read_database_url().unwrap_or_else(|error| {
-            panic!("persistence configuration error: {error}");
+            eprintln!("persistence configuration error: {error}");
+            std::process::exit(1);
         });
         let channels = spawn_worker(database_url).unwrap_or_else(|error| {
-            panic!("failed to start persistence worker: {error:#}");
+            eprintln!("failed to start persistence worker: {error:#}");
+            std::process::exit(1);
         });
 
         app.add_message::<Transaction>()

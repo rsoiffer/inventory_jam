@@ -1,24 +1,60 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "server")]
 use uuid::Uuid;
 
-use super::state::PersistentState;
+#[cfg(feature = "server")]
+#[derive(Component, Debug, Default)]
+pub struct PersistenceReady;
 
-/// Atomic multi-player persistence transaction.
-///
-/// Used as a gameplay message, queued for flush, and serialized to Postgres.
+#[cfg(feature = "server")]
+#[derive(Component, Debug, Default)]
+pub struct PersistenceLoading;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PersistentState {
+    pub version: u32,
+    pub fragment_count: u32,
+}
+
+impl Default for PersistentState {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            fragment_count: 0,
+        }
+    }
+}
+
+impl PersistentState {
+    #[cfg(feature = "server")]
+    pub fn hash_hex(&self, username: &str) -> String {
+        use sha2::{Digest, Sha256};
+
+        let preimage = format!("v1|{username}|fragment_count={}", self.fragment_count);
+        hex::encode(Sha256::digest(preimage.as_bytes()))
+    }
+}
+
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Deref, DerefMut)]
+pub struct CachedPersistentState(pub PersistentState);
+
+#[cfg(feature = "server")]
 #[derive(Message, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     pub id: Uuid,
     pub changes: Vec<PlayerChange>,
 }
 
+#[cfg(feature = "server")]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayerChange {
     pub username: String,
     pub add_fragments: u32,
 }
 
+#[cfg(feature = "server")]
 impl PlayerChange {
     pub fn apply(&self, state: &mut PersistentState) -> Result<(), String> {
         if self.add_fragments == 0 {
@@ -37,6 +73,7 @@ impl PlayerChange {
     }
 }
 
+#[cfg(feature = "server")]
 impl Transaction {
     pub fn add_fragments(username: impl Into<String>, amount: u32) -> Self {
         Self {

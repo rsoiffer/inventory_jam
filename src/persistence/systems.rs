@@ -1,19 +1,77 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use lightyear::connection::client_of::ClientOf;
 use lightyear::connection::host::HostServer;
 use lightyear::prelude::*;
+use uuid::Uuid;
 
 use crate::app::validate_username;
 use crate::player::PlayerUsername;
 use crate::protocol::messages::SetUsername;
 
-use super::api::{PersistenceLoading, PersistenceReady};
-use super::queue::PendingTransactionQueue;
-use super::state::{CachedPersistentState, PersistentState};
-use super::transaction::Transaction;
+use super::model::{
+    CachedPersistentState, PersistenceLoading, PersistenceReady, PersistentState, Transaction,
+};
 use super::worker::{FlushResult, PersistenceChannels, PersistenceResponse};
+
+const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
+
+#[derive(Resource)]
+pub(crate) struct PendingTransactionQueue {
+    pending: VecDeque<Transaction>,
+    next_flush_at: Instant,
+    is_flushing: bool,
+}
+
+impl Default for PendingTransactionQueue {
+    fn default() -> Self {
+        Self {
+            pending: VecDeque::new(),
+            next_flush_at: Instant::now() + FLUSH_INTERVAL,
+            is_flushing: false,
+        }
+    }
+}
+
+impl PendingTransactionQueue {
+    fn enqueue(&mut self, transaction: Transaction) {
+        self.pending.push_back(transaction);
+    }
+
+    fn is_flushing(&self) -> bool {
+        self.is_flushing
+    }
+
+    fn begin_flush_if_due(&mut self) -> Option<Vec<Transaction>> {
+        if self.is_flushing || Instant::now() < self.next_flush_at {
+            return None;
+        }
+        self.is_flushing = true;
+        Some(self.pending.iter().cloned().collect())
+    }
+
+    fn acknowledge(&mut self, transaction_ids: &[Uuid]) {
+        let ids: HashSet<Uuid> = transaction_ids.iter().copied().collect();
+        self.pending
+            .retain(|transaction| !ids.contains(&transaction.id));
+    }
+
+    fn pending_for_username<'a>(
+        &'a self,
+        username: &'a str,
+    ) -> impl Iterator<Item = &'a Transaction> {
+        self.pending
+            .iter()
+            .filter(move |transaction| transaction.touches_username(username))
+    }
+
+    fn finish_flush(&mut self) {
+        self.is_flushing = false;
+        self.next_flush_at = Instant::now() + FLUSH_INTERVAL;
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_username_messages(
