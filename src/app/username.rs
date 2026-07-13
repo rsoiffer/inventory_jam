@@ -58,7 +58,7 @@ fn machine_id_prefix() -> String {
 fn machine_name() -> String {
     #[cfg(windows)]
     {
-        return std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown".into());
+        std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown".into())
     }
     #[cfg(not(windows))]
     {

@@ -1,22 +1,16 @@
-use crate::app::{AppState, game_is_active};
-use bevy::prelude::*;
-
-pub mod api;
-
+mod api;
 #[cfg(feature = "client")]
-pub(crate) mod client;
-
-pub(crate) mod protocol;
-
+mod client;
+mod protocol;
 #[cfg(feature = "gui")]
-pub(crate) mod render;
-
+mod render;
 #[cfg(feature = "server")]
-pub(crate) mod server;
+mod server;
+mod shared;
 
-pub mod shared;
-
-pub use api::SpawnFragmentPool;
+use crate::app::{AppState, game_is_active};
+use api::SpawnFragmentPool;
+use bevy::prelude::*;
 
 /// Installs network component registration on every peer.
 pub struct FragmentProtocolPlugin;

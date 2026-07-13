@@ -2,15 +2,14 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
+use crate::projectile::PlayerProjectile;
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::player::{PlayerAimDirection, PlayerId, PlayerPosition};
 use crate::protocol::rooms::GameRoom;
 use crate::{
-    projectile::{
-        protocol::PlayerProjectile,
-        shared::{
-            self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
-        },
+    projectile::shared::{
+        self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
     },
-    protocol::{PlayerAction, PlayerAimDirection, PlayerId, PlayerPosition},
     weapon::{
         protocol::{EquippedWeapon, WeaponKind},
         shared::{WeaponCooldown, weapon_stats},

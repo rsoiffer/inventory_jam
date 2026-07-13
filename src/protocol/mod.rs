@@ -6,15 +6,6 @@ pub mod rooms;
 
 use bevy::prelude::*;
 
-pub use channels::{ClientEventsChannel, ServerEventsChannel};
-pub use inputs::PlayerAction;
-pub use messages::{DebugServerMessage, SetUsername};
-pub use player::{PlayerAimDirection, PlayerColor, PlayerId, PlayerPosition, PlayerUsername};
-
-pub use crate::projectile::protocol::{PlayerProjectile, ProjectileImpact};
-pub use crate::projectile::shared::{ProjectileLifetime, ProjectilePosition};
-pub use crate::weapon::protocol::{EquippedWeapon, WeaponKind};
-
 #[derive(Clone)]
 pub struct ProtocolPlugin;
 
@@ -24,7 +15,6 @@ impl Plugin for ProtocolPlugin {
         messages::register(app);
         inputs::register(app);
         player::register(app);
-        crate::projectile::protocol::register(app);
-        crate::enemy::protocol::register(app);
+        crate::enemy::register(app);
     }
 }

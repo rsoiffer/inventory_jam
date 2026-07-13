@@ -6,10 +6,9 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
-use crate::{
-    client::systems::CachedCursorAim,
-    protocol::{PlayerAction, PlayerId},
-};
+use crate::client::systems::CachedCursorAim;
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::player::PlayerId;
 
 pub(crate) fn handle_controlled_spawn(
     trigger: On<Add, Controlled>,

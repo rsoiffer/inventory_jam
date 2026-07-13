@@ -1,6 +1,6 @@
 use crate::app::{AppState, game_is_active};
-use crate::enemy::render::draw_enemy_boxes;
-use crate::protocol::*;
+use crate::enemy::EnemyClientPlugin;
+use crate::protocol::player::{PlayerColor, PlayerPosition, PlayerUsername};
 use crate::shared::{ARENA_WORLD_BOUNDS, SHOP_WORLD_BOUNDS};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
@@ -17,15 +17,11 @@ impl Plugin for ExampleRendererPlugin {
         app.add_systems(OnEnter(AppState::Playing), setup_instructions);
         app.add_systems(OnExit(AppState::Playing), cleanup_instructions);
 
+        app.add_plugins(EnemyClientPlugin);
+
         app.add_systems(
             Update,
-            (
-                draw_test_worlds,
-                draw_player_boxes,
-                draw_enemy_boxes,
-                sync_username_labels,
-            )
-                .run_if(game_is_active),
+            (draw_test_worlds, draw_player_boxes, sync_username_labels).run_if(game_is_active),
         );
     }
 }

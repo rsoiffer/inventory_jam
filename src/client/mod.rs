@@ -13,10 +13,6 @@ use systems::{
     send_local_username, update_camera, write_cursor_aim_to_leafwing,
 };
 
-use crate::projectile::client::{
-    initialize_projectile, initialize_projectile_impact, simulate_client_projectiles,
-};
-
 pub struct ExampleClientPlugin;
 
 impl Plugin for ExampleClientPlugin {
@@ -35,11 +31,7 @@ impl Plugin for ExampleClientPlugin {
 
         app.add_systems(
             FixedUpdate,
-            (
-                player_movement,
-                update_predicted_player_aim_direction,
-                simulate_client_projectiles,
-            )
+            (player_movement, update_predicted_player_aim_direction)
                 .chain()
                 .run_if(in_state(AppState::Playing)),
         );
@@ -56,8 +48,6 @@ impl Plugin for ExampleClientPlugin {
         app.add_observer(handle_predicted_spawn);
         app.add_observer(handle_controlled_spawn);
         app.add_observer(handle_interpolated_spawn);
-        app.add_observer(initialize_projectile);
-        app.add_observer(initialize_projectile_impact);
         app.add_observer(send_local_username);
     }
 }

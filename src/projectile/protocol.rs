@@ -27,8 +27,3 @@ pub struct ProjectileImpact {
     pub weapon: WeaponKind,
     pub damage: u32,
 }
-
-pub fn register(app: &mut App) {
-    app.component::<PlayerProjectile>().replicate();
-    app.component::<ProjectileImpact>().replicate();
-}

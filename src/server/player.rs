@@ -1,6 +1,6 @@
-use crate::protocol::player::PlayerBundle;
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::player::{PlayerAimDirection, PlayerBundle, PlayerPosition};
 use crate::protocol::rooms::{GameRoom, GameRooms};
-use crate::protocol::{PlayerAction, PlayerAimDirection, PlayerPosition};
 use crate::shared;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
@@ -74,7 +74,7 @@ pub(crate) fn update_player_aim_direction(
         &mut PlayerAimDirection,
         Has<Predicted>,
     )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    host_server: Query<(), With<HostServer>>,
 ) {
     let is_host_server = !host_server.is_empty();
 

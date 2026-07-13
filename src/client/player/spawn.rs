@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 
 use crate::protocol::messages::*;
-use crate::protocol::{PlayerColor, PlayerId};
+use crate::protocol::player::{PlayerColor, PlayerId};
 
 pub(crate) fn handle_interpolated_spawn(
     trigger: On<Add, Interpolated>,
