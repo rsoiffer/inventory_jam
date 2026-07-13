@@ -29,7 +29,7 @@ use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
 use crate::app::{AppState, LaunchMode, StartGame};
 #[cfg(feature = "client")]
-use crate::app::{LocalUsername, client_id_from_username};
+use crate::app::{LocalUsername, client_id_from_username, machine_local_username};
 
 #[cfg(feature = "client")]
 const CERT_DIGEST: &str = "18b16f92178824528aabb1c4274a0f247d0dec2c6f755e152739ff2fe343ec7c";
@@ -198,7 +198,14 @@ fn handle_start_game(
                     status.message = "already connected".into();
                     continue;
                 }
-                username.0.clone_from(&start.username);
+                let local_username = match machine_local_username(&start.username) {
+                    Ok(name) => name,
+                    Err(error) => {
+                        status.message = error;
+                        continue;
+                    }
+                };
+                username.0.clone_from(&local_username);
                 let config = NetworkingConfig::for_client(true);
                 commands.insert_resource(NetworkingRuntime {
                     certificate_digest: config.certificate_digest.clone(),
@@ -208,7 +215,7 @@ fn handle_start_game(
                 next_state.set(AppState::Connecting);
                 spawn_client(
                     &mut commands,
-                    client_id_from_username(&start.username),
+                    client_id_from_username(&local_username),
                     config.server_addr,
                     &config,
                     link_conditioner(),

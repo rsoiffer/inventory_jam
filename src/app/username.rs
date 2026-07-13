@@ -3,6 +3,7 @@ use bevy::prelude::Resource;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const MAX_USERNAME_LEN: usize = 16;
+const MACHINE_ID_PREFIX_LEN: usize = 6;
 
 #[derive(Resource, Debug, Clone)]
 pub struct LocalUsername(pub String);
@@ -27,6 +28,44 @@ pub fn validate_username(raw: &str) -> Result<String, String> {
         return Err("username must not contain control characters".into());
     }
     Ok(name.into())
+}
+
+/// Prefixes a username with a stable per-machine id so local-dev identities do
+/// not collide across computers sharing the same persistence database.
+pub fn machine_local_username(raw: &str) -> Result<String, String> {
+    let base = validate_username(raw)?;
+    let prefix = machine_id_prefix();
+    let budget = MAX_USERNAME_LEN.saturating_sub(prefix.chars().count());
+    let truncated: String = base.chars().take(budget).collect();
+    if truncated.is_empty() {
+        return Err("username must not be empty after machine prefix".into());
+    }
+    validate_username(&format!("{prefix}{truncated}"))
+}
+
+fn machine_id_prefix() -> String {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    machine_name().hash(&mut hasher);
+    let digest = hasher.finish();
+    format!("{digest:016x}")
+        .chars()
+        .take(MACHINE_ID_PREFIX_LEN)
+        .collect()
+}
+
+fn machine_name() -> String {
+    #[cfg(windows)]
+    {
+        return std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown".into());
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var("HOSTNAME")
+            .or_else(|_| std::fs::read_to_string("/etc/hostname").map(|s| s.trim().to_string()))
+            .unwrap_or_else(|_| "unknown".into())
+    }
 }
 
 #[cfg(feature = "server")]

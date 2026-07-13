@@ -14,6 +14,7 @@ pub enum FixedGameplaySet {
     PlayerSimulation,
     WeaponSimulation,
     ProjectileSimulation,
+    PersistenceSimulation,
 }
 
 pub struct SharedPlugin;
@@ -27,6 +28,7 @@ impl Plugin for SharedPlugin {
                 FixedGameplaySet::PlayerSimulation,
                 FixedGameplaySet::WeaponSimulation,
                 FixedGameplaySet::ProjectileSimulation,
+                FixedGameplaySet::PersistenceSimulation,
             )
                 .chain(),
         );

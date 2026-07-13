@@ -23,17 +23,6 @@ impl Fragment {
     }
 }
 
-/// The number of volatile fragments currently carried by a player.
-///
-/// This belongs to the Fragment feature even though it is attached to a player
-/// entity. Extraction and death can later mutate or clear this component
-/// through the feature's public API.
-#[derive(
-    Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, Deref, DerefMut,
-)]
-pub struct CarriedFragments(pub u32);
-
 pub fn register(app: &mut App) {
     app.component::<Fragment>().replicate();
-    app.component::<CarriedFragments>().replicate();
 }

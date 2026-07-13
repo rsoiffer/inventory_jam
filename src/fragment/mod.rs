@@ -54,12 +54,12 @@ impl Plugin for FragmentServerPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                server::ensure_player_fragment_wallets,
                 server::request_debug_fragment_pool,
                 server::spawn_requested_fragment_pools,
                 server::simulate_server_fragments,
             )
                 .chain()
+                .before(crate::shared::FixedGameplaySet::PersistenceSimulation)
                 .run_if(in_state(AppState::Hosting)),
         );
     }

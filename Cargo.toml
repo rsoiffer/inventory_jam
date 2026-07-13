@@ -9,8 +9,11 @@ exclude = ["dist", "build", "assets"]
 [profile.dev.package."*"]
 opt-level = 3
 
+# Keep workspace code lightly optimized for iterative rebuilds, while cutting
+# debuginfo to line tables to speed up linking (Bevy setup guide).
 [profile.dev]
 opt-level = 1
+debug = 1
 
 [profile.release]
 opt-level = "s"
@@ -33,7 +36,15 @@ dev = [
 default = ["client", "gui", "server", "netcode", "udp", "webtransport", "dev"]
 client = ["lightyear/client"]
 gui = []
-server = ["lightyear/client", "lightyear/server"]
+server = [
+    "lightyear/client",
+    "lightyear/server",
+    "dep:sqlx",
+    "dep:tokio",
+    "dep:uuid",
+    "dep:sha2",
+    "dep:hex",
+]
 netcode = ["lightyear/netcode"]
 udp = ["lightyear/udp", "lightyear/std"]
 link_conditioner = []
@@ -88,6 +99,18 @@ bevy_mod_reqwest = "0.22.0"
 async-compat = "0.2.5"
 anyhow = "1.0.103"
 clap = { version = "4.6.1", features = ["derive"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "uuid",
+    "json",
+    "macros",
+], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"], optional = true }
+uuid = { version = "1", features = ["v4", "serde"], optional = true }
+sha2 = { version = "0.10", optional = true }
+hex = { version = "0.4", optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
 getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }

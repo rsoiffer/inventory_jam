@@ -34,7 +34,9 @@ Headless:
 - Server: `cargo run --no-default-features --features=server,netcode,webtransport -- --mode server`
 - Client: `cargo run --no-default-features --features=client,netcode,webtransport -- --mode edgegap --user Ada`
 
-Local multi-client smoke test: `just dev` / `just dev 3` (starts a local host plus N named clients).
+Local multi-client smoke test: `just dev` / `just dev 3` (starts a local host plus N clients).
+Local-join usernames are automatically prefixed with a per-machine id in Rust so they
+do not collide with other developers sharing the same persistence database.
 
 The default features enable client, server, GUI, development tools, UDP, netcode, and WebTransport. Production and
 headless builds should use `--no-default-features` with only the required features.

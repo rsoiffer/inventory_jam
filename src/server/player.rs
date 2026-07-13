@@ -1,6 +1,4 @@
-use crate::app::validate_username;
-use crate::protocol::messages::SetUsername;
-use crate::protocol::player::{PlayerBundle, PlayerUsername};
+use crate::protocol::player::PlayerBundle;
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::protocol::{PlayerAction, PlayerAimDirection, PlayerPosition};
 use crate::shared;
@@ -38,30 +36,6 @@ pub(crate) fn handle_connected(
         .id();
 
     info!("Create player entity {entity:?} for client {client_id:?}");
-}
-
-pub(crate) fn apply_username_messages(
-    mut receivers: Query<(Entity, &mut MessageReceiver<SetUsername>), With<ClientOf>>,
-    mut players: Query<(&ControlledBy, &mut PlayerUsername)>,
-) {
-    for (link_entity, mut receiver) in &mut receivers {
-        for message in receiver.receive() {
-            let Ok(name) = validate_username(&message.name) else {
-                warn!(
-                    "ignored invalid username from {:?}: {:?}",
-                    link_entity, message.name
-                );
-                continue;
-            };
-
-            let (_, mut username) = players
-                .iter_mut()
-                .find(|(controlled_by, _)| controlled_by.owner == link_entity)
-                .expect("connected client should have a player");
-            info!("set username for {link_entity:?} to {name}");
-            username.0 = name;
-        }
-    }
 }
 
 pub(crate) fn authoritative_player_movement(

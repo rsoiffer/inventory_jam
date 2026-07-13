@@ -7,6 +7,8 @@ use bevy::winit::WinitSettings;
 use inventory_jam::app::*;
 #[cfg(feature = "client")]
 use inventory_jam::client::ExampleClientPlugin;
+#[cfg(feature = "server")]
+use inventory_jam::persistence::PersistencePlugin;
 #[cfg(feature = "gui")]
 use inventory_jam::projectile;
 #[cfg(feature = "gui")]
@@ -16,7 +18,7 @@ use inventory_jam::server::ExampleServerPlugin;
 use inventory_jam::shared::SharedPlugin;
 #[cfg(feature = "gui")]
 use inventory_jam::ui::MenuPlugin;
-use inventory_jam::{fragment, networking, weapon};
+use inventory_jam::{fragment, networking, persistence, weapon};
 use std::time::Duration;
 
 const TICK_DURATION: Duration =
@@ -45,6 +47,7 @@ fn main() {
         LaunchPlugin,
         SharedPlugin,
         fragment::FragmentProtocolPlugin,
+        persistence::PersistenceProtocolPlugin,
         weapon::WeaponProtocolPlugin,
     ));
     networking::configure_networking(&mut app);
@@ -53,6 +56,7 @@ fn main() {
     app.add_observer(networking::apply_server_link_conditioner)
         .add_plugins((
             ExampleServerPlugin,
+            PersistencePlugin,
             fragment::FragmentServerPlugin,
             weapon::WeaponServerPlugin,
         ));

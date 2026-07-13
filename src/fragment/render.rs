@@ -1,10 +1,8 @@
 use bevy::prelude::*;
 use lightyear::prelude::Controlled;
 
-use crate::fragment::{
-    protocol::CarriedFragments,
-    shared::{self as fragment_shared, FragmentPosition},
-};
+use crate::fragment::shared::{self as fragment_shared, FragmentPosition};
+use crate::persistence::CachedPersistentState;
 
 #[derive(Component)]
 pub(crate) struct FragmentBalanceText;
@@ -34,10 +32,10 @@ pub(crate) fn setup_fragment_balance(mut commands: Commands) {
 }
 
 pub(crate) fn update_fragment_balance(
-    player: Query<&CarriedFragments, With<Controlled>>,
+    player: Query<&CachedPersistentState, With<Controlled>>,
     mut text: Query<&mut Text, With<FragmentBalanceText>>,
 ) {
-    let Ok(balance) = player.single() else {
+    let Ok(state) = player.single() else {
         return;
     };
 
@@ -45,5 +43,5 @@ pub(crate) fn update_fragment_balance(
         return;
     };
 
-    text.0 = format!("Fragments: {}", balance.0);
+    text.0 = format!("Fragments: {}", state.fragment_count);
 }

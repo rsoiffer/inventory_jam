@@ -9,6 +9,7 @@ pub mod server;
 
 pub mod enemy;
 pub mod fragment;
+pub mod persistence;
 pub mod projectile;
 pub mod weapon;
 

@@ -45,8 +45,7 @@ impl Plugin for ExampleServerPlugin {
         app.add_systems(FixedUpdate, spawn_enemy.run_if(in_state(AppState::Hosting)));
         app.add_systems(
             Update,
-            (apply_username_messages, send_debug_server_message)
-                .run_if(in_state(AppState::Hosting)),
+            send_debug_server_message.run_if(in_state(AppState::Hosting)),
         );
     }
 }
