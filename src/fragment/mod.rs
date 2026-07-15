@@ -1,5 +1,5 @@
 #[cfg(feature = "server")]
-mod api;
+pub(crate) mod api;
 #[cfg(feature = "client")]
 mod client;
 mod protocol;

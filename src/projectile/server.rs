@@ -3,7 +3,9 @@ use lightyear::prelude::*;
 
 use crate::app::AppState;
 use crate::enemy::{EnemyHealth, EnemyPosition};
-use crate::protocol::rooms::GameRoom;
+use crate::protocol;
+use crate::protocol::rooms::{GameRoom, GameRooms};
+use crate::protocol::rooms::GameRooms::Arena;
 use crate::shared::FixedGameplaySet;
 use crate::{
     enemy::shared::ENEMY_COLLISION_RADIUS,
@@ -15,6 +17,7 @@ use crate::{
         },
     },
 };
+use crate::fragment::api::SpawnFragmentPool;
 
 pub struct ProjectileServerPlugin;
 
@@ -44,6 +47,7 @@ fn simulate_server_projectiles(
         With<ServerProjectile>,
     >,
     mut enemies: Query<(Entity, &EnemyPosition, &mut EnemyHealth)>,
+    mut fragment_requests: MessageWriter<SpawnFragmentPool>,
 ) {
     for (projectile_entity, projectile, mut position, mut lifetime, room) in &mut projectiles {
         projectile_shared::move_projectile(&mut position, projectile);
@@ -64,11 +68,11 @@ fn simulate_server_projectiles(
             }
 
             health.current = health.current.saturating_sub(projectile.damage);
-            hit_enemy = Some((enemy_entity, health.current == 0));
+            hit_enemy = Some((enemy_entity, enemy_position, health.current == 0));
             break;
         }
 
-        if let Some((enemy_entity, enemy_died)) = hit_enemy {
+        if let Some((enemy_entity, enemy_position, enemy_died)) = hit_enemy {
             commands.spawn((
                 ProjectileImpact {
                     position: position.0,
@@ -86,6 +90,7 @@ fn simulate_server_projectiles(
             commands.entity(projectile_entity).despawn();
 
             if enemy_died {
+                fragment_requests.write(SpawnFragmentPool::new(enemy_position.0, 5, *room));
                 commands.entity(enemy_entity).despawn();
             }
 
