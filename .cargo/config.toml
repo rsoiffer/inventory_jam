@@ -2,11 +2,6 @@
 # https://bevy.org/learn/quick-start/getting-started/setup/
 # https://github.com/bevyengine/bevy/blob/main/.cargo/config_fast_builds.toml
 
-# Pin the host target so wasm builds (`--target wasm32-unknown-unknown`) do not
-# invalidate the native incremental cache.
-[build]
-target = "x86_64-pc-windows-msvc"
-
 [target.x86_64-pc-windows-msvc]
 # Faster linker than the MSVC default. Requires:
 #   cargo install -f cargo-binutils
