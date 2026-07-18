@@ -53,7 +53,7 @@ impl PlayerBundle {
             color: PlayerColor(color),
             aim_direction: PlayerAimDirection::default(),
             game_room: GameRoom {
-                room: GameRooms::Arena,
+                room: GameRooms::Pit,
             },
             username: PlayerUsername(temporary_username(id.to_bits())),
         }

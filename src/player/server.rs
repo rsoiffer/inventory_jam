@@ -4,7 +4,7 @@ use crate::protocol::inputs::PlayerAction;
 use crate::protocol::messages::TeleportRoom;
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::shared;
-use crate::shared::{FixedGameplaySet, PLAYER_HALF_SIZE};
+use crate::shared::{FixedGameplaySet, PLAYER_HALF_SIZE, SHOP_WORLD_BOUNDS};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::connection::client::Connected;
@@ -48,7 +48,7 @@ pub(crate) fn handle_connected(
     let entity = commands
         .spawn((
             Name::new(format!("Player: {}", client_id)),
-            PlayerBundle::new(client_id, Vec2::ZERO),
+            PlayerBundle::new(client_id, SHOP_WORLD_BOUNDS.center()),
             ActionState::<PlayerAction>::default(),
             Replicate::to_clients(NetworkTarget::All),
             PredictionTarget::to_clients(NetworkTarget::Single(client_id)),
