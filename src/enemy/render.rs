@@ -31,8 +31,8 @@ fn draw_enemy_boxes(mut gizmos: Gizmos, enemies: Query<(&EnemyPosition, &EnemyHe
             health.current as f32 / health.maximum as f32
         };
 
-        let bar_size = Vec2::new(50.0 * health_fraction, 5.0);
-        let bar_center = position.0 + Vec2::new((bar_size.x - 50.0) * 0.5, 34.0);
+        let bar_size = Vec2::new(8.0 * health_fraction, 0.8);
+        let bar_center = position.0 + Vec2::new((bar_size.x - 8.0) * 0.5, 5.44);
         gizmos.rect_2d(
             Isometry2d::from_translation(bar_center),
             bar_size,

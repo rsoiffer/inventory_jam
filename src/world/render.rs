@@ -1,5 +1,5 @@
 use crate::app::game_is_active;
-use crate::shared::{ARENA_WORLD_BOUNDS, SHOP_WORLD_BOUNDS};
+use crate::shared::{ARENA_WORLD_BOUNDS, SHOP_WORLD_BOUNDS, TILE_SIZE};
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::color::Color;
 use bevy::image::{ImageLoaderSettings, ImageSampler};
@@ -9,13 +9,13 @@ use bevy::prelude::{
     Res, ResMut, Resource, Sprite, TextureAtlas, TextureAtlasLayout, Transform, Visibility,
 };
 
-const GRID_SPACING: f32 = 100.0;
-const TILE_SIZE: f32 = 16.0;
 const ATLAS_COLUMNS: u32 = 9;
 const ATLAS_ROWS: u32 = 9;
+const BACKGROUND_Z: f32 = -2.0;
 const FLOOR_Z: f32 = -1.0;
 const WALL_Z: f32 = 0.0;
 const PROP_Z: f32 = 1.0;
+const WALL_RING_THICKNESS: i32 = 3;
 
 const BLUE_FLOOR: Tile = Tile { x: 1, y: 1 };
 const GREY_FLOOR: Tile = Tile { x: 1, y: 4 };
@@ -28,62 +28,70 @@ const PROP_ROCK: Tile = Tile { x: 6, y: 1 };
 const PROP_ANVIL: Tile = Tile { x: 7, y: 1 };
 const PROP_BARREL: Tile = Tile { x: 8, y: 1 };
 
+const PIT_BACKGROUNDS: &[ColorRect] = &[ColorRect {
+    color: Color::srgb(0.08, 0.1, 0.14),
+    x: 0,
+    y: 0,
+    width: 16,
+    height: 12,
+}];
+
 const PIT_FLOORS: &[FloorRect] = &[
     FloorRect {
         center: BLUE_FLOOR,
-        x: 30,
-        y: 20,
-        width: 40,
-        height: 30,
+        x: 2,
+        y: 2,
+        width: 12,
+        height: 8,
     },
     FloorRect {
         center: GREY_FLOOR,
-        x: 42,
-        y: 28,
-        width: 14,
-        height: 12,
+        x: 6,
+        y: 5,
+        width: 4,
+        height: 2,
     },
     FloorRect {
         center: BLUE_FLOOR_02,
-        x: 20,
-        y: 45,
-        width: 16,
-        height: 10,
+        x: 3,
+        y: 7,
+        width: 4,
+        height: 3,
     },
     FloorRect {
         center: GREY_FLOOR_02,
-        x: 60,
-        y: 22,
-        width: 12,
-        height: 10,
+        x: 10,
+        y: 3,
+        width: 3,
+        height: 3,
     },
 ];
 
 const PIT_PROPS: &[PropPlacement] = &[
     PropPlacement {
         tile: PROP_TABLE,
-        x: 48,
-        y: 34,
+        x: 8,
+        y: 6,
     },
     PropPlacement {
         tile: PROP_STOOL,
-        x: 46,
-        y: 32,
+        x: 7,
+        y: 5,
     },
     PropPlacement {
         tile: PROP_ANVIL,
-        x: 52,
-        y: 32,
+        x: 9,
+        y: 5,
     },
     PropPlacement {
         tile: PROP_ROCK,
-        x: 54,
-        y: 30,
+        x: 10,
+        y: 4,
     },
     PropPlacement {
         tile: PROP_BARREL,
-        x: 44,
-        y: 35,
+        x: 6,
+        y: 6,
     },
 ];
 
@@ -125,8 +133,19 @@ impl Tile {
 }
 
 #[derive(Clone, Copy)]
+struct ColorRect {
+    color: Color,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+}
+
+#[derive(Clone, Copy)]
 struct FloorRect {
     /// Center tile in the tileset; edges/corners are the surrounding 3x3 cells.
+    /// `width`/`height` are the interior filled with center tiles; the border
+    /// sits one tile outside that rectangle.
     center: Tile,
     x: i32,
     y: i32,
@@ -170,9 +189,18 @@ fn spawn_pit_decorations(mut commands: Commands, assets: Res<PitTilesetAssets>) 
     let room_tiles = (SHOP_WORLD_BOUNDS.size() / TILE_SIZE).as_ivec2();
     let mut children = Vec::new();
 
+    for background in PIT_BACKGROUNDS {
+        children.push(spawn_color_rect(
+            &mut commands,
+            origin,
+            background,
+            BACKGROUND_Z,
+        ));
+    }
+
     for floor in PIT_FLOORS {
-        for gy in floor.y..floor.y + floor.height {
-            for gx in floor.x..floor.x + floor.width {
+        for gy in (floor.y - 1)..(floor.y + floor.height + 1) {
+            for gx in (floor.x - 1)..(floor.x + floor.width + 1) {
                 children.push(spawn_tile(
                     &mut commands,
                     &assets,
@@ -186,45 +214,25 @@ fn spawn_pit_decorations(mut commands: Commands, assets: Res<PitTilesetAssets>) 
         }
     }
 
-    for x in 0..room_tiles.x {
-        children.push(spawn_tile(
-            &mut commands,
-            &assets,
-            origin,
-            x,
-            0,
-            WALL,
-            WALL_Z,
-        ));
-        children.push(spawn_tile(
-            &mut commands,
-            &assets,
-            origin,
-            x,
-            room_tiles.y - 1,
-            WALL,
-            WALL_Z,
-        ));
-    }
-    for y in 1..room_tiles.y - 1 {
-        children.push(spawn_tile(
-            &mut commands,
-            &assets,
-            origin,
-            0,
-            y,
-            WALL,
-            WALL_Z,
-        ));
-        children.push(spawn_tile(
-            &mut commands,
-            &assets,
-            origin,
-            room_tiles.x - 1,
-            y,
-            WALL,
-            WALL_Z,
-        ));
+    let min = -WALL_RING_THICKNESS;
+    let max_x = room_tiles.x + WALL_RING_THICKNESS;
+    let max_y = room_tiles.y + WALL_RING_THICKNESS;
+    for y in min..max_y {
+        for x in min..max_x {
+            let inside = (0..room_tiles.x).contains(&x) && (0..room_tiles.y).contains(&y);
+            if inside {
+                continue;
+            }
+            children.push(spawn_tile(
+                &mut commands,
+                &assets,
+                origin,
+                x,
+                y,
+                WALL,
+                WALL_Z,
+            ));
+        }
     }
 
     for prop in PIT_PROPS {
@@ -246,6 +254,22 @@ fn spawn_pit_decorations(mut commands: Commands, assets: Res<PitTilesetAssets>) 
             Visibility::default(),
         ))
         .add_children(&children);
+}
+
+fn spawn_color_rect(commands: &mut Commands, origin: Vec2, rect: &ColorRect, z: f32) -> Entity {
+    let size = Vec2::new(rect.width as f32, rect.height as f32) * TILE_SIZE;
+    let position = origin
+        + Vec2::new(
+            rect.x as f32 + rect.width as f32 * 0.5,
+            rect.y as f32 + rect.height as f32 * 0.5,
+        ) * TILE_SIZE;
+
+    commands
+        .spawn((
+            Sprite::from_color(rect.color, size),
+            Transform::from_translation(Vec3::new(position.x, position.y, z)),
+        ))
+        .id()
 }
 
 fn spawn_tile(
@@ -274,52 +298,24 @@ fn spawn_tile(
 }
 
 fn floor_tile(floor: &FloorRect, grid_x: i32, grid_y: i32) -> Tile {
-    let left = grid_x == floor.x;
-    let right = grid_x == floor.x + floor.width - 1;
-    let bottom = grid_y == floor.y;
-    let top = grid_y == floor.y + floor.height - 1;
+    let left = grid_x == floor.x - 1;
+    let right = grid_x == floor.x + floor.width;
+    let bottom = grid_y == floor.y - 1;
+    let top = grid_y == floor.y + floor.height;
 
-    let (dx, dy) = if floor.width == 1 && floor.height == 1 {
-        (0, 0)
-    } else if left && right {
-        (
-            0,
-            if top {
-                -1
-            } else if bottom {
-                1
-            } else {
-                0
-            },
-        )
-    } else if top && bottom {
-        (
-            if left {
-                -1
-            } else if right {
-                1
-            } else {
-                0
-            },
-            0,
-        )
+    let dx = if left {
+        -1
+    } else if right {
+        1
     } else {
-        (
-            if left {
-                -1
-            } else if right {
-                1
-            } else {
-                0
-            },
-            if top {
-                -1
-            } else if bottom {
-                1
-            } else {
-                0
-            },
-        )
+        0
+    };
+    let dy = if top {
+        -1
+    } else if bottom {
+        1
+    } else {
+        0
     };
 
     floor.center.offset(dx, dy)
@@ -343,7 +339,7 @@ fn draw_arena_test_world(mut gizmos: Gizmos) {
             Vec2::new(x, bounds.max.y),
             color,
         );
-        x += GRID_SPACING;
+        x += TILE_SIZE;
     }
 
     let mut y = bounds.min.y;
@@ -358,7 +354,7 @@ fn draw_arena_test_world(mut gizmos: Gizmos) {
             Vec2::new(bounds.max.x, y),
             color,
         );
-        y += GRID_SPACING;
+        y += TILE_SIZE;
     }
 
     gizmos.rect_2d(

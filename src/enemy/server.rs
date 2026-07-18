@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use rand::Rng;
 
-const ENEMY_SPAWN_RADIUS: f32 = 150.0;
+const ENEMY_SPAWN_RADIUS: f32 = 24.0;
 const ENEMY_MAX_HEALTH: u32 = 100;
 
 pub struct EnemyServerPlugin;

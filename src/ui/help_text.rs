@@ -1,4 +1,6 @@
 use crate::app::AppState;
+use crate::shared::TILE_SIZE;
+use bevy::camera::OrthographicProjection;
 use bevy::prelude::*;
 
 #[derive(Clone)]
@@ -13,7 +15,14 @@ impl Plugin for HelpTextPlugin {
 }
 
 fn init(mut commands: Commands) {
-    commands.spawn(Camera2d);
+    // Keep on-screen size stable after world units shrank from 100px cells to 16px tiles.
+    commands.spawn((
+        Camera2d,
+        Projection::from(OrthographicProjection {
+            scale: TILE_SIZE / 100.0,
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }
 
 #[derive(Component)]

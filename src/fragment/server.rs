@@ -19,8 +19,8 @@ const MAX_FRAGMENTS_PER_DEBUG_POOL: u16 = 150;
 
 // The minimum is deliberately larger than the normal collection radius so a
 // debug pool does not disappear on the same tick that it spawns.
-const FRAGMENT_POOL_MIN_RADIUS: f32 = 50.0;
-const FRAGMENT_POOL_MAX_RADIUS: f32 = 200.0;
+const FRAGMENT_POOL_MIN_RADIUS: f32 = 8.0;
+const FRAGMENT_POOL_MAX_RADIUS: f32 = 32.0;
 
 /// Installs only server-authoritative fragment behavior.
 pub struct FragmentServerPlugin;

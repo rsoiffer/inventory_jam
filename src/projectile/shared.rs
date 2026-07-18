@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::projectile::protocol::PlayerProjectile;
+use crate::shared::PLAYER_HALF_SIZE;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Deref, DerefMut)]
 pub struct ProjectilePosition(pub Vec2);
@@ -48,8 +49,7 @@ pub fn projectile_spawn_position(
     direction: Vec2,
     projectile_radius: f32,
 ) -> Vec2 {
-    const PLAYER_HALF_SIZE: f32 = 25.0;
-    const SPAWN_GAP: f32 = 2.0;
+    const SPAWN_GAP: f32 = 0.32;
 
     player_position
         + direction.normalize_or_zero()

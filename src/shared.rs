@@ -5,11 +5,14 @@ use crate::protocol::rooms::GameRoom;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
+/// World units that previously corresponded to one 100px grid cell.
+pub const TILE_SIZE: f32 = 16.0;
+
 pub static ARENA_WORLD_BOUNDS: Rect =
-    Rect::from_center_size(Vec2::new(0.0, 0.0), Vec2::new(1600.0, 1200.0));
+    Rect::from_center_size(Vec2::new(0.0, 0.0), Vec2::new(256.0, 192.0));
 pub static SHOP_WORLD_BOUNDS: Rect =
-    Rect::from_center_size(Vec2::new(1700.0, 0.0), Vec2::new(1600.0, 1200.0));
-pub const PLAYER_HALF_SIZE: f32 = 25.0;
+    Rect::from_center_size(Vec2::new(2000.0, 0.0), Vec2::new(256.0, 192.0));
+pub const PLAYER_HALF_SIZE: f32 = 4.0;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedGameplaySet {
@@ -42,7 +45,7 @@ pub(crate) fn shared_movement_behaviour(
     room: &GameRoom,
     actions: &ActionState<PlayerAction>,
 ) {
-    const MOVE_SPEED: f32 = 10.0;
+    const MOVE_SPEED: f32 = 1.6;
 
     let movement = actions.clamped_axis_pair(&PlayerAction::Move);
 

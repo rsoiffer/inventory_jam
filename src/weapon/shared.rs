@@ -47,24 +47,24 @@ pub fn weapon_stats(kind: WeaponKind, level: u32) -> WeaponStats {
     match kind {
         WeaponKind::Sword => WeaponStats {
             damage: 20 + bonus_levels * 4,
-            range: 360.0 + bonus_levels as f32 * 12.0,
+            range: 57.6 + bonus_levels as f32 * 1.92,
             attacks_per_second: 2.5 + bonus_levels as f32 * 0.08,
-            projectile_speed_per_tick: 18.0,
-            projectile_radius: 18.0,
+            projectile_speed_per_tick: 2.88,
+            projectile_radius: 2.88,
         },
         WeaponKind::Spear => WeaponStats {
             damage: 32 + bonus_levels * 6,
-            range: 520.0 + bonus_levels as f32 * 16.0,
+            range: 83.2 + bonus_levels as f32 * 2.56,
             attacks_per_second: 1.5 + bonus_levels as f32 * 0.05,
-            projectile_speed_per_tick: 22.0,
-            projectile_radius: 12.0,
+            projectile_speed_per_tick: 3.52,
+            projectile_radius: 1.92,
         },
         WeaponKind::Staff => WeaponStats {
             damage: 16 + bonus_levels * 3,
-            range: 460.0 + bonus_levels as f32 * 14.0,
+            range: 73.6 + bonus_levels as f32 * 2.24,
             attacks_per_second: 3.2 + bonus_levels as f32 * 0.1,
-            projectile_speed_per_tick: 16.0,
-            projectile_radius: 14.0,
+            projectile_speed_per_tick: 2.56,
+            projectile_radius: 2.24,
         },
     }
 }

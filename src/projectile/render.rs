@@ -120,7 +120,7 @@ fn sync_projectile_sprites(
         let direction = projectile.direction.normalize_or_zero();
         transform.translation = position.0.extend(8.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
-        transform.scale = Vec3::splat(0.65);
+        transform.scale = Vec3::splat(0.104);
     }
 }
 
@@ -174,7 +174,7 @@ fn sync_impact_sprites(
 ) {
     for (impact, mut transform) in &mut impacts {
         transform.translation = impact.position.extend(9.0);
-        transform.scale = Vec3::splat(0.85);
+        transform.scale = Vec3::splat(0.136);
     }
 }
 

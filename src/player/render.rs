@@ -19,8 +19,13 @@ use lightyear::prediction::Predicted;
 use lightyear::prelude::Controlled;
 
 /// How quickly should the camera snap to the desired location
-const CAMERA_DECAY_RATE: f32 = 2.;
-const USERNAME_LABEL_OFFSET: Vec3 = Vec3::new(0.0, 40.0, 10.0);
+const CAMERA_DECAY_RATE: f32 = 5.0;
+/// If the camera is farther than this from the player, teleport instead of easing.
+const CAMERA_SNAP_DISTANCE: f32 = 96.0;
+const USERNAME_LABEL_OFFSET: Vec3 = Vec3::new(0.0, 6.4, 10.0);
+/// Rasterize nametags at a readable pixel size, then scale down for the 16px world.
+const USERNAME_FONT_PX: f32 = 18.0;
+const USERNAME_WORLD_SCALE: f32 = 16.0 / 100.0;
 
 pub struct PlayerRenderPlugin;
 
@@ -59,7 +64,7 @@ pub(crate) fn draw_player_boxes(
     for (position, color) in &players {
         gizmos.rect_2d(
             Isometry2d::from_translation(position.0),
-            Vec2::ONE * 50.0,
+            Vec2::ONE * 8.0,
             color.0,
         );
     }
@@ -86,12 +91,13 @@ fn sync_username_labels(
             UsernameLabel { player },
             Text2d::new(username.0.clone()),
             TextFont {
-                font_size: FontSize::Px(18.0),
+                font_size: FontSize::Px(USERNAME_FONT_PX),
                 ..default()
             },
             TextColor(Color::WHITE),
             Anchor::BOTTOM_CENTER,
-            Transform::from_translation(position.0.extend(0.0) + USERNAME_LABEL_OFFSET),
+            Transform::from_translation(position.0.extend(0.0) + USERNAME_LABEL_OFFSET)
+                .with_scale(Vec3::splat(USERNAME_WORLD_SCALE)),
         ));
     }
 
@@ -110,9 +116,15 @@ fn update_camera(
 ) {
     let target = player.0.extend(camera.translation.z);
 
-    camera
-        .translation
-        .smooth_nudge(&target, CAMERA_DECAY_RATE, time.delta_secs());
+    if camera.translation.truncate().distance_squared(player.0)
+        > CAMERA_SNAP_DISTANCE * CAMERA_SNAP_DISTANCE
+    {
+        camera.translation = target;
+    } else {
+        camera
+            .translation
+            .smooth_nudge(&target, CAMERA_DECAY_RATE, time.delta_secs());
+    }
 }
 
 fn sample_cursor_aim(
@@ -148,7 +160,7 @@ fn draw_local_aimstick(
     mut gizmos: Gizmos,
     players: Query<(&PlayerPosition, &SmoothedAimDirection), With<Predicted>>,
 ) {
-    const AIM_STICK_LENGTH: f32 = 32.0;
+    const AIM_STICK_LENGTH: f32 = 5.12;
 
     for (position, smoothed_aim) in &players {
         let direction = smoothed_aim.0.normalize_or_zero();
@@ -163,7 +175,7 @@ fn draw_local_aimstick(
         gizmos.line_2d(start, end, Color::srgb(1.0, 0.85, 0.2));
         gizmos.circle_2d(
             Isometry2d::from_translation(end),
-            5.0,
+            0.8,
             Color::srgb(1.0, 0.85, 0.2),
         );
     }

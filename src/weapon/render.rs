@@ -60,8 +60,8 @@ fn sync_weapon_sprites(
         &mut Transform,
     )>,
 ) {
-    const HELD_WEAPON_OFFSET: f32 = 34.0;
-    const HELD_WEAPON_SCALE: f32 = 1.4;
+    const HELD_WEAPON_OFFSET: f32 = 5.44;
+    const HELD_WEAPON_SCALE: f32 = 0.224;
 
     for (position, aim, equipped_weapon, mut visual, mut sprite, mut transform) in &mut players {
         let direction = aim.0.normalize_or_zero();

@@ -1,18 +1,18 @@
 use bevy::prelude::*;
 
-pub const FRAGMENT_RADIUS: f32 = 8.0;
+pub const FRAGMENT_RADIUS: f32 = 1.28;
 
 /// How long an uncollected fragment remains in the world at 60 fixed ticks/sec.
 pub const FRAGMENT_LIFETIME_TICKS: u16 = 600;
 
 /// Radius owned by the player for collecting nearby fragments.
-pub const PLAYER_COLLECTION_RADIUS: f32 = 50.0;
+pub const PLAYER_COLLECTION_RADIUS: f32 = 8.0;
 
 /// Fraction of the remaining distance covered each fixed tick during pickup.
 const FRAGMENT_PULL_FRACTION_PER_TICK: f32 = 0.22;
 
 /// Sideways motion added while pulling, producing a drain-like curve.
-const FRAGMENT_SWIRL_SPEED_PER_TICK: f32 = 1.5;
+const FRAGMENT_SWIRL_SPEED_PER_TICK: f32 = 0.24;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Deref, DerefMut)]
 pub struct FragmentPosition(pub Vec2);
