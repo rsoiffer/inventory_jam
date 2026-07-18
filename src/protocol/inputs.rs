@@ -19,7 +19,7 @@ pub enum PlayerAction {
     Interact,
     UseSkill,
 
-    DebugSwitchRooms,
+    TeleportRoom,
 }
 
 impl PlayerAction {
@@ -41,7 +41,7 @@ impl PlayerAction {
         input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
         input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
 
-        input_map.insert(Self::DebugSwitchRooms, KeyCode::Digit5);
+        input_map.insert(Self::TeleportRoom, KeyCode::Digit5);
 
         input_map
     }

@@ -10,10 +10,16 @@ pub struct SetUsername {
     pub name: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct TeleportRoom;
+
 pub fn register(app: &mut App) {
     app.register_message::<DebugServerMessage>()
         .add_direction(NetworkDirection::ServerToClient);
 
     app.register_message::<SetUsername>()
+        .add_direction(NetworkDirection::ClientToServer);
+
+    app.register_message::<TeleportRoom>()
         .add_direction(NetworkDirection::ClientToServer);
 }

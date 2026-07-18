@@ -24,7 +24,7 @@ fn setup_instructions(mut commands: Commands) {
         InstructionsText,
         Name::new("Input Control Instructions"),
         Text::new(
-            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nN spawns an enemy (host/server debug)\nShift uses Skill",
+            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nN spawns an enemy (host/server debug)\nShift uses Skill\n5 teleports to the other room",
         ),
         Node {
             position_type: PositionType::Absolute,

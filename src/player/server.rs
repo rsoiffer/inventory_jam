@@ -1,15 +1,17 @@
 use crate::app::AppState;
 use crate::player::protocol::{PlayerAimDirection, PlayerBundle, PlayerPosition};
 use crate::protocol::inputs::PlayerAction;
+use crate::protocol::messages::TeleportRoom;
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::shared;
-use crate::shared::FixedGameplaySet;
+use crate::shared::{FixedGameplaySet, PLAYER_HALF_SIZE};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::connection::client::Connected;
 use lightyear::connection::client_of::ClientOf;
 use lightyear::connection::host::HostServer;
 use lightyear::prelude::*;
+use rand::Rng;
 
 pub struct PlayerServerPlugin;
 
@@ -27,7 +29,7 @@ impl Plugin for PlayerServerPlugin {
 
         app.add_systems(
             FixedUpdate,
-            debug_switch_rooms.run_if(in_state(AppState::Hosting)),
+            apply_teleport_room_commands.run_if(in_state(AppState::Hosting)),
         );
     }
 }
@@ -114,15 +116,45 @@ pub(crate) fn update_player_aim_direction(
     }
 }
 
-pub(crate) fn debug_switch_rooms(
-    mut player_query: Query<(&ActionState<PlayerAction>, &mut GameRoom)>,
+pub(crate) fn apply_teleport_room_commands(
+    mut receivers: Query<(Entity, &mut MessageReceiver<TeleportRoom>), With<ClientOf>>,
+    mut players: Query<(
+        &ControlledBy,
+        &mut GameRoom,
+        &mut PlayerPosition,
+        Has<Predicted>,
+    )>,
+    host_server: Query<(), With<HostServer>>,
 ) {
-    for (actions, mut room) in &mut player_query {
-        if actions.just_pressed(&PlayerAction::DebugSwitchRooms) {
+    let is_host_server = !host_server.is_empty();
+    let mut rng = rand::rng();
+
+    for (link_entity, mut receiver) in &mut receivers {
+        for _message in receiver.receive() {
+            let Some((mut room, mut position)) = players
+                .iter_mut()
+                .find(|(controlled_by, _, _, predicted)| {
+                    controlled_by.owner == link_entity && !(is_host_server && *predicted)
+                })
+                .map(|(_, room, position, _)| (room, position))
+            else {
+                warn!("no authoritative player for TeleportRoom from {link_entity:?}");
+                continue;
+            };
+
             room.room = match room.room {
                 GameRooms::Arena => GameRooms::Pit,
                 GameRooms::Pit => GameRooms::Arena,
-            }
+            };
+            position.0 = random_position_in_room(room.room, &mut rng);
         }
     }
+}
+
+fn random_position_in_room(room: GameRooms, rng: &mut impl Rng) -> Vec2 {
+    let bounds = GameRoom { room }.bounds().inflate(-PLAYER_HALF_SIZE);
+    Vec2::new(
+        rng.random_range(bounds.min.x..=bounds.max.x),
+        rng.random_range(bounds.min.y..=bounds.max.y),
+    )
 }

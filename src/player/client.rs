@@ -5,7 +5,7 @@ use crate::player::protocol::{
 };
 use crate::protocol::channels::ClientEventsChannel;
 use crate::protocol::inputs::PlayerAction;
-use crate::protocol::messages::{DebugServerMessage, SetUsername};
+use crate::protocol::messages::{DebugServerMessage, SetUsername, TeleportRoom};
 use crate::protocol::rooms::GameRoom;
 use crate::shared;
 use bevy::app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
@@ -37,7 +37,10 @@ impl Plugin for PlayerClientPlugin {
                 .run_if(in_state(AppState::Playing)),
         );
 
-        app.add_systems(Update, receive_message1.run_if(in_state(AppState::Playing)));
+        app.add_systems(
+            Update,
+            (receive_message1, send_teleport_room_command).run_if(in_state(AppState::Playing)),
+        );
 
         app.add_observer(handle_predicted_spawn);
         app.add_observer(handle_controlled_spawn);
@@ -91,6 +94,22 @@ fn update_predicted_player_aim_direction(
 fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
     for _message in receiver.receive() {
         //info!("Received message: {:?}", message);
+    }
+}
+
+fn send_teleport_room_command(
+    players: Query<&ActionState<PlayerAction>, (With<Controlled>, With<InputMap<PlayerAction>>)>,
+    mut senders: Query<&mut MessageSender<TeleportRoom>, With<Client>>,
+) {
+    let pressed = players
+        .iter()
+        .any(|actions| actions.just_pressed(&PlayerAction::TeleportRoom));
+    if !pressed {
+        return;
+    }
+
+    for mut sender in &mut senders {
+        sender.send::<ClientEventsChannel>(TeleportRoom);
     }
 }
 
