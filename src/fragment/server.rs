@@ -4,13 +4,12 @@ use crate::fragment::{
     protocol::Fragment,
     shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
 };
-use crate::persistence::{PersistenceReady, Transaction};
+use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
 use crate::player::{PlayerId, PlayerPosition, PlayerUsername};
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::GameRoom;
 use crate::settings::GameSettings;
 use crate::shared::FixedGameplaySet;
-use crate::weapon::protocol::EquippedWeapon;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
@@ -144,7 +143,7 @@ pub(crate) fn simulate_server_fragments(
         With<ServerFragment>,
     >,
     players: Query<(Entity, &PlayerId, &PlayerPosition, Has<Predicted>)>,
-    ready_players: Query<(&PlayerUsername, &EquippedWeapon), With<PersistenceReady>>,
+    ready_players: Query<(&PlayerUsername, &CachedPersistentState), With<PersistenceReady>>,
     mut transactions: MessageWriter<Transaction>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     settings: Res<GameSettings>,
@@ -168,13 +167,13 @@ pub(crate) fn simulate_server_fragments(
         if let Some((player_entity, collector)) =
             nearest_player_in_collection_range(position.0, &players, is_host_server, &settings)
         {
-            let Ok((username, equipped)) = ready_players.get(player_entity) else {
+            let Ok((username, cache)) = ready_players.get(player_entity) else {
                 continue;
             };
 
             transactions.write(Transaction::add_weapon_fragments(
                 username.0.clone(),
-                equipped.id,
+                cache.equipped_weapon_id,
                 fragment.value,
             ));
             fragment.collector = Some(collector);
@@ -183,7 +182,7 @@ pub(crate) fn simulate_server_fragments(
                 ?fragment_entity,
                 ?player_entity,
                 value = fragment.value,
-                weapon_id = equipped.id,
+                weapon_id = cache.equipped_weapon_id,
                 carried_by = ?collector,
                 "SERVER awarded Fragment"
             );

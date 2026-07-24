@@ -1,12 +1,9 @@
 use bevy::prelude::*;
 use lightyear::prelude::{Interpolated, Predicted, Replicate};
 
+use crate::persistence::CachedPersistentState;
 use crate::player::{PlayerAimDirection, PlayerPosition};
-use crate::{
-    app::game_is_active,
-    settings::GameSettings,
-    weapon::protocol::{EquippedWeapon, WeaponId},
-};
+use crate::{app::game_is_active, settings::GameSettings, weapon::protocol::WeaponId};
 
 #[cfg(feature = "gui")]
 pub struct WeaponRenderPlugin;
@@ -37,17 +34,17 @@ fn ensure_weapon_sprites(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     settings: Res<GameSettings>,
-    players: Query<(Entity, &EquippedWeapon), VisiblePlayer>,
+    players: Query<(Entity, &CachedPersistentState), VisiblePlayer>,
 ) {
-    for (entity, equipped_weapon) in &players {
-        let Some(weapon) = settings.weapons.get(equipped_weapon.id) else {
+    for (entity, cache) in &players {
+        let Some(weapon) = settings.weapons.get(cache.equipped_weapon_id) else {
             continue;
         };
         commands.entity(entity).insert((
             Sprite::from_image(asset_server.load(weapon.icon.clone())),
             Transform::default(),
             WeaponSprite {
-                id: equipped_weapon.id,
+                id: cache.equipped_weapon_id,
             },
         ));
     }
@@ -59,24 +56,24 @@ fn sync_weapon_sprites(
     mut players: Query<(
         &PlayerPosition,
         &PlayerAimDirection,
-        &EquippedWeapon,
+        &CachedPersistentState,
         &mut WeaponSprite,
         &mut Sprite,
         &mut Transform,
     )>,
 ) {
-    for (position, aim, equipped_weapon, mut visual, mut sprite, mut transform) in &mut players {
+    for (position, aim, cache, mut visual, mut sprite, mut transform) in &mut players {
         let direction = aim.0.normalize_or_zero();
         if direction == Vec2::ZERO {
             continue;
         }
 
-        if visual.id != equipped_weapon.id {
-            let Some(weapon) = settings.weapons.get(equipped_weapon.id) else {
+        if visual.id != cache.equipped_weapon_id {
+            let Some(weapon) = settings.weapons.get(cache.equipped_weapon_id) else {
                 continue;
             };
             sprite.image = asset_server.load(weapon.icon.clone());
-            visual.id = equipped_weapon.id;
+            visual.id = cache.equipped_weapon_id;
         }
 
         let visual_position = position.0 + direction * settings.player.held_weapon_offset;

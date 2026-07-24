@@ -1,7 +1,6 @@
 use crate::app::game_is_active;
 use crate::persistence::CachedPersistentState;
 use crate::settings::GameSettings;
-use crate::weapon::protocol::EquippedWeapon;
 use crate::weapon_station::{
     UpgradeStation, UpgradeStationPosition, WeaponStationId, WeaponStationPosition,
 };
@@ -212,15 +211,15 @@ fn sync_upgrade_station_sprites(
 
 fn update_upgrade_station_label(
     settings: Res<GameSettings>,
-    local_player: Query<(&EquippedWeapon, &CachedPersistentState), With<Controlled>>,
+    local_player: Query<&CachedPersistentState, With<Controlled>>,
     stations: Query<&Children, With<UpgradeStationSpriteVisual>>,
     mut labels: Query<&mut Text2d, With<UpgradeStationLabel>>,
 ) {
     let cost = local_player
         .single()
         .ok()
-        .and_then(|(equipped, state)| {
-            let level = state.weapon(equipped.id).level;
+        .and_then(|state| {
+            let level = state.weapon(state.equipped_weapon_id).level;
             settings.progression.upgrade_cost(level).ok()
         })
         .unwrap_or(settings.progression.upgrade_cost_base);

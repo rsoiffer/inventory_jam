@@ -1,11 +1,11 @@
 use crate::app::{ClientState, game_is_active};
+use crate::persistence::CachedPersistentState;
 use crate::player::PlayerUsername;
 use crate::player::protocol::{
     LocalAimInput, PlayerAimDirection, PlayerAristeia, PlayerHealth, PlayerPosition, PlayerVisual,
     SmoothedAimDirection,
 };
 use crate::settings::GameSettings;
-use crate::weapon::protocol::EquippedWeapon;
 use crate::world::GlobalAristeia;
 
 use bevy::app::{App, Plugin, Startup, Update};
@@ -314,11 +314,26 @@ fn sync_player_health_bars(
 fn sync_username_labels(
     settings: Res<GameSettings>,
     mut commands: Commands,
-    players: Query<(Entity, &PlayerPosition, &PlayerUsername, &EquippedWeapon), With<PlayerVisual>>,
+    players: Query<
+        (
+            Entity,
+            &PlayerPosition,
+            &PlayerUsername,
+            Option<&CachedPersistentState>,
+        ),
+        With<PlayerVisual>,
+    >,
     mut labels: Query<(Entity, &UsernameLabel, &mut Transform, &mut Text2d)>,
 ) {
-    for (player, position, username, equipped) in &players {
-        let label_text = format!("{} Lv{}", username.0, equipped.level);
+    for (player, position, username, cache) in &players {
+        let label_text = match cache {
+            Some(state) => format!(
+                "{} Lv{}",
+                username.0,
+                state.weapon(state.equipped_weapon_id).level
+            ),
+            None => username.0.clone(),
+        };
         let existing_label = labels
             .iter_mut()
             .find(|(_, label, _, _)| label.player == player);

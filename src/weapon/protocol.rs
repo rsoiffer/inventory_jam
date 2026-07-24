@@ -6,25 +6,12 @@ pub struct WeaponProtocolPlugin;
 
 impl Plugin for WeaponProtocolPlugin {
     fn build(&self, app: &mut App) {
-        app.component::<EquippedWeapon>().replicate().predict();
         app.component::<WeaponCooldown>().replicate().predict();
     }
 }
 
 /// Stable gameplay identifier replicated over the network.
 pub type WeaponId = u16;
-
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EquippedWeapon {
-    pub id: WeaponId,
-    pub level: u32,
-}
-
-impl EquippedWeapon {
-    pub const fn new(id: WeaponId, level: u32) -> Self {
-        Self { id, level }
-    }
-}
 
 #[derive(
     Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Deref, DerefMut, Default,

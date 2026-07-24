@@ -7,8 +7,8 @@ use crate::{
     player::{PlayerPosition, PlayerUsername},
     protocol::rooms::{GameRoom, GameRooms},
     settings::GameSettings,
-    shared::{FixedGameplaySet, WeaponSystemSet},
-    weapon::protocol::{EquippedWeapon, WeaponCooldown},
+    shared::WeaponSystemSet,
+    weapon::protocol::WeaponCooldown,
     weapon_station::{
         UpgradeStation, UpgradeStationPosition, WeaponStationId, WeaponStationPosition,
     },
@@ -31,13 +31,6 @@ impl Plugin for WeaponStationServerPlugin {
             )
                 .chain()
                 .in_set(WeaponSystemSet::Stations)
-                .in_set(FixedGameplaySet::Weapon)
-                .run_if(in_state(ServerState::Hosting)),
-        );
-        app.add_systems(
-            FixedUpdate,
-            sync_equipped_weapon_levels
-                .after(FixedGameplaySet::Persistence)
                 .run_if(in_state(ServerState::Hosting)),
         );
     }
@@ -96,18 +89,19 @@ fn apply_weapon_station_overlaps(
         (
             &PlayerPosition,
             &GameRoom,
-            &mut EquippedWeapon,
+            &PlayerUsername,
             &mut WeaponCooldown,
-            Option<&CachedPersistentState>,
+            &CachedPersistentState,
         ),
-        With<ControlledBy>,
+        (With<ControlledBy>, With<PersistenceReady>),
     >,
     stations: Query<(&WeaponStationId, &WeaponStationPosition)>,
+    mut transactions: MessageWriter<Transaction>,
 ) {
     let trigger_radius = settings.weapon_stations.trigger_radius + settings.player.collision_radius;
     let trigger_radius_squared = trigger_radius * trigger_radius;
 
-    for (position, room, mut equipped, mut cooldown, cache) in &mut players {
+    for (position, room, username, mut cooldown, cache) in &mut players {
         if room.room != GameRooms::Safezone {
             continue;
         }
@@ -119,15 +113,12 @@ fn apply_weapon_station_overlaps(
             continue;
         };
 
-        if equipped.id == station_id {
+        if cache.equipped_weapon_id == station_id {
             continue;
         }
 
-        let level = cache
-            .map(|state| state.weapon(station_id).level)
-            .unwrap_or(0);
-        *equipped = EquippedWeapon::new(station_id, level);
         *cooldown = WeaponCooldown::default();
+        transactions.write(Transaction::equip_weapon(username.0.clone(), station_id));
     }
 }
 
@@ -138,7 +129,6 @@ fn apply_upgrade_station_overlaps(
             &PlayerPosition,
             &GameRoom,
             &PlayerUsername,
-            &EquippedWeapon,
             &mut UpgradeStationArmed,
             &CachedPersistentState,
         ),
@@ -154,7 +144,7 @@ fn apply_upgrade_station_overlaps(
     let trigger_radius = settings.weapon_stations.trigger_radius + settings.player.collision_radius;
     let trigger_radius_squared = trigger_radius * trigger_radius;
 
-    for (position, room, username, equipped, mut armed, cache) in &mut players {
+    for (position, room, username, mut armed, cache) in &mut players {
         if room.room != GameRooms::Safezone {
             continue;
         }
@@ -170,7 +160,7 @@ fn apply_upgrade_station_overlaps(
         }
         armed.0 = false;
 
-        let progress = cache.weapon(equipped.id);
+        let progress = cache.weapon(cache.equipped_weapon_id);
         let cost = match settings.progression.upgrade_cost(progress.level) {
             Ok(cost) => cost,
             Err(error) => {
@@ -184,22 +174,8 @@ fn apply_upgrade_station_overlaps(
 
         transactions.write(Transaction::upgrade_weapon(
             username.0.clone(),
-            equipped.id,
+            cache.equipped_weapon_id,
             cost,
         ));
-    }
-}
-
-fn sync_equipped_weapon_levels(
-    mut players: Query<
-        (&mut EquippedWeapon, &CachedPersistentState),
-        (With<ControlledBy>, With<PersistenceReady>),
-    >,
-) {
-    for (mut equipped, cache) in &mut players {
-        let level = cache.weapon(equipped.id).level;
-        if equipped.level != level {
-            equipped.level = level;
-        }
     }
 }

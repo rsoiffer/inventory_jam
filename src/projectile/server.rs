@@ -8,6 +8,7 @@ use crate::{
     app::ServerState,
     enemy::{EnemyHealth, EnemyKind, EnemyPosition},
     fragment::api::SpawnFragmentPool,
+    persistence::CachedPersistentState,
     player::PlayerId,
     player::api::AddKillsToAristeia,
     player::protocol::PlayerAristeia,
@@ -15,7 +16,6 @@ use crate::{
     protocol::rooms::GameRoom,
     settings::GameSettings,
     shared::FixedGameplaySet,
-    weapon::protocol::EquippedWeapon,
     world::api::AddGlobalAristeia,
 };
 
@@ -40,7 +40,7 @@ fn simulate_server_projectile_buffers(
         &GameRoom,
         &mut ProjectileBuffer,
         &PlayerAristeia,
-        &EquippedWeapon,
+        &CachedPersistentState,
     )>,
     mut enemies: Query<(
         Entity,
@@ -61,14 +61,14 @@ fn simulate_server_projectile_buffers(
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
 
-    for (predicted, owner_id, room, mut buffer, aristeia, equipped) in &mut players {
+    for (predicted, owner_id, room, mut buffer, aristeia, cache) in &mut players {
         if skip_predicted && predicted {
             continue;
         }
 
         let owner = owner_id.0;
         let personal_aristeia = aristeia.current;
-        let level = equipped.level;
+        let level = cache.weapon(cache.equipped_weapon_id).level;
         buffer.simulate(room, tick, tick_secs, &settings, |weapon, pos| {
             let Some(stats) = settings.weapons.get(weapon) else {
                 return false;

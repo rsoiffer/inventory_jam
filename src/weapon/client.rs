@@ -3,9 +3,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    app::ClientState,
-    shared::{FixedGameplaySet, WeaponSystemSet},
-    weapon::shared::fire_equipped_weapons,
+    app::ClientState, shared::WeaponSystemSet, weapon::shared::fire_equipped_weapons,
 };
 
 pub struct WeaponClientPlugin;
@@ -21,7 +19,6 @@ impl Plugin for WeaponClientPlugin {
                 FixedUpdate,
                 fire_equipped_weapons
                     .in_set(WeaponSystemSet::Fire)
-                    .in_set(FixedGameplaySet::Weapon)
                     .run_if(in_state(ClientState::Playing))
                     .run_if(not(in_state(ServerState::Hosting))),
             );
@@ -33,7 +30,6 @@ impl Plugin for WeaponClientPlugin {
                 FixedUpdate,
                 fire_equipped_weapons
                     .in_set(WeaponSystemSet::Fire)
-                    .in_set(FixedGameplaySet::Weapon)
                     .run_if(in_state(ClientState::Playing)),
             );
         }

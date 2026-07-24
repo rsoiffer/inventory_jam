@@ -7,11 +7,12 @@ use lightyear::{
 
 use crate::{
     app::ServerState,
+    persistence::CachedPersistentState,
     player::{PlayerAimDirection, PlayerPosition},
     projectile::ProjectileBuffer,
     protocol::inputs::PlayerAction,
     settings::GameSettings,
-    weapon::protocol::{EquippedWeapon, WeaponCooldown},
+    weapon::protocol::WeaponCooldown,
 };
 
 fn runs_local_sim(predicted: bool, host_server: bool, authoritative: bool) -> bool {
@@ -24,7 +25,7 @@ pub(crate) fn fire_equipped_weapons(
         &PlayerPosition,
         &PlayerAimDirection,
         &ActionState<PlayerAction>,
-        &EquippedWeapon,
+        &CachedPersistentState,
         &mut WeaponCooldown,
         &mut ProjectileBuffer,
     )>,
@@ -39,7 +40,7 @@ pub(crate) fn fire_equipped_weapons(
         .as_ref()
         .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
 
-    for (predicted, player_position, aim_direction, actions, equipped, mut cooldown, mut buffer) in
+    for (predicted, player_position, aim_direction, actions, cache, mut cooldown, mut buffer) in
         &mut players
     {
         if !runs_local_sim(predicted, host_server, authoritative) {
@@ -54,7 +55,12 @@ pub(crate) fn fire_equipped_weapons(
             continue;
         }
 
-        let Some(weapon) = settings.weapons.get(equipped.id) else {
+        let weapon_id = if settings.weapons.get(cache.equipped_weapon_id).is_some() {
+            cache.equipped_weapon_id
+        } else {
+            settings.weapons.default_id()
+        };
+        let Some(weapon) = settings.weapons.get(weapon_id) else {
             continue;
         };
         let position = player_position.0
@@ -64,7 +70,7 @@ pub(crate) fn fire_equipped_weapons(
                     + settings.projectile.spawn_gap);
 
         buffer.insert(
-            equipped.id,
+            weapon_id,
             position,
             direction * weapon.projectile_speed,
             local_timeline.tick(),
