@@ -15,10 +15,6 @@ use crate::{
     weapon::protocol::WeaponCooldown,
 };
 
-fn runs_local_sim(predicted: bool, host_server: bool, authoritative: bool) -> bool {
-    !(host_server && predicted) && (authoritative || predicted)
-}
-
 pub(crate) fn fire_equipped_weapons(
     mut players: Query<(
         Has<Predicted>,
@@ -43,7 +39,7 @@ pub(crate) fn fire_equipped_weapons(
     for (predicted, player_position, aim_direction, actions, cache, mut cooldown, mut buffer) in
         &mut players
     {
-        if !runs_local_sim(predicted, host_server, authoritative) {
+        if (host_server && predicted) || !(authoritative || predicted) {
             continue;
         }
         if !actions.pressed(&PlayerAction::Fire) || !cooldown.is_ready(local_timeline.tick()) {

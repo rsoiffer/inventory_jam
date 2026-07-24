@@ -22,16 +22,3 @@ impl SpawnFragmentPool {
         }
     }
 }
-
-pub(crate) fn split_fragment_values(total_value: u32, drop_entity_count: u16) -> Vec<u32> {
-    if total_value == 0 || drop_entity_count == 0 {
-        return Vec::new();
-    }
-
-    let entity_count = (drop_entity_count as u32).min(total_value);
-    let base = total_value / entity_count;
-    let remainder = total_value % entity_count;
-    (0..entity_count)
-        .map(|index| base + u32::from(index < remainder))
-        .collect()
-}

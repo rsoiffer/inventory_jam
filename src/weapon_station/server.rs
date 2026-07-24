@@ -9,9 +9,7 @@ use crate::{
     settings::GameSettings,
     shared::WeaponSystemSet,
     weapon::protocol::WeaponCooldown,
-    weapon_station::{
-        UpgradeStation, UpgradeStationPosition, WeaponStationId, WeaponStationPosition,
-    },
+    weapon_station::{StationPosition, UpgradeStation, WeaponStationId},
 };
 
 #[derive(Component)]
@@ -49,7 +47,7 @@ fn spawn_weapon_stations(
             commands.spawn((
                 Name::new(format!("Weapon Station {}", station.weapon_id)),
                 WeaponStationId(station.weapon_id),
-                WeaponStationPosition(safezone_center + station.offset),
+                StationPosition(safezone_center + station.offset),
                 Replicate::to_clients(NetworkTarget::All),
             ));
         }
@@ -59,9 +57,7 @@ fn spawn_weapon_stations(
         commands.spawn((
             Name::new("Upgrade Station"),
             UpgradeStation,
-            UpgradeStationPosition(
-                safezone_center + settings.weapon_stations.upgrade_station_offset,
-            ),
+            StationPosition(safezone_center + settings.weapon_stations.upgrade_station_offset),
             Replicate::to_clients(NetworkTarget::All),
         ));
     }
@@ -95,11 +91,10 @@ fn apply_weapon_station_overlaps(
         ),
         (With<ControlledBy>, With<PersistenceReady>),
     >,
-    stations: Query<(&WeaponStationId, &WeaponStationPosition)>,
+    stations: Query<(&WeaponStationId, &StationPosition)>,
     mut transactions: MessageWriter<Transaction>,
 ) {
-    let trigger_radius = settings.weapon_stations.trigger_radius + settings.player.collision_radius;
-    let trigger_radius_squared = trigger_radius * trigger_radius;
+    let trigger_radius_squared = station_trigger_radius_squared(&settings);
 
     for (position, room, username, mut cooldown, cache) in &mut players {
         if room.room != GameRooms::Safezone {
@@ -134,15 +129,14 @@ fn apply_upgrade_station_overlaps(
         ),
         (With<ControlledBy>, With<PersistenceReady>),
     >,
-    stations: Query<&UpgradeStationPosition, With<UpgradeStation>>,
+    stations: Query<&StationPosition, With<UpgradeStation>>,
     mut transactions: MessageWriter<Transaction>,
 ) {
     let Some(station_position) = stations.iter().next() else {
         return;
     };
 
-    let trigger_radius = settings.weapon_stations.trigger_radius + settings.player.collision_radius;
-    let trigger_radius_squared = trigger_radius * trigger_radius;
+    let trigger_radius_squared = station_trigger_radius_squared(&settings);
 
     for (position, room, username, mut armed, cache) in &mut players {
         if room.room != GameRooms::Safezone {
@@ -154,19 +148,14 @@ fn apply_upgrade_station_overlaps(
             armed.0 = true;
             continue;
         }
-
         if !armed.0 {
             continue;
         }
         armed.0 = false;
 
         let progress = cache.weapon(cache.equipped_weapon_id);
-        let cost = match settings.progression.upgrade_cost(progress.level) {
-            Ok(cost) => cost,
-            Err(error) => {
-                warn!(%error, username = %username.0, "rejected weapon upgrade");
-                continue;
-            }
+        let Ok(cost) = settings.progression.upgrade_cost(progress.level) else {
+            continue;
         };
         if progress.fragments < cost {
             continue;
@@ -178,4 +167,9 @@ fn apply_upgrade_station_overlaps(
             cost,
         ));
     }
+}
+
+fn station_trigger_radius_squared(settings: &GameSettings) -> f32 {
+    let radius = settings.weapon_stations.trigger_radius + settings.player.collision_radius;
+    radius * radius
 }

@@ -1,29 +1,33 @@
+use crate::fragment::{
+    protocol::Fragment,
+    shared::{
+        self as fragment_shared, ClientFragment, FragmentMagnetAge, FragmentPosition, ServerFragment,
+    },
+};
+use crate::player::{PlayerId, PlayerPosition};
 use crate::{app::ClientState, settings::GameSettings};
 use bevy::prelude::*;
-use lightyear::{prediction::Predicted, prelude::PeerId};
+use lightyear::{
+    core::tick::TickDuration,
+    prediction::Predicted,
+    prelude::PeerId,
+};
 
 /// Installs only client-side fragment presentation behavior.
 pub struct FragmentClientPlugin;
 
 impl Plugin for FragmentClientPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(client::initialize_fragment);
+        app.add_observer(initialize_fragment);
         app.add_systems(
             FixedUpdate,
-            client::simulate_client_fragments.run_if(in_state(ClientState::Playing)),
+            simulate_client_fragments.run_if(in_state(ClientState::Playing)),
         );
     }
 }
 
-use crate::fragment::{
-    client,
-    protocol::Fragment,
-    shared::{self as fragment_shared, ClientFragment, FragmentPosition, ServerFragment},
-};
-use crate::player::{PlayerId, PlayerPosition};
-
 /// Creates client-only presentation state when a replicated fragment arrives.
-pub(crate) fn initialize_fragment(
+fn initialize_fragment(
     trigger: On<Add, Fragment>,
     mut commands: Commands,
     fragments: Query<(&Fragment, Option<&ServerFragment>)>,
@@ -53,15 +57,24 @@ pub(crate) fn initialize_fragment(
 
 /// Animates collected fragments locally. The server already awarded the
 /// currency; this system is presentation only.
-pub(crate) fn simulate_client_fragments(
+fn simulate_client_fragments(
+    mut commands: Commands,
     mut fragments: Query<
-        (&Fragment, &mut FragmentPosition),
+        (
+            Entity,
+            &Fragment,
+            &mut FragmentPosition,
+            Option<&FragmentMagnetAge>,
+        ),
         (With<ClientFragment>, Without<ServerFragment>),
     >,
     players: Query<(&PlayerId, &PlayerPosition, Has<Predicted>)>,
+    tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
 ) {
-    for (fragment, mut position) in &mut fragments {
+    let tick_secs = tick_duration.0.as_secs_f32();
+
+    for (entity, fragment, mut position, magnet_age) in &mut fragments {
         let Some(collector) = fragment.collector else {
             continue;
         };
@@ -70,7 +83,16 @@ pub(crate) fn simulate_client_fragments(
             continue;
         };
 
-        fragment_shared::pull_fragment_toward(&mut position, target, &settings.fragment);
+        let mut age = magnet_age.copied().unwrap_or_default();
+        fragment_shared::pull_fragment_toward(
+            &mut position,
+            target,
+            age.0,
+            tick_secs,
+            &settings.fragment,
+        );
+        age.0 = age.0.saturating_add(1);
+        commands.entity(entity).insert(age);
     }
 }
 

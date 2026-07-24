@@ -1,9 +1,7 @@
 use crate::app::game_is_active;
 use crate::persistence::CachedPersistentState;
 use crate::settings::GameSettings;
-use crate::weapon_station::{
-    UpgradeStation, UpgradeStationPosition, WeaponStationId, WeaponStationPosition,
-};
+use crate::weapon_station::{StationPosition, UpgradeStation, WeaponStationId};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use lightyear::prelude::Controlled;
@@ -17,11 +15,9 @@ impl Plugin for WeaponStationRenderPlugin {
             Update,
             (
                 ensure_weapon_station_sprites,
-                sync_weapon_station_sprites,
-                update_weapon_station_labels,
                 ensure_upgrade_station_sprites,
-                sync_upgrade_station_sprites,
-                update_upgrade_station_label,
+                sync_station_sprites,
+                update_station_labels,
             )
                 .chain()
                 .run_if(game_is_active),
@@ -47,8 +43,8 @@ struct UpgradeStationAssets {
     layout: Handle<TextureAtlasLayout>,
 }
 
-const WEAPON_STATION_SPRITE_Z: f32 = 2.5;
-const WEAPON_STATION_LABEL_OFFSET_Y: f32 = 14.0;
+const STATION_SPRITE_Z: f32 = 2.5;
+const STATION_LABEL_OFFSET_Y: f32 = 14.0;
 const SAFEZONE_ATLAS_COLUMNS: u32 = 9;
 const PROP_ANVIL: UVec2 = UVec2::new(7, 1);
 
@@ -69,8 +65,18 @@ fn load_upgrade_station_assets(
     });
 }
 
-fn prop_anvil_atlas_index() -> usize {
-    PROP_ANVIL.y as usize * SAFEZONE_ATLAS_COLUMNS as usize + PROP_ANVIL.x as usize
+fn station_label_bundle(text: String) -> impl Bundle {
+    (
+        Text2d::new(text),
+        TextFont {
+            font_size: FontSize::Px(18.0),
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Anchor::BOTTOM_CENTER,
+        Transform::from_translation(Vec3::new(0.0, STATION_LABEL_OFFSET_Y, 0.1))
+            .with_scale(Vec3::splat(0.48)),
+    )
 }
 
 fn ensure_weapon_station_sprites(
@@ -79,10 +85,7 @@ fn ensure_weapon_station_sprites(
     settings: Res<GameSettings>,
     stations: Query<
         (Entity, &WeaponStationId),
-        (
-            With<WeaponStationPosition>,
-            Without<WeaponStationSpriteVisual>,
-        ),
+        (With<StationPosition>, Without<WeaponStationSpriteVisual>),
     >,
 ) {
     for (entity, station_id) in &stations {
@@ -93,7 +96,7 @@ fn ensure_weapon_station_sprites(
             Sprite::from_image(asset_server.load(weapon.icon.clone())),
             Anchor::CENTER,
             Transform {
-                translation: Vec3::new(0.0, 0.0, WEAPON_STATION_SPRITE_Z),
+                translation: Vec3::new(0.0, 0.0, STATION_SPRITE_Z),
                 ..default()
             },
             WeaponStationSpriteVisual,
@@ -101,51 +104,9 @@ fn ensure_weapon_station_sprites(
         commands.entity(entity).with_children(|parent| {
             parent.spawn((
                 WeaponStationLabel,
-                Text2d::new(format!("{} Lv0", weapon.name)),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Anchor::BOTTOM_CENTER,
-                Transform::from_translation(Vec3::new(0.0, WEAPON_STATION_LABEL_OFFSET_Y, 0.1))
-                    .with_scale(Vec3::splat(0.48)),
+                station_label_bundle(format!("{} Lv0", weapon.name)),
             ));
         });
-    }
-}
-
-fn sync_weapon_station_sprites(
-    mut stations: Query<(&WeaponStationPosition, &mut Transform), With<WeaponStationSpriteVisual>>,
-) {
-    for (position, mut transform) in &mut stations {
-        transform.translation = position.0.extend(WEAPON_STATION_SPRITE_Z);
-    }
-}
-
-fn update_weapon_station_labels(
-    settings: Res<GameSettings>,
-    local_player: Query<&CachedPersistentState, With<Controlled>>,
-    stations: Query<(&WeaponStationId, &Children), With<WeaponStationSpriteVisual>>,
-    mut labels: Query<&mut Text2d, With<WeaponStationLabel>>,
-) {
-    let progress = local_player.single().ok();
-
-    for (station_id, children) in &stations {
-        let Some(weapon) = settings.weapons.get(station_id.0) else {
-            continue;
-        };
-        let level = progress
-            .map(|state| state.weapon(station_id.0).level)
-            .unwrap_or(0);
-        let label = format!("{} Lv{level}", weapon.name);
-        for child in children.iter() {
-            if let Ok(mut text) = labels.get_mut(child)
-                && text.0 != label
-            {
-                text.0 = label.clone();
-            }
-        }
     }
 }
 
@@ -157,7 +118,7 @@ fn ensure_upgrade_station_sprites(
         Entity,
         (
             With<UpgradeStation>,
-            With<UpgradeStationPosition>,
+            With<StationPosition>,
             Without<UpgradeStationSpriteVisual>,
         ),
     >,
@@ -168,12 +129,13 @@ fn ensure_upgrade_station_sprites(
                 assets.image.clone(),
                 TextureAtlas {
                     layout: assets.layout.clone(),
-                    index: prop_anvil_atlas_index(),
+                    index: PROP_ANVIL.y as usize * SAFEZONE_ATLAS_COLUMNS as usize
+                        + PROP_ANVIL.x as usize,
                 },
             ),
             Anchor::CENTER,
             Transform {
-                translation: Vec3::new(0.0, 0.0, WEAPON_STATION_SPRITE_Z),
+                translation: Vec3::new(0.0, 0.0, STATION_SPRITE_Z),
                 ..default()
             },
             UpgradeStationSpriteVisual,
@@ -181,56 +143,71 @@ fn ensure_upgrade_station_sprites(
         commands.entity(entity).with_children(|parent| {
             parent.spawn((
                 UpgradeStationLabel,
-                Text2d::new(format!(
+                station_label_bundle(format!(
                     "Upgrade ({})",
                     settings.progression.upgrade_cost_base
                 )),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Anchor::BOTTOM_CENTER,
-                Transform::from_translation(Vec3::new(0.0, WEAPON_STATION_LABEL_OFFSET_Y, 0.1))
-                    .with_scale(Vec3::splat(0.48)),
             ));
         });
     }
 }
 
-fn sync_upgrade_station_sprites(
+fn sync_station_sprites(
     mut stations: Query<
-        (&UpgradeStationPosition, &mut Transform),
-        With<UpgradeStationSpriteVisual>,
+        (&StationPosition, &mut Transform),
+        Or<(
+            With<WeaponStationSpriteVisual>,
+            With<UpgradeStationSpriteVisual>,
+        )>,
     >,
 ) {
     for (position, mut transform) in &mut stations {
-        transform.translation = position.0.extend(WEAPON_STATION_SPRITE_Z);
+        transform.translation = position.0.extend(STATION_SPRITE_Z);
     }
 }
 
-fn update_upgrade_station_label(
+fn update_station_labels(
     settings: Res<GameSettings>,
     local_player: Query<&CachedPersistentState, With<Controlled>>,
-    stations: Query<&Children, With<UpgradeStationSpriteVisual>>,
-    mut labels: Query<&mut Text2d, With<UpgradeStationLabel>>,
+    weapon_stations: Query<(&WeaponStationId, &Children), With<WeaponStationSpriteVisual>>,
+    upgrade_stations: Query<&Children, With<UpgradeStationSpriteVisual>>,
+    mut weapon_labels: Query<&mut Text2d, (With<WeaponStationLabel>, Without<UpgradeStationLabel>)>,
+    mut upgrade_labels: Query<&mut Text2d, (With<UpgradeStationLabel>, Without<WeaponStationLabel>)>,
 ) {
-    let cost = local_player
-        .single()
-        .ok()
-        .and_then(|state| {
-            let level = state.weapon(state.equipped_weapon_id).level;
-            settings.progression.upgrade_cost(level).ok()
-        })
-        .unwrap_or(settings.progression.upgrade_cost_base);
-    let label = format!("Upgrade ({cost})");
+    let state = local_player.single().ok();
 
-    for children in &stations {
+    for (station_id, children) in &weapon_stations {
+        let Some(weapon) = settings.weapons.get(station_id.0) else {
+            continue;
+        };
+        let level = state
+            .map(|cache| cache.weapon(station_id.0).level)
+            .unwrap_or(0);
+        let label = format!("{} Lv{level}", weapon.name);
         for child in children.iter() {
-            if let Ok(mut text) = labels.get_mut(child)
+            if let Ok(mut text) = weapon_labels.get_mut(child)
                 && text.0 != label
             {
                 text.0 = label.clone();
+            }
+        }
+    }
+
+    let cost = state
+        .and_then(|cache| {
+            settings
+                .progression
+                .upgrade_cost(cache.weapon(cache.equipped_weapon_id).level)
+                .ok()
+        })
+        .unwrap_or(settings.progression.upgrade_cost_base);
+    let upgrade_label = format!("Upgrade ({cost})");
+    for children in &upgrade_stations {
+        for child in children.iter() {
+            if let Ok(mut text) = upgrade_labels.get_mut(child)
+                && text.0 != upgrade_label
+            {
+                text.0 = upgrade_label.clone();
             }
         }
     }

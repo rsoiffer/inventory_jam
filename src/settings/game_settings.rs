@@ -55,8 +55,9 @@ pub struct FragmentSettings {
     pub radius: f32,
     pub lifetime_ticks: u16,
     pub player_collection_radius: f32,
-    pub pull_fraction_per_tick: f32,
-    pub swirl_speed_per_tick: f32,
+    pub pull_speed: f32,
+    pub pull_acceleration: f32,
+    pub swirl: f32,
     pub base_drop_count: u16,
     pub bonus_drops_per_aristeia: u16,
     pub maximum_drop_count: u16,
@@ -340,9 +341,9 @@ impl GameSettings {
                 "fragment pool_min_radius cannot exceed pool_max_radius".into(),
             ));
         }
-        if !(0.0..=1.0).contains(&self.fragment.pull_fraction_per_tick) {
+        if self.fragment.pull_speed < 0.0 || self.fragment.pull_acceleration < 0.0 {
             return Err(GameSettingsLoadError::Invalid(
-                "fragment pull_fraction_per_tick must be between 0 and 1".into(),
+                "fragment pull_speed and pull_acceleration cannot be negative".into(),
             ));
         }
         if self.fragment.base_drop_count > self.fragment.maximum_drop_count

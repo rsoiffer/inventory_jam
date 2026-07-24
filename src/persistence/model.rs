@@ -153,47 +153,39 @@ impl PlayerChange {
 
 #[cfg(feature = "server")]
 impl Transaction {
-    pub fn add_weapon_fragments(
+    fn change(
         username: impl Into<String>,
         weapon_id: WeaponId,
-        amount: u32,
+        fragment_delta: i64,
+        level_delta: i64,
+        set_equipped: bool,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
             changes: vec![PlayerChange {
                 username: username.into(),
                 weapon_id,
-                fragment_delta: amount as i64,
-                level_delta: 0,
-                set_equipped: false,
+                fragment_delta,
+                level_delta,
+                set_equipped,
             }],
         }
+    }
+
+    pub fn add_weapon_fragments(
+        username: impl Into<String>,
+        weapon_id: WeaponId,
+        amount: u32,
+    ) -> Self {
+        Self::change(username, weapon_id, amount as i64, 0, false)
     }
 
     pub fn upgrade_weapon(username: impl Into<String>, weapon_id: WeaponId, cost: u32) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            changes: vec![PlayerChange {
-                username: username.into(),
-                weapon_id,
-                fragment_delta: -(cost as i64),
-                level_delta: 1,
-                set_equipped: false,
-            }],
-        }
+        Self::change(username, weapon_id, -(cost as i64), 1, false)
     }
 
     pub fn equip_weapon(username: impl Into<String>, weapon_id: WeaponId) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            changes: vec![PlayerChange {
-                username: username.into(),
-                weapon_id,
-                fragment_delta: 0,
-                level_delta: 0,
-                set_equipped: true,
-            }],
-        }
+        Self::change(username, weapon_id, 0, 0, true)
     }
 
     pub fn touches_username(&self, username: &str) -> bool {

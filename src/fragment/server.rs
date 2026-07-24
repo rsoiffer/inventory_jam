@@ -1,8 +1,10 @@
 use crate::app::ServerState;
-use crate::fragment::api::{SpawnFragmentPool, split_fragment_values};
+use crate::fragment::api::SpawnFragmentPool;
 use crate::fragment::{
     protocol::Fragment,
-    shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
+    shared::{
+        self as fragment_shared, FragmentLifetime, FragmentMagnetAge, FragmentPosition, ServerFragment,
+    },
 };
 use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
 use crate::player::{PlayerId, PlayerPosition, PlayerUsername};
@@ -13,6 +15,7 @@ use crate::shared::FixedGameplaySet;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
+use lightyear::{core::tick::TickDuration, prediction::Predicted};
 use rand::Rng;
 
 const MIN_FRAGMENTS_PER_DEBUG_POOL: u32 = 50;
@@ -81,52 +84,49 @@ pub(crate) fn spawn_requested_fragment_pools(
     let mut rng = rand::rng();
 
     for request in requests.read() {
-        spawn_fragment_pool(
-            &mut commands,
-            &mut rng,
-            request.center,
-            request.total_value,
-            request.room,
-            &settings,
-        );
-    }
-}
+        let total_value = request.total_value;
+        let drop_entity_count = settings.fragment.drop_entity_count;
+        let values = if total_value == 0 || drop_entity_count == 0 {
+            Vec::new()
+        } else {
+            let entity_count = (drop_entity_count as u32).min(total_value);
+            let base = total_value / entity_count;
+            let remainder = total_value % entity_count;
+            (0..entity_count)
+                .map(|index| base + u32::from(index < remainder))
+                .collect()
+        };
 
-fn spawn_fragment_pool(
-    commands: &mut Commands,
-    rng: &mut impl Rng,
-    center: Vec2,
-    total_value: u32,
-    room: GameRoom,
-    settings: &GameSettings,
-) {
-    let values = split_fragment_values(total_value, settings.fragment.drop_entity_count);
-    info!(
-        ?center,
-        total_value,
-        entity_count = values.len(),
-        "SERVER spawning Fragment pool"
-    );
-
-    for value in values {
-        let spawn_position = random_position_in_annulus(
-            rng,
-            center,
-            settings.fragment.pool_min_radius,
-            settings.fragment.pool_max_radius,
+        info!(
+            center = ?request.center,
+            total_value,
+            entity_count = values.len(),
+            "SERVER spawning Fragment pool"
         );
 
-        commands.spawn((
-            Fragment::available(spawn_position, value),
-            FragmentPosition(spawn_position),
-            FragmentLifetime {
-                remaining_ticks: settings.fragment.lifetime_ticks,
-            },
-            room,
-            ServerFragment,
-            Replicate::to_clients(NetworkTarget::All),
-            Name::new("Server Fragment"),
-        ));
+        for value in values {
+            let angle = rng.random_range(0.0..std::f32::consts::TAU);
+            let radius = rng
+                .random_range(
+                    settings.fragment.pool_min_radius * settings.fragment.pool_min_radius
+                        ..=settings.fragment.pool_max_radius * settings.fragment.pool_max_radius,
+                )
+                .sqrt();
+            let spawn_position =
+                request.center + Vec2::new(angle.cos(), angle.sin()) * radius;
+
+            commands.spawn((
+                Fragment::available(spawn_position, value),
+                FragmentPosition(spawn_position),
+                FragmentLifetime {
+                    remaining_ticks: settings.fragment.lifetime_ticks,
+                },
+                request.room,
+                ServerFragment,
+                Replicate::to_clients(NetworkTarget::All),
+                Name::new("Server Fragment"),
+            ));
+        }
     }
 }
 
@@ -138,6 +138,7 @@ pub(crate) fn simulate_server_fragments(
             &mut Fragment,
             &mut FragmentPosition,
             &mut FragmentLifetime,
+            Option<&FragmentMagnetAge>,
             &GameRoom,
         ),
         With<ServerFragment>,
@@ -146,21 +147,31 @@ pub(crate) fn simulate_server_fragments(
     ready_players: Query<(&PlayerUsername, &CachedPersistentState), With<PersistenceReady>>,
     mut transactions: MessageWriter<Transaction>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
 ) {
     let is_host_server = !host_server.is_empty();
+    let tick_secs = tick_duration.0.as_secs_f32();
 
-    for (fragment_entity, mut fragment, mut position, mut lifetime, room) in &mut fragments {
+    for (fragment_entity, mut fragment, mut position, mut lifetime, magnet_age, room) in
+        &mut fragments
+    {
         if let Some(collector) = fragment.collector {
-            simulate_collected_fragment(
+            let mut age = magnet_age.copied().unwrap_or_default();
+            let despawned = simulate_collected_fragment(
                 &mut commands,
                 fragment_entity,
                 collector,
                 &mut position,
+                &mut age,
                 &players,
                 is_host_server,
+                tick_secs,
                 &settings,
             );
+            if !despawned {
+                commands.entity(fragment_entity).insert(age);
+            }
             continue;
         }
 
@@ -177,6 +188,9 @@ pub(crate) fn simulate_server_fragments(
                 fragment.value,
             ));
             fragment.collector = Some(collector);
+            commands
+                .entity(fragment_entity)
+                .insert(FragmentMagnetAge::default());
 
             info!(
                 ?fragment_entity,
@@ -192,7 +206,7 @@ pub(crate) fn simulate_server_fragments(
 
         lifetime.remaining_ticks = lifetime.remaining_ticks.saturating_sub(1);
 
-        if lifetime.remaining_ticks == 0 || fragment_is_outside_world(position.0, room, &settings) {
+        if lifetime.remaining_ticks == 0 || !room.bounds(&settings.world).contains(position.0) {
             commands.entity(fragment_entity).despawn();
         }
     }
@@ -203,17 +217,30 @@ fn simulate_collected_fragment(
     fragment_entity: Entity,
     collector: PeerId,
     position: &mut FragmentPosition,
+    magnet_age: &mut FragmentMagnetAge,
     players: &Query<(Entity, &PlayerId, &PlayerPosition, Has<Predicted>)>,
     is_host_server: bool,
+    tick_secs: f32,
     settings: &GameSettings,
-) {
-    if let Some(target) = player_position_by_id(collector, players, is_host_server) {
-        fragment_shared::pull_fragment_toward(position, target, &settings.fragment);
-        if position.0.distance_squared(target)
-            <= settings.fragment.radius * settings.fragment.radius
-        {
-            commands.entity(fragment_entity).despawn();
-        }
+) -> bool {
+    let Some(target) = player_position_by_id(collector, players, is_host_server) else {
+        return false;
+    };
+
+    fragment_shared::pull_fragment_toward(
+        position,
+        target,
+        magnet_age.0,
+        tick_secs,
+        &settings.fragment,
+    );
+    magnet_age.0 = magnet_age.0.saturating_add(1);
+
+    if position.0.distance_squared(target) <= settings.fragment.radius * settings.fragment.radius {
+        commands.entity(fragment_entity).despawn();
+        true
+    } else {
+        false
     }
 }
 
@@ -253,26 +280,4 @@ fn player_position_by_id(
             candidate_id.0 == player_id && !(is_host_server && *predicted)
         })
         .map(|(_, _, position, _)| position.0)
-}
-
-fn random_position_in_annulus(
-    rng: &mut impl Rng,
-    center: Vec2,
-    min_radius: f32,
-    max_radius: f32,
-) -> Vec2 {
-    debug_assert!(min_radius >= 0.0);
-    debug_assert!(max_radius >= min_radius);
-
-    let angle = rng.random_range(0.0..std::f32::consts::TAU);
-    let radius = rng
-        .random_range(min_radius * min_radius..=max_radius * max_radius)
-        .sqrt();
-    let direction = Vec2::new(angle.cos(), angle.sin());
-
-    center + direction * radius
-}
-
-fn fragment_is_outside_world(position: Vec2, room: &GameRoom, settings: &GameSettings) -> bool {
-    !room.bounds(&settings.world).contains(position)
 }

@@ -6,9 +6,7 @@ mod server;
 
 use bevy::app::{App, Plugin};
 
-pub use protocol::{
-    UpgradeStation, UpgradeStationPosition, WeaponStationId, WeaponStationPosition,
-};
+pub use protocol::{StationPosition, UpgradeStation, WeaponStationId};
 
 pub struct WeaponStationPlugin;
 

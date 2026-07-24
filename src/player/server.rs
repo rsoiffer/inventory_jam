@@ -35,6 +35,7 @@ impl Plugin for PlayerServerPlugin {
                 authoritative_player_movement,
                 authoritative_player_aim,
                 add_requested_aristeia,
+                restore_safezone_health,
                 apply_enemy_contact_damage,
                 control_dedicated_server_camera,
                 tick_player_aristeia,
@@ -181,6 +182,16 @@ pub(crate) fn authoritative_player_aim(
         }
 
         apply_player_aim(&mut aim_direction, actions);
+    }
+}
+
+fn restore_safezone_health(
+    mut players: Query<(&GameRoom, &mut PlayerHealth), With<ControlledBy>>,
+) {
+    for (room, mut health) in &mut players {
+        if room.room == GameRooms::Safezone && health.current != health.maximum {
+            health.current = health.maximum;
+        }
     }
 }
 

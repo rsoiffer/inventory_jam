@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 const ENEMY_SPRITE_Z: f32 = 6.0;
+const ENEMY_HEALTH_BAR_Z: f32 = 11.0;
 const SPAWNER_SPRITE_Z: f32 = 4.0;
 const SPAWNER_FRAME_PIXELS: UVec2 = UVec2::new(48, 32);
 const IDLE_FRAME_SECONDS: f32 = 0.12;
@@ -21,7 +22,8 @@ impl Plugin for EnemyRenderPlugin {
                 ensure_enemy_sprites,
                 sync_enemy_sprites,
                 animate_enemy_sprites,
-                draw_health_bars,
+                ensure_enemy_health_bars,
+                sync_enemy_health_bars,
                 ensure_spawner_sprites,
                 sync_spawner_sprites,
                 animate_spawner_sprites,
@@ -54,6 +56,16 @@ struct EnemySpriteVisual {
 
 #[derive(Component)]
 struct EnemySpriteAnimation(Timer);
+
+#[derive(Component)]
+struct EnemyHealthBarBackground {
+    enemy: Entity,
+}
+
+#[derive(Component)]
+struct EnemyHealthBarFill {
+    enemy: Entity,
+}
 
 #[derive(Component)]
 struct SpawnerSpriteVisual {
@@ -180,6 +192,95 @@ fn animate_enemy_sprites(
     }
 }
 
+fn enemy_health_bar_layout(settings: &GameSettings, kind: EnemyKind, position: Vec2) -> (Vec2, f32) {
+    let width = kind.display_size(settings.enemy.size);
+    let height = settings.player.health_bar_height;
+    (Vec2::new(width, height), position.y + width + height)
+}
+
+fn ensure_enemy_health_bars(
+    mut commands: Commands,
+    settings: Res<GameSettings>,
+    enemies: Query<(Entity, &EnemyPosition, &EnemyKind)>,
+    backgrounds: Query<&EnemyHealthBarBackground>,
+) {
+    for (enemy, position, kind) in &enemies {
+        if backgrounds.iter().any(|bar| bar.enemy == enemy) {
+            continue;
+        }
+
+        let (bar_size, center_y) = enemy_health_bar_layout(&settings, *kind, position.0);
+        let center = Vec2::new(position.0.x, center_y);
+
+        commands.spawn((
+            EnemyHealthBarBackground { enemy },
+            Sprite::from_color(Color::WHITE, bar_size),
+            Transform::from_translation(center.extend(ENEMY_HEALTH_BAR_Z)),
+        ));
+
+        let mut fill = Sprite::from_color(Color::WHITE, bar_size);
+        fill.color = Color::srgb(0.9, 0.2, 0.2);
+        commands.spawn((
+            EnemyHealthBarFill { enemy },
+            fill,
+            Transform::from_translation(center.extend(ENEMY_HEALTH_BAR_Z + 0.1)),
+        ));
+    }
+}
+
+fn sync_enemy_health_bars(
+    settings: Res<GameSettings>,
+    mut commands: Commands,
+    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
+    mut backgrounds: Query<
+        (
+            Entity,
+            &EnemyHealthBarBackground,
+            &mut Sprite,
+            &mut Transform,
+        ),
+        Without<EnemyHealthBarFill>,
+    >,
+    mut fills: Query<
+        (Entity, &EnemyHealthBarFill, &mut Sprite, &mut Transform),
+        Without<EnemyHealthBarBackground>,
+    >,
+) {
+    for (entity, bar, mut sprite, mut transform) in &mut backgrounds {
+        let Ok((position, _, kind)) = enemies.get(bar.enemy) else {
+            commands.entity(entity).despawn();
+            continue;
+        };
+
+        let (full_size, center_y) = enemy_health_bar_layout(&settings, *kind, position.0);
+        sprite.color = Color::srgb(0.15, 0.05, 0.05);
+        sprite.custom_size = Some(full_size);
+        transform.translation = Vec2::new(position.0.x, center_y).extend(ENEMY_HEALTH_BAR_Z);
+    }
+
+    for (entity, bar, mut sprite, mut transform) in &mut fills {
+        let Ok((position, health, kind)) = enemies.get(bar.enemy) else {
+            commands.entity(entity).despawn();
+            continue;
+        };
+
+        let (full_size, center_y) = enemy_health_bar_layout(&settings, *kind, position.0);
+        let health_fraction = if health.maximum == 0 {
+            0.0
+        } else {
+            (health.current as f32 / health.maximum as f32).clamp(0.0, 1.0)
+        };
+        let fill_size = Vec2::new(full_size.x * health_fraction, full_size.y);
+        sprite.color = Color::srgb(0.9, 0.2, 0.2);
+        sprite.custom_size = Some(fill_size);
+        transform.translation = Vec2::new(
+            position.0.x + (fill_size.x - full_size.x) * 0.5,
+            center_y,
+        )
+        .extend(ENEMY_HEALTH_BAR_Z + 0.1);
+    }
+}
+
 fn ensure_spawner_sprites(
     mut commands: Commands,
     assets: Res<EnemyVisualAssets>,
@@ -239,29 +340,5 @@ fn animate_spawner_sprites(
             continue;
         };
         atlas.index = (atlas.index + 1) % visual.frame_count;
-    }
-}
-
-fn draw_health_bars(
-    settings: Res<GameSettings>,
-    mut gizmos: Gizmos,
-    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
-) {
-    for (position, health, kind) in &enemies {
-        let health_fraction = if health.maximum == 0 {
-            0.0
-        } else {
-            health.current as f32 / health.maximum as f32
-        };
-
-        let size = kind.display_size(settings.enemy.size);
-        let bar_height = 1.6;
-        let bar_size = Vec2::new(size * health_fraction, bar_height);
-        let bar_center = position.0 + Vec2::new((bar_size.x - size) * 0.5, size + bar_height);
-        gizmos.rect_2d(
-            Isometry2d::from_translation(bar_center),
-            bar_size,
-            Color::srgb(0.9, 0.2, 0.2),
-        );
     }
 }
