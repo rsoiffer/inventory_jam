@@ -80,7 +80,6 @@ impl ProjectileBuffer {
         room: &GameRoom,
         tick: Tick,
         tick_secs: f32,
-        weapon_level: u32,
         settings: &GameSettings,
         mut on_hit: impl FnMut(WeaponId, Vec2) -> bool,
     ) {
@@ -119,10 +118,7 @@ impl ProjectileBuffer {
                     let speed_per_tick = velocity.length() * tick_secs.max(0.001);
                     let expired = tick
                         > spawn_tick
-                            + Tick(
-                                (stats.range_at(weapon_level) / speed_per_tick.max(0.001)).ceil()
-                                    as u32,
-                            )
+                            + Tick((stats.range / speed_per_tick.max(0.001)).ceil() as u32)
                         || !room.bounds(&settings.world).contains(position);
 
                     self.slots[i] = if on_hit(weapon, position) {

@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS player_transaction (
 CREATE INDEX IF NOT EXISTS player_transaction_applied_at_idx
     ON player_transaction (applied_at);
 
+-- Convert legacy single-balance player rows to per-weapon progression state.
+UPDATE player_state
+SET state = jsonb_build_object('version', 2, 'weapons', '{}'::JSONB),
+    updated_at = now()
+WHERE COALESCE(state->>'version', '1') <> '2'
+   OR NOT (state ? 'weapons');
+
 CREATE OR REPLACE FUNCTION player_state_hash(p_username TEXT, p_state JSONB)
 RETURNS TEXT
 LANGUAGE sql
@@ -26,10 +33,26 @@ AS $$
     SELECT encode(
         digest(
             convert_to(
-                'v1|'
+                'v2|'
                     || p_username
-                    || '|fragment_count='
-                    || (p_state->>'fragment_count'),
+                    || '|weapons=['
+                    || COALESCE(
+                        (
+                            SELECT string_agg(
+                                key
+                                    || ':{fragments='
+                                    || COALESCE(value->>'fragments', '0')
+                                    || ',level='
+                                    || COALESCE(value->>'level', '0')
+                                    || '}',
+                                ','
+                                ORDER BY key
+                            )
+                            FROM jsonb_each(COALESCE(p_state->'weapons', '{}'::JSONB))
+                        ),
+                        ''
+                    )
+                    || ']',
                 'UTF8'
             ),
             'sha256'
@@ -56,8 +79,8 @@ BEGIN
     END IF;
 
     current_state := jsonb_build_object(
-        'version', 1,
-        'fragment_count', 0
+        'version', 2,
+        'weapons', '{}'::JSONB
     );
 
     INSERT INTO player_state (username, state)
@@ -74,7 +97,9 @@ $$;
 
 CREATE OR REPLACE FUNCTION apply_player_change(
     p_username TEXT,
-    p_add_fragments BIGINT
+    p_weapon_id INT,
+    p_fragment_delta BIGINT,
+    p_level_delta BIGINT
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -83,7 +108,12 @@ SET search_path = public
 AS $$
 DECLARE
     current_state JSONB;
-    next_count BIGINT;
+    weapon_key TEXT;
+    weapon_state JSONB;
+    current_fragments BIGINT;
+    current_level BIGINT;
+    next_fragments BIGINT;
+    next_level BIGINT;
 BEGIN
     PERFORM ensure_player(p_username);
 
@@ -92,21 +122,51 @@ BEGIN
     WHERE username = p_username
     FOR UPDATE;
 
-    IF p_add_fragments IS NULL OR p_add_fragments <= 0 OR p_add_fragments > 4294967295 THEN
-        RAISE EXCEPTION 'add_fragments out of range: %', p_add_fragments;
+    IF p_weapon_id IS NULL OR p_weapon_id < 0 OR p_weapon_id > 65535 THEN
+        RAISE EXCEPTION 'weapon_id out of range: %', p_weapon_id;
     END IF;
 
-    next_count := (current_state->>'fragment_count')::BIGINT + p_add_fragments;
-    IF next_count > 4294967295 THEN
-        RAISE EXCEPTION 'fragment_count overflow: %', next_count;
+    IF p_fragment_delta IS NULL OR p_level_delta IS NULL THEN
+        RAISE EXCEPTION 'fragment_delta and level_delta are required';
     END IF;
+
+    IF p_fragment_delta = 0 AND p_level_delta = 0 THEN
+        RAISE EXCEPTION 'fragment_delta and level_delta cannot both be zero';
+    END IF;
+
+    weapon_key := p_weapon_id::TEXT;
+    weapon_state := COALESCE(current_state->'weapons'->weapon_key, '{"fragments":0,"level":0}'::JSONB);
+    current_fragments := COALESCE((weapon_state->>'fragments')::BIGINT, 0);
+    current_level := COALESCE((weapon_state->>'level')::BIGINT, 0);
+
+    next_fragments := current_fragments + p_fragment_delta;
+    IF next_fragments < 0 THEN
+        RAISE EXCEPTION 'fragment balance cannot go negative: % + %', current_fragments, p_fragment_delta;
+    END IF;
+    IF next_fragments > 4294967295 THEN
+        RAISE EXCEPTION 'fragment balance overflow: %', next_fragments;
+    END IF;
+
+    next_level := current_level + p_level_delta;
+    IF next_level < 0 THEN
+        RAISE EXCEPTION 'level cannot go negative: % + %', current_level, p_level_delta;
+    END IF;
+    IF next_level > 4294967295 THEN
+        RAISE EXCEPTION 'level overflow: %', next_level;
+    END IF;
+
+    weapon_state := jsonb_build_object(
+        'fragments', next_fragments,
+        'level', next_level
+    );
 
     current_state := jsonb_set(
-        current_state,
-        '{fragment_count}',
-        to_jsonb(next_count::INT8),
-        false
+        COALESCE(current_state, '{"version":2,"weapons":{}}'::JSONB),
+        ARRAY['weapons', weapon_key],
+        weapon_state,
+        true
     );
+    current_state := jsonb_set(current_state, '{version}', '2'::JSONB, true);
 
     UPDATE player_state
     SET state = current_state,
@@ -140,7 +200,9 @@ BEGIN
     LOOP
         PERFORM apply_player_change(
             change->>'username',
-            (change->>'add_fragments')::BIGINT
+            (change->>'weapon_id')::INT,
+            (change->>'fragment_delta')::BIGINT,
+            (change->>'level_delta')::BIGINT
         );
     END LOOP;
 
@@ -245,15 +307,18 @@ REVOKE ALL ON TABLE player_transaction FROM inventory_jam_server;
 
 REVOKE ALL ON FUNCTION player_state_hash(TEXT, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ensure_player(TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION apply_player_change(TEXT, BIGINT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION apply_player_change(TEXT, INT, BIGINT, BIGINT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION apply_persistence_transaction(UUID, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_player_states(TEXT[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION flush_player_transactions(JSONB, TEXT[]) FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION player_state_hash(TEXT, JSONB) FROM inventory_jam_server;
 REVOKE ALL ON FUNCTION ensure_player(TEXT) FROM inventory_jam_server;
-REVOKE ALL ON FUNCTION apply_player_change(TEXT, BIGINT) FROM inventory_jam_server;
+REVOKE ALL ON FUNCTION apply_player_change(TEXT, INT, BIGINT, BIGINT) FROM inventory_jam_server;
 REVOKE ALL ON FUNCTION apply_persistence_transaction(UUID, JSONB) FROM inventory_jam_server;
+
+-- Drop the old apply_player_change(TEXT, BIGINT) if it still exists.
+DROP FUNCTION IF EXISTS apply_player_change(TEXT, BIGINT);
 
 -- Server may only call the two batch API functions.
 GRANT EXECUTE ON FUNCTION get_player_states(TEXT[]) TO inventory_jam_server;

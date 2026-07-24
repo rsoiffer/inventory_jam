@@ -19,6 +19,7 @@ pub(crate) struct GameSettings {
     pub projectile: ProjectileSettings,
     pub weapons: WeaponsSettings,
     pub weapon_stations: WeaponStationsSettings,
+    pub progression: ProgressionSettings,
     pub menu: MenuSettings,
     pub global_aristeia: GlobalAristeiaSettings,
 }
@@ -59,6 +60,7 @@ pub struct FragmentSettings {
     pub base_drop_count: u16,
     pub bonus_drops_per_aristeia: u16,
     pub maximum_drop_count: u16,
+    pub drop_entity_count: u16,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -171,11 +173,8 @@ pub struct WeaponSettings {
     pub id: WeaponId,
     pub name: String,
     pub damage: u32,
-    pub damage_per_level: u32,
     pub range: f32,
-    pub range_per_level: f32,
     pub attacks_per_second: f32,
-    pub attacks_per_second_per_level: f32,
     pub projectile_speed: f32,
     pub projectile_radius: f32,
     pub icon: String,
@@ -184,28 +183,9 @@ pub struct WeaponSettings {
 }
 
 impl WeaponSettings {
-    fn bonus_levels(level: u32) -> u32 {
-        level.max(1).saturating_sub(1)
-    }
-
-    pub fn damage_at(&self, level: u32) -> u32 {
-        self.damage + Self::bonus_levels(level) * self.damage_per_level
-    }
-
-    pub fn range_at(&self, level: u32) -> f32 {
-        self.range + Self::bonus_levels(level) as f32 * self.range_per_level
-    }
-
-    pub fn attacks_per_second_at(&self, level: u32) -> f32 {
-        self.attacks_per_second
-            + Self::bonus_levels(level) as f32 * self.attacks_per_second_per_level
-    }
-
     fn is_valid(&self) -> bool {
         self.range > 0.0
-            && self.range_per_level >= 0.0
             && self.attacks_per_second > 0.0
-            && self.attacks_per_second_per_level >= 0.0
             && self.projectile_speed > 0.0
             && self.projectile_radius >= 0.0
             && !self.name.is_empty()
@@ -237,6 +217,8 @@ impl WeaponSpriteSheetSettings {
 #[derive(Debug, Clone, Deserialize)]
 pub struct WeaponStationsSettings {
     pub trigger_radius: f32,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub upgrade_station_offset: Vec2,
     pub stations: Vec<WeaponStationSettings>,
 }
 
@@ -245,6 +227,32 @@ pub struct WeaponStationSettings {
     pub weapon_id: WeaponId,
     #[serde(deserialize_with = "deserialize_vec2")]
     pub offset: Vec2,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProgressionSettings {
+    pub damage_bonus_per_level: f32,
+    pub upgrade_cost_base: u32,
+    pub upgrade_cost_level_scale: u32,
+    pub upgrade_cost_level_power: u32,
+}
+
+impl ProgressionSettings {
+    pub fn damage_at(&self, base_damage: u32, level: u32) -> u32 {
+        (base_damage as f32 * (1.0 + self.damage_bonus_per_level * level as f32)).round() as u32
+    }
+
+    pub fn upgrade_cost(&self, level: u32) -> Result<u32, String> {
+        let raised = level
+            .checked_pow(self.upgrade_cost_level_power)
+            .ok_or_else(|| format!("upgrade cost overflow for level {level}"))?;
+        let scaled = raised
+            .checked_mul(self.upgrade_cost_level_scale)
+            .ok_or_else(|| format!("upgrade cost overflow for level {level}"))?;
+        scaled
+            .checked_add(self.upgrade_cost_base)
+            .ok_or_else(|| format!("upgrade cost overflow for level {level}"))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -338,11 +346,23 @@ impl GameSettings {
             ));
         }
         if self.fragment.base_drop_count > self.fragment.maximum_drop_count
+            || self.fragment.drop_entity_count == 0
             || self.global_aristeia.threshold == 0
             || self.global_aristeia.drain_interval_ticks == 0
         {
             return Err(GameSettingsLoadError::Invalid(
                 "fragment drop or global Aristeia settings are invalid".into(),
+            ));
+        }
+        if self.progression.damage_bonus_per_level < 0.0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "progression damage_bonus_per_level cannot be negative".into(),
+            ));
+        }
+        if self.progression.upgrade_cost_base == 0 || self.progression.upgrade_cost_level_scale == 0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "progression upgrade cost coefficients must be greater than zero".into(),
             ));
         }
         if self.world.tile_pixel_size <= 0.0

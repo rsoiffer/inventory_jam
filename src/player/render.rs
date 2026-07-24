@@ -5,6 +5,7 @@ use crate::player::protocol::{
     SmoothedAimDirection,
 };
 use crate::settings::GameSettings;
+use crate::weapon::protocol::EquippedWeapon;
 use crate::world::GlobalAristeia;
 
 use bevy::app::{App, Plugin, Startup, Update};
@@ -313,10 +314,11 @@ fn sync_player_health_bars(
 fn sync_username_labels(
     settings: Res<GameSettings>,
     mut commands: Commands,
-    players: Query<(Entity, &PlayerPosition, &PlayerUsername), With<PlayerVisual>>,
+    players: Query<(Entity, &PlayerPosition, &PlayerUsername, &EquippedWeapon), With<PlayerVisual>>,
     mut labels: Query<(Entity, &UsernameLabel, &mut Transform, &mut Text2d)>,
 ) {
-    for (player, position, username) in &players {
+    for (player, position, username, equipped) in &players {
+        let label_text = format!("{} Lv{}", username.0, equipped.level);
         let existing_label = labels
             .iter_mut()
             .find(|(_, label, _, _)| label.player == player);
@@ -324,8 +326,8 @@ fn sync_username_labels(
         if let Some((_, _, mut transform, mut text)) = existing_label {
             transform.translation = position.0.extend(0.0) + settings.player.username_label_offset;
 
-            if text.0 != username.0 {
-                text.0.clone_from(&username.0);
+            if text.0 != label_text {
+                text.0 = label_text;
             }
 
             continue;
@@ -333,7 +335,7 @@ fn sync_username_labels(
 
         commands.spawn((
             UsernameLabel { player },
-            Text2d::new(username.0.clone()),
+            Text2d::new(label_text),
             TextFont {
                 font_size: FontSize::Px(18.0),
                 ..default()

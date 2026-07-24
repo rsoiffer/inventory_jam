@@ -29,7 +29,8 @@
     "swirl_speed_per_tick": 0.24,
     "base_drop_count": 8,
     "bonus_drops_per_aristeia": 2,
-    "maximum_drop_count": 40
+    "maximum_drop_count": 40,
+    "drop_entity_count": 3
   },
   "player": {
     "camera_decay_rate": 5.0,
@@ -102,12 +103,9 @@
     {
       "id": 0,
       "name": "Sword",
-      "damage": 70,
-      "damage_per_level": 0,
+      "damage": 35,
       "range": 84.0,
-      "range_per_level": 0,
-      "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0,
+      "attacks_per_second": 2.5,
       "projectile_speed": 240.0,
       "projectile_radius": 24.0,
       "icon": "weapon/sword/spr_icon_sword.png",
@@ -134,11 +132,8 @@
       "id": 1,
       "name": "Spear",
       "damage": 60,
-      "damage_per_level": 0,
       "range": 115.0,
-      "range_per_level": 0,
       "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0,
       "projectile_speed": 310.0,
       "projectile_radius": 12.0,
       "icon": "weapon/spear/spr_icon_spear.png",
@@ -165,11 +160,8 @@
       "id": 2,
       "name": "Staff",
       "damage": 40,
-      "damage_per_level": 0,
       "range": 204.0,
-      "range_per_level": 0,
       "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0,
       "projectile_speed": 430.0,
       "projectile_radius": 24.0,
       "icon": "weapon/staff/spr_icon_staff.png",
@@ -196,11 +188,8 @@
       "id": 3,
       "name": "Bow",
       "damage": 40,
-      "damage_per_level": 0,
       "range": 216.0,
-      "range_per_level": 0,
       "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0,
       "projectile_speed": 430.0,
       "projectile_radius": 0,
       "icon": "weapon/bow/spr_icon_bow.png",
@@ -226,12 +215,9 @@
     {
       "id": 4,
       "name": "Shuriken",
-      "damage": 50,
-      "damage_per_level": 0,
+      "damage": 25,
       "range": 135.0,
-      "range_per_level": 0,
-      "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0,
+      "attacks_per_second": 3.0,
       "projectile_speed": 335.0,
       "projectile_radius": 8.0,
       "icon": "weapon/shuriken/spr_icon_shuriken.png",
@@ -258,11 +244,8 @@
       "id": 5,
       "name": "Boomerang",
       "damage": 50,
-      "damage_per_level": 0,
       "range": 135.0,
-      "range_per_level": 0,
       "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0,
       "projectile_speed": 335.0,
       "projectile_radius": 16.0,
       "icon": "weapon/boomerang/spr_icon_boomerang.png",
@@ -331,7 +314,17 @@
           -152.0
         ]
       }
+    ],
+    "upgrade_station_offset": [
+      0.0,
+      -80.0
     ]
+  },
+  "progression": {
+    "damage_bonus_per_level": 0.5,
+    "upgrade_cost_base": 10,
+    "upgrade_cost_level_scale": 10,
+    "upgrade_cost_level_power": 2
   },
   "menu": {
     "normal_button": [

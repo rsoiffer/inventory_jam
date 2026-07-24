@@ -69,11 +69,11 @@ fn simulate_server_projectile_buffers(
         let owner = owner_id.0;
         let personal_aristeia = aristeia.current;
         let level = equipped.level;
-        buffer.simulate(room, tick, tick_secs, level, &settings, |weapon, pos| {
+        buffer.simulate(room, tick, tick_secs, &settings, |weapon, pos| {
             let Some(stats) = settings.weapons.get(weapon) else {
                 return false;
             };
-            let damage = stats.damage_at(level);
+            let damage = settings.progression.damage_at(stats.damage, level);
             let radius = stats.projectile_radius;
 
             for (entity, enemy, kind, enemy_room, mut health) in &mut enemies {
@@ -92,11 +92,10 @@ fn simulate_server_projectile_buffers(
                 if health.current == 0 {
                     let bonus = u32::from(settings.fragment.bonus_drops_per_aristeia)
                         .saturating_mul(personal_aristeia);
-                    let drop_count = u32::from(settings.fragment.base_drop_count)
+                    let total_value = u32::from(settings.fragment.base_drop_count)
                         .saturating_add(bonus)
-                        .min(u32::from(settings.fragment.maximum_drop_count))
-                        as u16;
-                    fragment_drops.write(SpawnFragmentPool::new(pos, drop_count, *room));
+                        .min(u32::from(settings.fragment.maximum_drop_count));
+                    fragment_drops.write(SpawnFragmentPool::new(pos, total_value, *room));
                     commands.entity(entity).despawn();
                     aristeia_tracking.write(AddKillsToAristeia::new(owner, 1));
                     global_aristeia.write(AddGlobalAristeia(

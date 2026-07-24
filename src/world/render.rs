@@ -55,7 +55,6 @@ const WALL: Tile = Tile { x: 6, y: 0 };
 const PROP_STOOL: Tile = Tile { x: 7, y: 0 };
 const PROP_TABLE: Tile = Tile { x: 8, y: 0 };
 const PROP_ROCK: Tile = Tile { x: 6, y: 1 };
-const PROP_ANVIL: Tile = Tile { x: 7, y: 1 };
 const PROP_BARREL: Tile = Tile { x: 8, y: 1 };
 
 const PIT_FLOORS: &[FloorRect] = &[
@@ -98,11 +97,6 @@ const PIT_PROPS: &[PropPlacement] = &[
     PropPlacement {
         tile: PROP_STOOL,
         x: 14,
-        y: 10,
-    },
-    PropPlacement {
-        tile: PROP_ANVIL,
-        x: 18,
         y: 10,
     },
     PropPlacement {

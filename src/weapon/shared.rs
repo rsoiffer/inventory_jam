@@ -69,10 +69,6 @@ pub(crate) fn fire_equipped_weapons(
             direction * weapon.projectile_speed,
             local_timeline.tick(),
         );
-        cooldown.restart(
-            &local_timeline,
-            &tick_duration,
-            weapon.attacks_per_second_at(equipped.level),
-        );
+        cooldown.restart(&local_timeline, &tick_duration, weapon.attacks_per_second);
     }
 }

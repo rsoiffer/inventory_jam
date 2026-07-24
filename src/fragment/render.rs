@@ -1,6 +1,7 @@
 use crate::app::{ClientState, game_is_active};
 use crate::fragment::shared::FragmentPosition;
 use crate::persistence::CachedPersistentState;
+use crate::weapon::protocol::EquippedWeapon;
 use bevy::prelude::*;
 use lightyear::prelude::Controlled;
 
@@ -121,14 +122,14 @@ pub(crate) fn setup_fragment_balance(mut commands: Commands) {
 }
 
 pub(crate) fn update_fragment_balance(
-    player: Query<&CachedPersistentState, With<Controlled>>,
+    player: Query<(&CachedPersistentState, &EquippedWeapon), With<Controlled>>,
     mut text: Query<&mut Text, With<FragmentBalanceText>>,
 ) {
-    let Ok(state) = player.single() else {
+    let Ok((state, equipped)) = player.single() else {
         return;
     };
     let Ok(mut text) = text.single_mut() else {
         return;
     };
-    text.0 = format!("Fragments: {}", state.fragment_count);
+    text.0 = format!("Fragments: {}", state.weapon(equipped.id).fragments);
 }

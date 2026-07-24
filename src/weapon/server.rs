@@ -40,7 +40,7 @@ pub(crate) fn ensure_player_weapons(
         }
 
         commands.entity(entity).insert((
-            EquippedWeapon::new(settings.weapons.default_id(), 1),
+            EquippedWeapon::new(settings.weapons.default_id(), 0),
             WeaponCooldown::default(),
         ));
     }

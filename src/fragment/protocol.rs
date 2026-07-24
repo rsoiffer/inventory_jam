@@ -19,14 +19,16 @@ impl Plugin for FragmentProtocolPlugin {
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct Fragment {
     pub origin: Vec2,
+    pub value: u32,
     pub collector: Option<PeerId>,
 }
 
 #[cfg(feature = "server")]
 impl Fragment {
-    pub const fn available(origin: Vec2) -> Self {
+    pub const fn available(origin: Vec2, value: u32) -> Self {
         Self {
             origin,
+            value,
             collector: None,
         }
     }

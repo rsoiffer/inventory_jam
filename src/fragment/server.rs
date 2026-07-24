@@ -1,5 +1,5 @@
 use crate::app::ServerState;
-use crate::fragment::api::SpawnFragmentPool;
+use crate::fragment::api::{SpawnFragmentPool, split_fragment_values};
 use crate::fragment::{
     protocol::Fragment,
     shared::{self as fragment_shared, FragmentLifetime, FragmentPosition, ServerFragment},
@@ -10,13 +10,14 @@ use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::GameRoom;
 use crate::settings::GameSettings;
 use crate::shared::FixedGameplaySet;
+use crate::weapon::protocol::EquippedWeapon;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 use rand::Rng;
 
-const MIN_FRAGMENTS_PER_DEBUG_POOL: u16 = 50;
-const MAX_FRAGMENTS_PER_DEBUG_POOL: u16 = 150;
+const MIN_FRAGMENTS_PER_DEBUG_POOL: u32 = 50;
+const MAX_FRAGMENTS_PER_DEBUG_POOL: u32 = 150;
 
 /// Installs only server-authoritative fragment behavior.
 pub struct FragmentServerPlugin;
@@ -85,7 +86,7 @@ pub(crate) fn spawn_requested_fragment_pools(
             &mut commands,
             &mut rng,
             request.center,
-            request.count,
+            request.total_value,
             request.room,
             &settings,
         );
@@ -96,13 +97,19 @@ fn spawn_fragment_pool(
     commands: &mut Commands,
     rng: &mut impl Rng,
     center: Vec2,
-    count: u16,
+    total_value: u32,
     room: GameRoom,
     settings: &GameSettings,
 ) {
-    info!(?center, count, "SERVER spawning Fragment pool");
+    let values = split_fragment_values(total_value, settings.fragment.drop_entity_count);
+    info!(
+        ?center,
+        total_value,
+        entity_count = values.len(),
+        "SERVER spawning Fragment pool"
+    );
 
-    for _ in 0..count {
+    for value in values {
         let spawn_position = random_position_in_annulus(
             rng,
             center,
@@ -111,7 +118,7 @@ fn spawn_fragment_pool(
         );
 
         commands.spawn((
-            Fragment::available(spawn_position),
+            Fragment::available(spawn_position, value),
             FragmentPosition(spawn_position),
             FragmentLifetime {
                 remaining_ticks: settings.fragment.lifetime_ticks,
@@ -137,7 +144,7 @@ pub(crate) fn simulate_server_fragments(
         With<ServerFragment>,
     >,
     players: Query<(Entity, &PlayerId, &PlayerPosition, Has<Predicted>)>,
-    ready_players: Query<&PlayerUsername, With<PersistenceReady>>,
+    ready_players: Query<(&PlayerUsername, &EquippedWeapon), With<PersistenceReady>>,
     mut transactions: MessageWriter<Transaction>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     settings: Res<GameSettings>,
@@ -161,17 +168,22 @@ pub(crate) fn simulate_server_fragments(
         if let Some((player_entity, collector)) =
             nearest_player_in_collection_range(position.0, &players, is_host_server, &settings)
         {
-            let Ok(username) = ready_players.get(player_entity) else {
-                // Player is not persistence-ready yet; leave the fragment available.
+            let Ok((username, equipped)) = ready_players.get(player_entity) else {
                 continue;
             };
 
-            transactions.write(Transaction::add_fragments(username.0.clone(), 1));
+            transactions.write(Transaction::add_weapon_fragments(
+                username.0.clone(),
+                equipped.id,
+                fragment.value,
+            ));
             fragment.collector = Some(collector);
 
             info!(
                 ?fragment_entity,
                 ?player_entity,
+                value = fragment.value,
+                weapon_id = equipped.id,
                 carried_by = ?collector,
                 "SERVER awarded Fragment"
             );
