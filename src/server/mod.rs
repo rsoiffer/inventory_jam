@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
-use crate::app::AppState;
+use crate::app::ServerState;
 use crate::networking::SEND_INTERVAL;
 use crate::protocol::channels::ServerEventsChannel;
 use crate::protocol::messages::DebugServerMessage;
@@ -17,7 +17,7 @@ impl Plugin for ExampleServerPlugin {
 
         app.add_systems(
             Update,
-            send_debug_server_message.run_if(in_state(AppState::Hosting)),
+            send_debug_server_message.run_if(in_state(ServerState::Hosting)),
         );
     }
 }

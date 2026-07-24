@@ -1,59 +1,61 @@
 use bevy::prelude::*;
+use lightyear::{
+    connection::network_target::NetworkTarget,
+    core::timeline::LocalTimeline,
+    prediction::despawn::PredictionDespawnCommandsExt,
+    prelude::{InterpolationTarget, PreSpawned, PredictionTarget, Replicate},
+};
 
-use crate::projectile::protocol::PlayerProjectile;
-use crate::shared::PLAYER_HALF_SIZE;
+use crate::{
+    projectile::protocol::{PlayerProjectile, ProjectilePosition},
+    protocol::rooms::GameRoom,
+    settings::GameSettings,
+};
 
-#[derive(Component, Clone, Copy, Debug, PartialEq, Deref, DerefMut)]
-pub struct ProjectilePosition(pub Vec2);
-
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct ProjectileLifetime {
-    pub remaining_ticks: u16,
+pub struct SpawnProjectile {
+    pub projectile: PlayerProjectile,
+    pub spawn_position: Vec2,
+    pub room: GameRoom,
+    pub is_authoritative: bool,
 }
 
-impl ProjectileLifetime {
-    pub fn from_projectile(projectile: &PlayerProjectile) -> Self {
-        let travel_ticks =
-            (projectile.max_range / projectile.speed_per_tick.max(0.001)).ceil() as u32;
+impl Command for SpawnProjectile {
+    type Out = ();
 
-        Self {
-            remaining_ticks: travel_ticks.saturating_add(2).min(u16::MAX as u32) as u16,
+    fn apply(self, world: &mut World) -> Self::Out {
+        info!("Spawning projectile");
+        let mut binding = world.commands();
+        let mut entity = binding.spawn((
+            self.projectile,
+            ProjectilePosition(self.spawn_position),
+            self.room,
+            PreSpawned::default(),
+            Name::new("Projectile"),
+        ));
+
+        if self.is_authoritative {
+            let owner = self.projectile.owner;
+
+            entity.insert((
+                Replicate::to_clients(NetworkTarget::All),
+                PredictionTarget::to_clients(NetworkTarget::Single(owner)),
+                InterpolationTarget::to_clients(NetworkTarget::AllExceptSingle(owner)),
+            ));
         }
     }
 }
-
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct ImpactLifetime {
-    pub remaining_ticks: u16,
-}
-
-pub const IMPACT_LIFETIME_TICKS: u16 = 12;
-
-#[derive(Component)]
-pub struct ServerProjectile;
-
-#[derive(Component)]
-pub struct ClientProjectileVisual;
-
-#[derive(Component)]
-pub struct ServerImpact;
-
-#[derive(Component)]
-pub struct ClientImpactVisual;
-
-#[derive(Component, Clone, Copy, Debug, PartialEq, Deref, DerefMut)]
-pub struct ImpactPosition(pub Vec2);
 
 pub fn projectile_spawn_position(
     player_position: Vec2,
     direction: Vec2,
     projectile_radius: f32,
+    settings: &GameSettings,
 ) -> Vec2 {
-    const SPAWN_GAP: f32 = 0.32;
-
     player_position
         + direction.normalize_or_zero()
-            * (PLAYER_HALF_SIZE + projectile_radius.max(0.0) + SPAWN_GAP)
+            * (settings.player.half_size
+                + projectile_radius.max(0.0)
+                + settings.projectile.spawn_gap)
 }
 
 pub fn move_projectile(position: &mut ProjectilePosition, projectile: &PlayerProjectile) {
@@ -61,8 +63,33 @@ pub fn move_projectile(position: &mut ProjectilePosition, projectile: &PlayerPro
 }
 
 pub fn projectile_reached_max_range(
-    position: ProjectilePosition,
+    position: &ProjectilePosition,
     projectile: &PlayerProjectile,
 ) -> bool {
     position.0.distance_squared(projectile.origin) >= projectile.max_range * projectile.max_range
+}
+
+pub(crate) fn check_projectile_range(
+    commands: &mut Commands<'_, '_>,
+    local_timeline: &Res<'_, LocalTimeline>,
+    projectile_entity: Entity,
+    projectile: &PlayerProjectile,
+    position: &ProjectilePosition,
+    room: &GameRoom,
+    settings: &GameSettings,
+) {
+    if projectile.expire_time.is_expired(&local_timeline.tick())
+        || projectile_reached_max_range(position, projectile)
+        || projectile_is_outside_world(position.0, room, settings)
+    {
+        commands.entity(projectile_entity).prediction_despawn();
+    }
+}
+
+pub(crate) fn projectile_is_outside_world(
+    position: Vec2,
+    room: &GameRoom,
+    settings: &GameSettings,
+) -> bool {
+    !room.bounds(&settings.world).contains(position)
 }

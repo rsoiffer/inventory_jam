@@ -10,5 +10,6 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/target/release/inventory_jam /app/inventory_jam
-COPY secrets/database-server-url.txt /app/secrets/database-server-url.txt
+COPY assets /app/assets
+COPY public/database-server-url.txt /app/public/database-server-url.txt
 ENTRYPOINT ["/app/inventory_jam", "--mode", "server"]

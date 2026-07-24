@@ -4,6 +4,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
     <title>Bevy game</title>
-    <link data-trunk rel="rust" data-cargo-no-default-features data-cargo-features="client,gui,netcode,webtransport"/>
+    <link data-trunk rel="rust" data-cargo-no-default-features data-cargo-features="client,gui,netcode,webtransport" data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-mutable-globals --enable-reference-types --enable-multivalue"/>
+    <link data-trunk rel="copy-dir" href="assets"/>
 </head>
 </html>

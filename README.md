@@ -18,13 +18,12 @@ https://github.com/cBournhonesque/lightyear/assets/8112632/7b57d48a-d8b0-4cdd-a1
 GUI builds open a **main menu** by default. Enter a username, then:
 
 - **Join** — discover/connect via Edgegap
-- **Host Local Server** / **Join Local Server** — available in the default development build
+- **Host Local Server** / **Join Local Server** — available whenever the `server`/`client` features are enabled and not targeting wasm (on by default, including release/distribution builds)
 
 Skip the menu with CLI flags:
 
-- Dedicated server: `cargo run -- --mode server`
+- Server (also used to host locally in a GUI build): `cargo run -- --mode server`
 - Join Edgegap: `cargo run -- --mode edgegap --user Ada`
-- Host local: `cargo run -- --mode host`
 - Join local: `cargo run -- --mode local --user Ada`
 
 Netcode client ids are derived from `--user` / the menu username, so each player needs a distinct name.

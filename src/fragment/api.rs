@@ -7,7 +7,7 @@ use crate::protocol::rooms::GameRoom;
 /// Other gameplay features can request a pool without knowing how fragments
 /// are placed, replicated, collected, animated, or despawned.
 #[derive(Message, Clone, Copy, Debug)]
-pub struct SpawnFragmentPool {
+pub(crate) struct SpawnFragmentPool {
     pub center: Vec2,
     pub count: u16,
     pub room: GameRoom,

@@ -5,11 +5,13 @@ mod protocol;
 mod render;
 #[cfg(feature = "server")]
 mod server;
-pub mod shared;
+mod shared;
 
 use bevy::app::{App, Plugin};
 
-pub use protocol::PlayerProjectile;
+pub use protocol::{PlayerProjectile, ProjectileLifetime};
+pub use shared::SpawnProjectile;
+pub use shared::projectile_spawn_position;
 
 pub struct ProjectilePlugin;
 

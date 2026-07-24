@@ -5,7 +5,7 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 [unix]
 dev n="2":
     cargo build
-    cargo run -- --mode host &
+    cargo run -- --mode server &
     sleep 1
     for i in $(seq 1 {{n}}); do \
         cargo run -- --mode local --user "Player$i" & \
@@ -14,7 +14,7 @@ dev n="2":
 [windows]
 dev n="2":
     cargo build
-    Start-Process -NoNewWindow cargo -ArgumentList @('run','--','--mode','host')
+    Start-Process -NoNewWindow cargo -ArgumentList @('run','--','--mode','server')
     Start-Sleep -Seconds 1
     1..{{n}} | ForEach-Object { Start-Process -NoNewWindow cargo -ArgumentList @('run','--','--mode','local','--user',"Player$_") }
 
@@ -24,6 +24,7 @@ check-features:
     cargo clippy --no-default-features --all-targets --features "netcode,udp,webtransport,client,gui"
     cargo clippy --no-default-features --all-targets --features "netcode,udp,webtransport,server"
     cargo clippy --no-default-features --all-targets --features "netcode,udp,webtransport,client,server,gui"
+    cargo clippy --target wasm32-unknown-unknown --no-default-features --features "client,gui,netcode,webtransport"
 
 # Check the project builds cleanly under every client/server/gui combo
 [windows]
@@ -31,3 +32,10 @@ check-features:
     cargo clippy --no-default-features --all-targets --features "netcode,udp,webtransport,client,gui"
     cargo clippy --no-default-features --all-targets --features "netcode,udp,webtransport,server"
     cargo clippy --no-default-features --all-targets --features "netcode,udp,webtransport,client,server,gui"
+    cargo clippy --target wasm32-unknown-unknown --no-default-features --features "client,gui,netcode,webtransport"
+
+# Build a distributable zip (binary + assets + public/database-server-url.txt)
+# for the current platform. Feature selection (excluding `dev`, which breaks
+# the windows-gnu linker) lives in Cargo.toml's [package.metadata.dist].
+release:
+    dist build

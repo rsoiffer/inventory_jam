@@ -1,13 +1,14 @@
+pub(crate) mod api;
 mod protocol;
 #[cfg(feature = "gui")]
 mod render;
 #[cfg(feature = "server")]
-mod server;
+pub(crate) mod server;
 pub mod shared;
 
 use bevy::app::{App, Plugin};
 
-pub use protocol::{EnemyHealth, EnemyPosition};
+pub use protocol::{EnemyHealth, EnemyKind, EnemyPosition};
 
 pub struct EnemyPlugin;
 

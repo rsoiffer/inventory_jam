@@ -1,12 +1,22 @@
-use bevy::prelude::*;
+use bevy::{
+    ecs::system::{Commands, Query, Res},
+    math::Vec2,
+    state::state::State,
+};
+use leafwing_input_manager::action_state::ActionState;
+use lightyear::core::{tick::TickDuration, timeline::LocalTimeline};
 
-use crate::weapon::protocol::WeaponKind;
+use crate::{
+    app::ServerState,
+    player::{PlayerAimDirection, PlayerId, PlayerPosition},
+    projectile::{
+        PlayerProjectile, ProjectileLifetime, SpawnProjectile, projectile_spawn_position,
+    },
+    protocol::{inputs::PlayerAction, rooms::GameRoom},
+    settings::GameSettings,
+    weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind},
+};
 
-/// Authoritative combat values resolved from an equipped weapon.
-///
-/// Keep these values in shared code so server simulation and client-side
-/// presentation can agree on geometry. Only the server may use them to decide
-/// whether damage is applied.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WeaponStats {
     pub damage: u32,
@@ -16,30 +26,6 @@ pub struct WeaponStats {
     pub projectile_radius: f32,
 }
 
-/// Server-only firing state attached to an authoritative player entity.
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct WeaponCooldown {
-    pub remaining_seconds: f32,
-}
-
-impl WeaponCooldown {
-    pub fn tick(&mut self, delta_seconds: f32) {
-        self.remaining_seconds = (self.remaining_seconds - delta_seconds).max(0.0);
-    }
-
-    pub fn is_ready(&self) -> bool {
-        self.remaining_seconds <= 0.0
-    }
-
-    pub fn restart(&mut self, attacks_per_second: f32) {
-        self.remaining_seconds = 1.0 / attacks_per_second.max(0.01);
-    }
-}
-
-/// Returns the final stats for a weapon and level.
-///
-/// Level scaling is intentionally centralized here. Do not store duplicated
-/// damage/range/attack-speed fields on each player.
 pub fn weapon_stats(kind: WeaponKind, level: u32) -> WeaponStats {
     let level = level.max(1);
     let bonus_levels = level.saturating_sub(1);
@@ -47,24 +33,109 @@ pub fn weapon_stats(kind: WeaponKind, level: u32) -> WeaponStats {
     match kind {
         WeaponKind::Sword => WeaponStats {
             damage: 20 + bonus_levels * 4,
-            range: 57.6 + bonus_levels as f32 * 1.92,
+            range: 360.0 + bonus_levels as f32 * 12.0,
             attacks_per_second: 2.5 + bonus_levels as f32 * 0.08,
-            projectile_speed_per_tick: 2.88,
-            projectile_radius: 2.88,
+            projectile_speed_per_tick: 11.8,
+            projectile_radius: 0.0,
         },
         WeaponKind::Spear => WeaponStats {
             damage: 32 + bonus_levels * 6,
-            range: 83.2 + bonus_levels as f32 * 2.56,
+            range: 520.0 + bonus_levels as f32 * 16.0,
             attacks_per_second: 1.5 + bonus_levels as f32 * 0.05,
-            projectile_speed_per_tick: 3.52,
-            projectile_radius: 1.92,
+            projectile_speed_per_tick: 22.0,
+            projectile_radius: 12.0,
         },
         WeaponKind::Staff => WeaponStats {
             damage: 16 + bonus_levels * 3,
-            range: 73.6 + bonus_levels as f32 * 2.24,
+            range: 460.0 + bonus_levels as f32 * 14.0,
             attacks_per_second: 3.2 + bonus_levels as f32 * 0.1,
-            projectile_speed_per_tick: 2.56,
-            projectile_radius: 2.24,
+            projectile_speed_per_tick: 16.0,
+            projectile_radius: 14.0,
         },
+        WeaponKind::Bow => WeaponStats {
+            damage: 28 + bonus_levels * 5,
+            range: 650.0 + bonus_levels as f32 * 18.0,
+            attacks_per_second: 1.8 + bonus_levels as f32 * 0.06,
+            projectile_speed_per_tick: 24.0,
+            projectile_radius: 6.0,
+        },
+        WeaponKind::Shuriken => WeaponStats {
+            damage: 12 + bonus_levels * 2,
+            range: 420.0 + bonus_levels as f32 * 12.0,
+            attacks_per_second: 4.0 + bonus_levels as f32 * 0.12,
+            projectile_speed_per_tick: 19.0,
+            projectile_radius: 8.0,
+        },
+        WeaponKind::Boomerang => WeaponStats {
+            damage: 24 + bonus_levels * 4,
+            range: 500.0 + bonus_levels as f32 * 15.0,
+            attacks_per_second: 1.6 + bonus_levels as f32 * 0.05,
+            projectile_speed_per_tick: 15.0,
+            projectile_radius: 14.0,
+        },
+    }
+}
+
+pub(crate) fn fire_equipped_weapons(
+    mut commands: Commands,
+    mut players: Query<(
+        &PlayerId,
+        &PlayerPosition,
+        &PlayerAimDirection,
+        &GameRoom,
+        &ActionState<PlayerAction>,
+        &EquippedWeapon,
+        &mut WeaponCooldown,
+    )>,
+    app_state: Option<Res<State<ServerState>>>,
+    local_timeline: Res<LocalTimeline>,
+    tick_duration: Res<TickDuration>,
+    settings: Res<GameSettings>,
+) {
+    for (player_id, player_position, aim_direction, room, actions, equipped_weapon, mut cooldown) in
+        &mut players
+    {
+        if !actions.pressed(&PlayerAction::Fire) || !cooldown.is_ready(local_timeline.tick()) {
+            continue;
+        }
+
+        let direction = aim_direction.0.normalize_or_zero();
+        if direction == Vec2::ZERO {
+            continue;
+        }
+
+        let stats = weapon_stats(equipped_weapon.kind, equipped_weapon.level);
+        let spawn_position = projectile_spawn_position(
+            player_position.0,
+            direction,
+            stats.projectile_radius,
+            &settings,
+        );
+        let expire_time = ProjectileLifetime::new(
+            &local_timeline.tick(),
+            stats.range,
+            stats.projectile_speed_per_tick,
+        );
+
+        commands.queue(SpawnProjectile {
+            projectile: PlayerProjectile {
+                owner: player_id.0,
+                weapon: equipped_weapon.kind,
+                origin: spawn_position,
+                direction,
+                speed_per_tick: stats.projectile_speed_per_tick,
+                damage: stats.damage,
+                max_range: stats.range,
+                radius: stats.projectile_radius,
+                expire_time,
+            },
+            spawn_position,
+            room: *room,
+            is_authoritative: app_state
+                .as_ref()
+                .is_some_and(|state| matches!(state.get(), ServerState::Hosting)),
+        });
+
+        cooldown.restart(&local_timeline, &tick_duration, stats.attacks_per_second);
     }
 }

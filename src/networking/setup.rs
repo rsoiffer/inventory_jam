@@ -27,9 +27,11 @@ use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
-use crate::app::{AppState, LaunchMode, StartGame};
 #[cfg(feature = "client")]
-use crate::app::{LocalUsername, client_id_from_username, machine_local_username};
+use crate::app::{ClientState, LocalUsername, client_id_from_username, machine_local_username};
+#[cfg(feature = "server")]
+use crate::app::ServerState;
+use crate::app::{LaunchMode, StartGame};
 
 #[cfg(feature = "client")]
 const CERT_DIGEST: &str = "18b16f92178824528aabb1c4274a0f247d0dec2c6f755e152739ff2fe343ec7c";
@@ -165,10 +167,11 @@ fn handle_start_game(
     mut commands: Commands,
     mut starts: MessageReader<StartGame>,
     mut status: ResMut<ConnectionStatus>,
-    mut next_state: ResMut<NextState<AppState>>,
+    #[cfg(feature = "client")] mut next_client_state: ResMut<NextState<ClientState>>,
     #[cfg(feature = "client")] clients: Query<Entity, With<Client>>,
     #[cfg(feature = "client")] mut username: ResMut<LocalUsername>,
     #[cfg(feature = "server")] servers: Query<Entity, With<Server>>,
+    #[cfg(feature = "server")] mut next_server_state: ResMut<NextState<ServerState>>,
 ) {
     for start in starts.read() {
         match start.mode {
@@ -190,7 +193,7 @@ fn handle_start_game(
                 });
                 commands.insert_resource(KickoffDiscovery);
                 status.message = "searching for Edgegap server...".into();
-                next_state.set(AppState::Connecting);
+                next_client_state.set(ClientState::Connecting);
             }
             #[cfg(feature = "client")]
             LaunchMode::JoinLocal => {
@@ -212,7 +215,7 @@ fn handle_start_game(
                 });
                 info!("connecting client to {}", config.server_addr);
                 status.message = format!("connecting to {}...", config.server_addr);
-                next_state.set(AppState::Connecting);
+                next_client_state.set(ClientState::Connecting);
                 spawn_client(
                     &mut commands,
                     client_id_from_username(&local_username),
@@ -222,7 +225,7 @@ fn handle_start_game(
                 );
             }
             #[cfg(feature = "server")]
-            LaunchMode::HostLocal | LaunchMode::DedicatedServer => {
+            LaunchMode::DedicatedServer => {
                 if !servers.is_empty() {
                     status.message = "server already running".into();
                     continue;
@@ -245,7 +248,7 @@ fn handle_start_game(
                     );
                 }
                 status.message = format!("server running on port {}", config.server_port);
-                next_state.set(AppState::Hosting);
+                next_server_state.set(ServerState::Hosting);
                 commands.spawn((
                     Name::new("Network Server"),
                     NetworkServer {
@@ -417,18 +420,18 @@ fn patch_webtransport_digest(
 fn watch_client_connection_state(
     connected: Query<(), (With<Client>, With<Connected>)>,
     mut status: ResMut<ConnectionStatus>,
-    mut next_state: ResMut<NextState<AppState>>,
-    current: Res<State<AppState>>,
+    mut next_state: ResMut<NextState<ClientState>>,
+    current: Res<State<ClientState>>,
     mut was_connected: Local<bool>,
 ) {
     let is_connected = !connected.is_empty();
     if is_connected && !*was_connected {
         status.message = "connected".into();
-        next_state.set(AppState::Playing);
+        next_state.set(ClientState::Playing);
     }
-    if !is_connected && *was_connected && *current.get() == AppState::Playing {
+    if !is_connected && *was_connected && *current.get() == ClientState::Playing {
         status.message = "disconnected".into();
-        next_state.set(AppState::MainMenu);
+        next_state.set(ClientState::Disconnected);
     }
     *was_connected = is_connected;
 }
@@ -436,16 +439,16 @@ fn watch_client_connection_state(
 #[cfg(all(feature = "client", feature = "gui"))]
 fn watch_discovery_failures(
     discovery: Option<Res<ServerDiscovery>>,
-    mut next_state: ResMut<NextState<AppState>>,
-    current: Res<State<AppState>>,
+    mut next_state: ResMut<NextState<ClientState>>,
+    current: Res<State<ClientState>>,
 ) {
-    if *current.get() != AppState::Connecting {
+    if *current.get() != ClientState::Connecting {
         return;
     }
     let Some(discovery) = discovery else {
         return;
     };
     if matches!(discovery.state, ServerDiscoveryState::Failed(_)) {
-        next_state.set(AppState::MainMenu);
+        next_state.set(ClientState::Disconnected);
     }
 }

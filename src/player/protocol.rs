@@ -1,8 +1,9 @@
-use crate::protocol::rooms::GameRoom;
 #[cfg(feature = "server")]
 use crate::protocol::rooms::GameRooms;
+use crate::protocol::{inputs::PlayerAction, rooms::GameRoom};
 use bevy::math::Curve;
 use bevy::prelude::*;
+use leafwing_input_manager::action_state::ActionState;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,7 @@ impl Plugin for PlayerProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.component::<PlayerId>().replicate();
 
+        app.add_systems(PostUpdate, debug_player_position);
         app.component::<PlayerPosition>()
             .replicate()
             .predict()
@@ -27,6 +29,29 @@ impl Plugin for PlayerProtocolPlugin {
         app.component::<GameRoom>().replicate();
 
         app.component::<PlayerUsername>().replicate();
+
+        app.component::<PlayerHealth>().replicate().predict();
+
+        app.component::<PlayerAristeia>().replicate().predict();
+    }
+}
+
+#[allow(unused)]
+fn debug_player_position(
+    q: Query<(Entity, &PlayerPosition, &ActionState<PlayerAction>)>,
+    local_timeline: Res<LocalTimeline>,
+) {
+    for (entity, position, actions) in q.iter() {
+        let movement = actions.clamped_axis_pair(&PlayerAction::Move);
+
+        if movement != Vec2::ZERO {
+            // info!(
+            //     "Player Pos: {:?} {:?} {:?}",
+            //     local_timeline.tick(),
+            //     position,
+            //     entity
+            // );
+        }
     }
 }
 
@@ -39,11 +64,13 @@ pub(crate) struct PlayerBundle {
     aim_direction: PlayerAimDirection,
     game_room: GameRoom,
     username: PlayerUsername,
+    health: PlayerHealth,
+    aristeia: PlayerAristeia,
 }
 
 #[cfg(feature = "server")]
 impl PlayerBundle {
-    pub(crate) fn new(id: PeerId, position: Vec2) -> Self {
+    pub(crate) fn new(id: PeerId, position: Vec2, aristeia_duration_ticks: u16) -> Self {
         let h = (((id.to_bits().wrapping_mul(30)) % 360) as f32) / 360.0;
         let color = Color::hsl(h, 0.8, 0.5);
 
@@ -53,14 +80,16 @@ impl PlayerBundle {
             color: PlayerColor(color),
             aim_direction: PlayerAimDirection::default(),
             game_room: GameRoom {
-                room: GameRooms::Pit,
+                room: GameRooms::Arena,
             },
             username: PlayerUsername(temporary_username(id.to_bits())),
+            health: PlayerHealth::new(100),
+            aristeia: PlayerAristeia::new(aristeia_duration_ticks),
         }
     }
 }
 
-#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Copy)]
 pub struct PlayerId(pub PeerId);
 
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Deref, DerefMut)]
@@ -90,10 +119,60 @@ pub struct PlayerColor(pub(crate) Color);
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Deref)]
 pub struct PlayerUsername(pub String);
 
-#[derive(Component, Clone, Copy, Debug)]
-pub(crate) struct CachedCursorAim(pub Vec2);
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PlayerHealth {
+    pub current: u32,
+    pub maximum: u32,
+}
 
-impl Default for CachedCursorAim {
+impl PlayerHealth {
+    pub const fn new(maximum: u32) -> Self {
+        Self {
+            current: maximum,
+            maximum,
+        }
+    }
+}
+
+// Used for Killstreak Tracking
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PlayerAristeia {
+    /// Current Aristeia kill count or multiplier level.
+    pub current: u32,
+
+    /// Remaining lifetime of the current Aristeia level, in fixed ticks.
+    pub remaining_ticks: u16,
+
+    /// Maximum lifetime used to calculate the UI bar fraction.
+    pub maximum_ticks: u16,
+}
+
+impl PlayerAristeia {
+    pub(crate) const fn new(duration_ticks: u16) -> Self {
+        Self {
+            current: 0,
+            remaining_ticks: 0,
+            maximum_ticks: duration_ticks,
+        }
+    }
+
+    #[allow(unused)]
+    pub fn remaining_fraction(&self) -> f32 {
+        if self.maximum_ticks == 0 {
+            return 0.0;
+        }
+
+        (self.remaining_ticks as f32 / self.maximum_ticks as f32).clamp(0.0, 1.0)
+    }
+}
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub(crate) struct PlayerVisual;
+
+#[derive(Resource, Clone, Copy, Debug)]
+pub(crate) struct LocalAimInput(pub Vec2);
+
+impl Default for LocalAimInput {
     fn default() -> Self {
         Self(Vec2::X)
     }

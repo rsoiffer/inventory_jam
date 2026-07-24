@@ -1,5 +1,5 @@
 #[cfg(feature = "server")]
-mod api;
+pub mod api;
 #[cfg(feature = "client")]
 mod client;
 mod protocol;

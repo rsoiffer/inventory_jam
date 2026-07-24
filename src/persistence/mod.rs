@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 
 #[cfg(feature = "server")]
-use crate::app::AppState;
+use crate::app::ServerState;
 #[cfg(feature = "server")]
 use crate::shared::FixedGameplaySet;
 
@@ -26,7 +26,7 @@ use systems::{
 use worker::spawn_worker;
 
 #[cfg(feature = "server")]
-const DATABASE_SERVER_URL_PATH: &str = "secrets/database-server-url.txt";
+const DATABASE_SERVER_URL_PATH: &str = "public/database-server-url.txt";
 
 #[cfg(feature = "server")]
 fn read_database_url() -> Result<String, String> {
@@ -81,7 +81,7 @@ impl Plugin for PersistenceServerPlugin {
                 FixedUpdate,
                 apply_persistence_transactions
                     .in_set(FixedGameplaySet::Persistence)
-                    .run_if(in_state(AppState::Hosting)),
+                    .run_if(in_state(ServerState::Hosting)),
             )
             .add_systems(
                 Update,
@@ -91,7 +91,7 @@ impl Plugin for PersistenceServerPlugin {
                     flush_persistence_queue,
                 )
                     .chain()
-                    .run_if(in_state(AppState::Hosting)),
+                    .run_if(in_state(ServerState::Hosting)),
             );
     }
 }

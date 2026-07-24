@@ -3,8 +3,6 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub const ENEMY_SIZE: f32 = 8.0;
-
 pub struct EnemyProtocolPlugin;
 
 impl Plugin for EnemyProtocolPlugin {
@@ -14,6 +12,7 @@ impl Plugin for EnemyProtocolPlugin {
             .add_linear_interpolation();
 
         app.component::<EnemyHealth>().replicate();
+        app.component::<EnemyKind>().replicate();
     }
 }
 
@@ -41,4 +40,10 @@ impl EnemyHealth {
             maximum,
         }
     }
+}
+
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnemyKind {
+    Regular,
+    GrandChampion,
 }

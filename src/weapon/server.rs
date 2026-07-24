@@ -1,24 +1,14 @@
 use bevy::prelude::*;
-use leafwing_input_manager::prelude::*;
+use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::*;
 
-use crate::app::AppState;
-use crate::player::{PlayerAimDirection, PlayerId, PlayerPosition};
-use crate::projectile::PlayerProjectile;
+use crate::app::ServerState;
+use crate::player::PlayerId;
 use crate::protocol::inputs::PlayerAction;
-use crate::protocol::rooms::GameRoom;
 use crate::shared::FixedGameplaySet;
-use crate::{
-    projectile::shared::{
-        self as projectile_shared, ProjectileLifetime, ProjectilePosition, ServerProjectile,
-    },
-    weapon::{
-        protocol::{EquippedWeapon, WeaponKind},
-        shared::{WeaponCooldown, weapon_stats},
-    },
-};
+use crate::weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind};
+use crate::weapon::shared::fire_equipped_weapons;
 
-/// Installs server-authoritative weapon state and firing behavior.
 #[cfg(feature = "server")]
 pub struct WeaponServerPlugin;
 
@@ -29,21 +19,16 @@ impl Plugin for WeaponServerPlugin {
             FixedUpdate,
             (
                 ensure_player_weapons,
-                ensure_weapon_cooldowns,
-                tick_weapon_cooldowns,
+                switch_player_weapons,
                 fire_equipped_weapons,
             )
                 .chain()
                 .in_set(FixedGameplaySet::Weapon)
-                .run_if(in_state(AppState::Hosting)),
+                .run_if(in_state(ServerState::Hosting)),
         );
     }
 }
 
-/// Gives every authoritative player a starter weapon.
-///
-/// Predicted host-client copies are presentation/simulation mirrors and must
-/// not receive an independently authoritative weapon.
 pub(crate) fn ensure_player_weapons(
     mut commands: Commands,
     players: Query<(Entity, Has<Predicted>), (With<PlayerId>, Without<EquippedWeapon>)>,
@@ -63,122 +48,50 @@ pub(crate) fn ensure_player_weapons(
     }
 }
 
-/// Repairs server-only cooldown state after loadouts change or components are
-/// inserted dynamically.
-pub(crate) fn ensure_weapon_cooldowns(
-    mut commands: Commands,
-    players: Query<
-        (Entity, Has<Predicted>),
+fn switch_player_weapons(
+    mut players: Query<
         (
-            With<PlayerId>,
-            With<EquippedWeapon>,
-            Without<WeaponCooldown>,
+            Has<Predicted>,
+            &ActionState<PlayerAction>,
+            &mut EquippedWeapon,
+            &mut WeaponCooldown,
         ),
+        With<PlayerId>,
     >,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
 ) {
     let is_host_server = !host_server.is_empty();
 
-    for (entity, predicted) in &players {
+    for (predicted, actions, mut equipped, mut cooldown) in &mut players {
         if is_host_server && predicted {
             continue;
         }
 
-        commands.entity(entity).insert(WeaponCooldown::default());
-    }
-}
-
-pub(crate) fn tick_weapon_cooldowns(
-    time: Res<Time>,
-    mut cooldowns: Query<(&mut WeaponCooldown, Has<Predicted>)>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
-) {
-    let is_host_server = !host_server.is_empty();
-
-    for (mut cooldown, predicted) in &mut cooldowns {
-        if is_host_server && predicted {
-            continue;
-        }
-
-        cooldown.tick(time.delta_secs());
-    }
-}
-
-/// Converts player fire input into authoritative replicated projectiles.
-///
-/// Damage, range, speed, and radius are snapshotted into the projectile when it
-/// is fired. Changing weapons afterward cannot retroactively alter an existing
-/// projectile.
-pub(crate) fn fire_equipped_weapons(
-    mut commands: Commands,
-    mut players: Query<(
-        &PlayerId,
-        &PlayerPosition,
-        &PlayerAimDirection,
-        &GameRoom,
-        &ActionState<PlayerAction>,
-        &EquippedWeapon,
-        &mut WeaponCooldown,
-        Has<Predicted>,
-    )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
-) {
-    let is_host_server = !host_server.is_empty();
-
-    for (
-        player_id,
-        player_position,
-        aim_direction,
-        room,
-        actions,
-        equipped_weapon,
-        mut cooldown,
-        predicted,
-    ) in &mut players
-    {
-        if is_host_server && predicted {
-            continue;
-        }
-
-        // `pressed` allows attack speed to control automatic repeat while the
-        // button is held. Use `just_pressed` here instead for semi-auto weapons.
-        if !actions.pressed(&PlayerAction::Fire) || !cooldown.is_ready() {
-            continue;
-        }
-
-        let direction = aim_direction.0.normalize_or_zero();
-        if direction == Vec2::ZERO {
-            continue;
-        }
-
-        let stats = weapon_stats(equipped_weapon.kind, equipped_weapon.level);
-        let spawn_position = projectile_shared::projectile_spawn_position(
-            player_position.0,
-            direction,
-            stats.projectile_radius,
-        );
-
-        let projectile = PlayerProjectile {
-            owner: player_id.0,
-            weapon: equipped_weapon.kind,
-            origin: spawn_position,
-            direction,
-            speed_per_tick: stats.projectile_speed_per_tick,
-            damage: stats.damage,
-            max_range: stats.range,
-            radius: stats.projectile_radius,
+        let requested = if actions.just_pressed(&PlayerAction::EquipSword) {
+            Some(WeaponKind::Sword)
+        } else if actions.just_pressed(&PlayerAction::EquipSpear) {
+            Some(WeaponKind::Spear)
+        } else if actions.just_pressed(&PlayerAction::EquipStaff) {
+            Some(WeaponKind::Staff)
+        } else if actions.just_pressed(&PlayerAction::EquipBow) {
+            Some(WeaponKind::Bow)
+        } else if actions.just_pressed(&PlayerAction::EquipShuriken) {
+            Some(WeaponKind::Shuriken)
+        } else if actions.just_pressed(&PlayerAction::EquipBoomerang) {
+            Some(WeaponKind::Boomerang)
+        } else {
+            None
         };
 
-        commands.spawn((
-            projectile,
-            ProjectilePosition(spawn_position),
-            ProjectileLifetime::from_projectile(&projectile),
-            ServerProjectile,
-            *room,
-            Replicate::to_clients(NetworkTarget::All),
-            Name::new("Server Projectile"),
-        ));
+        let Some(kind) = requested else {
+            continue;
+        };
 
-        cooldown.restart(stats.attacks_per_second);
+        if equipped.kind == kind {
+            continue;
+        }
+
+        equipped.kind = kind;
+        *cooldown = WeaponCooldown::default();
     }
 }

@@ -1,0 +1,89 @@
+// I've found this VSCode extension handy for quickly launching a task from the footer bar.
+// https://marketplace.visualstudio.com/items?itemName=SanaAjani.taskrunnercode
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "1. Run Host + Clients (parallel)",
+            "dependsOn": ["Run Host", "Run Client Player1", "Run Client Player2"],
+            "dependsOrder": "parallel",
+            "problemMatcher": []
+        },
+        {
+            "label": "Cargo Build",
+            "type": "cargo",
+            "command": "build",
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "just release",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--release",
+                "--no-default-features",
+                "--features",
+                "client,gui,server,netcode,udp,webtransport"
+            ],
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "Run Host",
+            "type": "cargo",
+            "command": "run",
+            "args": ["--", "--mode", "server"],
+            "env": {
+                // "RUST_LOG": "lightyear_prediction=debug"
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "group": "inventory-jam-dev",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Run Client Player1",
+            "type": "cargo",
+            "command": "run",
+            "args": ["--", "--mode", "local", "--user", "Player1"],
+            "env": {
+                // "RUST_LOG": "lightyear_prediction=debug"
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "group": "inventory-jam-dev",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Run Client Player2",
+            "type": "cargo",
+            "command": "run",
+            "args": ["--", "--mode", "local", "--user", "Player2"],
+            "env": {
+                // "RUST_LOG": "lightyear_prediction=debug"
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "group": "inventory-jam-dev",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "just dev",
+            "dependsOn": ["Cargo Build", "Run Host + Clients (parallel)"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

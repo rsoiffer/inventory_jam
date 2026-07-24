@@ -7,7 +7,6 @@ use crate::{
     weapon::protocol::{EquippedWeapon, WeaponKind},
 };
 
-/// Installs client-only held-weapon rendering.
 #[cfg(feature = "gui")]
 pub struct WeaponRenderPlugin;
 
@@ -60,8 +59,7 @@ fn sync_weapon_sprites(
         &mut Transform,
     )>,
 ) {
-    const HELD_WEAPON_OFFSET: f32 = 5.44;
-    const HELD_WEAPON_SCALE: f32 = 0.224;
+    const HELD_WEAPON_OFFSET: f32 = 34.0;
 
     for (position, aim, equipped_weapon, mut visual, mut sprite, mut transform) in &mut players {
         let direction = aim.0.normalize_or_zero();
@@ -77,15 +75,25 @@ fn sync_weapon_sprites(
         let visual_position = position.0 + direction * HELD_WEAPON_OFFSET;
         transform.translation = visual_position.extend(10.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
-        transform.scale = Vec3::splat(HELD_WEAPON_SCALE);
+        transform.scale = Vec3::splat(held_weapon_scale(equipped_weapon.kind));
     }
 }
 
 fn weapon_sprite_path(kind: WeaponKind) -> &'static str {
     match kind {
         WeaponKind::Sword => "weapon/sword/spr_icon_sword.png",
-        // Placeholder mappings until these weapon assets exist.
-        WeaponKind::Spear => "weapon/sword/spr_icon_sword.png",
-        WeaponKind::Staff => "weapon/sword/spr_icon_sword.png",
+        WeaponKind::Spear => "weapon/spear/spr_icon_spear.png",
+        WeaponKind::Staff => "weapon/staff/spr_icon_staff.png",
+        WeaponKind::Bow => "weapon/bow/spr_icon_bow.png",
+        WeaponKind::Shuriken => "weapon/shuriken/spr_icon_shuriken.png",
+        WeaponKind::Boomerang => "weapon/boomerang/spr_icon_boomerang.png",
+    }
+}
+
+fn held_weapon_scale(kind: WeaponKind) -> f32 {
+    match kind {
+        WeaponKind::Bow => 2.0,
+        WeaponKind::Boomerang => 1.2,
+        _ => 1.4,
     }
 }

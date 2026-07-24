@@ -8,11 +8,13 @@ mod projectile;
 mod protocol;
 #[cfg(feature = "server")]
 mod server;
+mod settings;
 mod shared;
 mod ui;
 mod weapon;
 mod world;
 
+use crate::settings::{GameSettings, GameSettingsLoadError};
 use app::*;
 use bevy::log::{Level, LogPlugin};
 use bevy::prelude::*;
@@ -28,10 +30,11 @@ use projectile::ProjectilePlugin;
 #[cfg(feature = "server")]
 use server::ExampleServerPlugin;
 use shared::SharedPlugin;
-use std::time::Duration;
-use ui::UiPlugin;
+use std::{process::ExitCode, time::Duration};
 use weapon::WeaponPlugin;
 use world::WorldPlugin;
+
+use crate::ui::UiPlugin;
 
 const TICK_DURATION: Duration =
     Duration::from_nanos((1_000_000_000.0 / networking::FIXED_TIMESTEP_HZ) as u64);
@@ -39,10 +42,23 @@ const TICK_DURATION: Duration =
 #[cfg(not(feature = "gui"))]
 const HEADLESS_CLIENT_LOOP_HZ: f64 = 60.0;
 
-fn main() {
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Application startup failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<(), GameSettingsLoadError> {
+    let settings = GameSettings::load("assets/game_settings.json")?;
+
     let config = config_from_env();
     let mut app = base_app();
-    app.insert_resource(config.clone())
+    app.insert_resource(settings)
+        .insert_resource(config.clone())
         .insert_resource(LocalUsername(config.username.clone()));
 
     #[cfg(feature = "server")]
@@ -55,7 +71,11 @@ fn main() {
         tick_duration: TICK_DURATION,
     });
 
-    app.insert_state(AppState::MainMenu);
+    #[cfg(feature = "client")]
+    app.init_state::<ClientState>();
+
+    #[cfg(feature = "server")]
+    app.init_state::<ServerState>();
 
     app.add_plugins((
         WorldPlugin,
@@ -69,6 +89,7 @@ fn main() {
         FragmentPlugin,
         PersistencePlugin,
     ));
+
     networking::configure_networking(&mut app);
 
     #[cfg(feature = "server")]
@@ -76,6 +97,7 @@ fn main() {
         .add_plugins(ExampleServerPlugin);
 
     app.run();
+    Ok(())
 }
 
 fn base_app() -> App {
@@ -83,6 +105,8 @@ fn base_app() -> App {
 
     #[cfg(feature = "gui")]
     {
+        use crate::shared::GAME_NAME;
+
         app.add_plugins(
             DefaultPlugins
                 .build()
@@ -90,10 +114,11 @@ fn base_app() -> App {
                     meta_check: bevy::asset::AssetMetaCheck::Never,
                     ..default()
                 })
+                .set(bevy::image::ImagePlugin::default_nearest())
                 .set(log_plugin())
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        title: env!("CARGO_PKG_NAME").into(),
+                        title: GAME_NAME.to_owned(),
                         resolution: (1024, 768).into(),
                         present_mode: PresentMode::AutoVsync,
                         prevent_default_event_handling: true,

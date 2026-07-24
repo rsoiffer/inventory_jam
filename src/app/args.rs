@@ -22,7 +22,6 @@ struct Args {
 #[derive(Clone, Copy, ValueEnum)]
 enum Mode {
     Server,
-    Host,
     Edgegap,
     Local,
 }
@@ -33,7 +32,6 @@ pub fn parse_args() -> LaunchConfig {
         username: args.user.unwrap_or_default(),
         mode: match args.mode {
             Some(Mode::Server) => LaunchMode::DedicatedServer,
-            Some(Mode::Host) => LaunchMode::HostLocal,
             Some(Mode::Edgegap) => LaunchMode::JoinEdgegap,
             Some(Mode::Local) => LaunchMode::JoinLocal,
             None => LaunchMode::Menu,

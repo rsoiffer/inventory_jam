@@ -19,6 +19,14 @@ pub enum PlayerAction {
     Interact,
     UseSkill,
 
+    EquipSword,
+    EquipSpear,
+    EquipStaff,
+    EquipBow,
+    EquipShuriken,
+    EquipBoomerang,
+
+    DebugSwitchRooms,
     TeleportRoom,
 }
 
@@ -26,22 +34,26 @@ impl PlayerAction {
     pub fn default_input_map() -> InputMap<Self> {
         let mut input_map = InputMap::default();
 
-        // Move: WASD / Arrow Keys
         input_map.insert_dual_axis(Self::Move, VirtualDPad::wasd());
         input_map.insert_dual_axis(Self::Move, VirtualDPad::arrow_keys());
 
-        // Fire
         input_map.insert(Self::Fire, KeyCode::Space);
         input_map.insert(Self::Fire, MouseButton::Left);
 
-        // Interact
         input_map.insert(Self::Interact, KeyCode::KeyE);
 
-        // Secondary skill: either Shift key
         input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
         input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
 
-        input_map.insert(Self::TeleportRoom, KeyCode::Digit5);
+        input_map.insert(Self::EquipSword, KeyCode::Digit1);
+        input_map.insert(Self::EquipSpear, KeyCode::Digit2);
+        input_map.insert(Self::EquipStaff, KeyCode::Digit3);
+        input_map.insert(Self::EquipBow, KeyCode::Digit4);
+        input_map.insert(Self::EquipShuriken, KeyCode::Digit5);
+        input_map.insert(Self::EquipBoomerang, KeyCode::Digit6);
+
+        input_map.insert(Self::DebugSwitchRooms, KeyCode::KeyR);
+        input_map.insert(Self::TeleportRoom, KeyCode::KeyT);
 
         input_map
     }

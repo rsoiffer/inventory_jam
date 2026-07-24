@@ -1,18 +1,6 @@
 use bevy::prelude::*;
 
-pub const FRAGMENT_RADIUS: f32 = 1.28;
-
-/// How long an uncollected fragment remains in the world at 60 fixed ticks/sec.
-pub const FRAGMENT_LIFETIME_TICKS: u16 = 600;
-
-/// Radius owned by the player for collecting nearby fragments.
-pub const PLAYER_COLLECTION_RADIUS: f32 = 8.0;
-
-/// Fraction of the remaining distance covered each fixed tick during pickup.
-const FRAGMENT_PULL_FRACTION_PER_TICK: f32 = 0.22;
-
-/// Sideways motion added while pulling, producing a drain-like curve.
-const FRAGMENT_SWIRL_SPEED_PER_TICK: f32 = 0.24;
+use crate::settings::FragmentSettings;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Deref, DerefMut)]
 pub struct FragmentPosition(pub Vec2);
@@ -26,12 +14,16 @@ pub struct FragmentLifetime {
 #[derive(Component)]
 pub struct ServerFragment;
 
-/// Marker for a client fragments.
+/// Marker for client fragments.
 #[derive(Component)]
 pub struct ClientFragment;
 
 /// Moves a fragment toward a player while retaining a curved, orbit-like path.
-pub fn pull_fragment_toward(position: &mut FragmentPosition, target: Vec2) {
+pub fn pull_fragment_toward(
+    position: &mut FragmentPosition,
+    target: Vec2,
+    settings: &FragmentSettings,
+) {
     let to_target = target - position.0;
     let distance = to_target.length();
 
@@ -40,10 +32,10 @@ pub fn pull_fragment_toward(position: &mut FragmentPosition, target: Vec2) {
         return;
     }
 
-    let radial_step = to_target * FRAGMENT_PULL_FRACTION_PER_TICK;
+    let radial_step = to_target * settings.pull_fraction_per_tick;
     let tangent = Vec2::new(-to_target.y, to_target.x).normalize_or_zero();
-    let swirl_scale = (distance / PLAYER_COLLECTION_RADIUS).clamp(0.0, 1.0);
-    let swirl_step = tangent * FRAGMENT_SWIRL_SPEED_PER_TICK * swirl_scale;
+    let swirl_scale = (distance / settings.player_collection_radius).clamp(0.0, 1.0);
+    let swirl_step = tangent * settings.swirl_speed_per_tick * swirl_scale;
     let step = radial_step + swirl_step;
 
     if step.length_squared() >= distance * distance {

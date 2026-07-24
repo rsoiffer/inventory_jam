@@ -1,0 +1,82 @@
+{
+  "enemy": {
+    "size": 50.0,
+    "spawn_radius": 900.0,
+    "max_health": 100,
+    "collision_radius": 25.0,
+    "limit": 1500,
+    "max_spawns_per_tick": 30,
+    "spawn_candidate_count": 32,
+    "target_per_player": 250,
+    "spawn_min_distance_from_player": 350.0,
+    "despawn_distance_from_players": 1400.0,
+    "move_speed_per_tick": 2.0,
+    "wander_radius": 180.0,
+    "detection_radius": 250.0,
+    "leash_radius": 900.0
+  },
+  "fragment": {
+    "pool_min_radius": 50.0,
+    "pool_max_radius": 200.0,
+    "radius": 8.0,
+    "lifetime_ticks": 600,
+    "player_collection_radius": 50.0,
+    "pull_fraction_per_tick": 0.22,
+    "swirl_speed_per_tick": 1.5,
+    "base_drop_count": 8,
+    "bonus_drops_per_aristeia": 2,
+    "maximum_drop_count": 40
+  },
+  "player": {
+    "camera_decay_rate": 5.0,
+    "username_label_offset": [0.0, 40.0, 10.0],
+    "aim_stick_length": 32.0,
+    "aim_visual_smooth_rate": 35.0,
+    "health_bar_width": 50.0,
+    "health_bar_height": 5.0,
+    "health_bar_offset_y": 34.0,
+    "spawn_attempts": 64,
+    "enemy_contact_damage": 10,
+    "enemy_contact_damage_interval_seconds": 0.5,
+    "half_size": 25.0,
+    "collision_radius": 25.0,
+    "move_speed": 10.0,
+    "held_weapon_offset": 34.0,
+    "aristeia_duration_ticks": 600,
+    "aristeia_bar_width": 240.0,
+    "aristeia_bar_height": 18.0
+  },
+  "world": {
+    "tile_pixel_size": 50.0,
+    "arena_width_in_tiles": 1024,
+    "arena_height_in_tiles": 1024,
+    "safezone_width_in_tiles": 128,
+    "safezone_height_in_tiles": 128,
+    "stream_half_width": 28,
+    "stream_half_height": 20,
+    "arena_floor_tiles": [35, 36, 37, 43, 44, 45, 51, 52, 53],
+    "world_radius": 15000.0
+  },
+  "server_camera": {
+    "zoom_speed": 1.8,
+    "min_scale": 0.05,
+    "max_scale": 100.0,
+    "pan_speed_in_screen_heights": 0.8
+  },
+  "projectile": { "impact_lifetime_ticks": 12, "spawn_gap": 2.0 },
+  "menu": {
+    "normal_button": [0.18, 0.2, 0.24],
+    "hovered_button": [0.28, 0.32, 0.38],
+    "pressed_button": [0.12, 0.55, 0.35]
+  },
+  "global_aristeia": {
+    "threshold": 1000,
+    "contribution_per_kill": 5,
+    "drain_interval_ticks": 120,
+    "drain_amount": 1,
+    "grand_champion_health": 5000,
+    "grand_champion_move_speed_per_tick": 1.5,
+    "grand_champion_detection_radius": 5000.0,
+    "grand_champion_leash_radius": 10000.0
+  }
+}
