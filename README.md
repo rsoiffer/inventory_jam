@@ -143,8 +143,7 @@ Then run:
 Flow:
 
 1. `trunk build --release`
-2. Package `dist` as `inventory_jam_wasm.zip`
-3. `butler push` to `dragonaxegaming/inventory-jam-rust-mmo:web`
+2. `butler push dist` to `dragonaxegaming/inventory-jam-rust-mmo:web`
 
 Flags: `-SkipBuild`, `-Version <label>`, `-Channel <channel>`, `-Project <user/game>`. Use `-SkipBuild` only when `dist` is already up to date.
 

@@ -9,8 +9,6 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $DistDir = Join-Path $RepoRoot "dist"
-$ZipName = "inventory_jam_wasm.zip"
-$ZipPath = Join-Path $RepoRoot $ZipName
 $Target = "${Project}:${Channel}"
 
 function Invoke-NativeChecked {
@@ -47,21 +45,14 @@ try {
         throw "dist directory was not found at $DistDir. Build the web release first or omit -SkipBuild."
     }
 
-    if (Test-Path $ZipPath) {
-        Remove-Item -Force $ZipPath
-    }
-
-    Write-Host "Packaging $ZipName from dist..."
-    Compress-Archive -Path (Join-Path $DistDir "*") -DestinationPath $ZipPath
-
-    $ButlerArgs = @("push", $ZipPath, $Target)
+    $ButlerArgs = @("push", $DistDir, $Target)
     if (-not [string]::IsNullOrWhiteSpace($Version)) {
         $ButlerArgs += @("--userversion", $Version)
     }
 
-    Write-Host "Uploading to $Target with butler..."
+    Write-Host "Uploading dist/ to $Target with butler..."
     Invoke-NativeChecked -Command "butler" -Arguments $ButlerArgs
-    Write-Host "Deployed $ZipName to $Target"
+    Write-Host "Deployed dist/ to $Target"
 }
 finally {
     Pop-Location
