@@ -128,6 +128,7 @@ fn base_app() -> App {
                         resolution: (1024, 768).into(),
                         present_mode: PresentMode::AutoVsync,
                         prevent_default_event_handling: true,
+                        fit_canvas_to_parent: true,
                         ..default()
                     }),
                     ..default()

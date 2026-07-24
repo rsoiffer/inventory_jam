@@ -4630,6 +4630,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "uuid",
+ "virtual_joystick",
  "wasm-bindgen",
  "web-sys",
  "webbrowser",
@@ -9102,6 +9103,17 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "virtual_joystick"
+version = "2.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce37337642964c07d2e639c60dfda4b80625ea62dc935380fb078bf03961dfae"
+dependencies = [
+ "bevy",
+ "serde",
+ "variadics_please 2.0.0",
+]
 
 [[package]]
 name = "voracious_radix_sort"

@@ -403,8 +403,13 @@ fn sample_cursor_aim(
     window: Single<&Window, With<PrimaryWindow>>,
     camera: Single<(&Camera, &GlobalTransform), With<Camera2d>>,
     predicted_player: Single<&PlayerPosition, With<Predicted>>,
+    touch_controls: Option<Res<crate::ui::TouchControlsEnabled>>,
     mut local_aim: ResMut<LocalAimInput>,
 ) {
+    if touch_controls.is_some_and(|enabled| enabled.0) {
+        return;
+    }
+
     let Some(cursor_position) = window.cursor_position() else {
         return;
     };

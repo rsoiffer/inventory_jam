@@ -1,5 +1,6 @@
 use crate::app::{ClientState, ServerState};
 use crate::settings::GameSettings;
+use crate::ui::TouchControlsEnabled;
 use bevy::prelude::*;
 
 #[derive(Clone)]
@@ -27,11 +28,19 @@ fn init(mut commands: Commands, settings: Res<GameSettings>) {
 #[derive(Component)]
 struct InstructionsText;
 
-fn setup_instructions(mut commands: Commands) {
-    #[cfg(feature = "dev")]
-    let text = "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit\nShift spawns a debug fragment pool";
-    #[cfg(not(feature = "dev"))]
-    let text = "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit";
+fn setup_instructions(mut commands: Commands, touch_controls: Res<TouchControlsEnabled>) {
+    let text = if touch_controls.0 {
+        "Move with the left joystick\nAuto-fires at the nearest enemy in range\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit"
+    } else {
+        #[cfg(feature = "dev")]
+        {
+            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit\nShift spawns a debug fragment pool"
+        }
+        #[cfg(not(feature = "dev"))]
+        {
+            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit"
+        }
+    };
 
     commands.spawn((
         InstructionsText,
@@ -45,6 +54,7 @@ fn setup_instructions(mut commands: Commands) {
         },
     ));
 }
+
 fn server_instructions(mut commands: Commands) {
     commands.spawn((
         InstructionsText,

@@ -22,6 +22,7 @@ pub(crate) struct GameSettings {
     pub weapon_stations: WeaponStationsSettings,
     pub progression: ProgressionSettings,
     pub menu: MenuSettings,
+    pub mobile_controls: MobileControlsSettings,
     pub global_aristeia: GlobalAristeiaSettings,
 }
 
@@ -287,6 +288,14 @@ pub struct MenuSettings {
     pub pressed_button: Color,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct MobileControlsSettings {
+    pub joystick_size: f32,
+    pub knob_size: f32,
+    pub screen_inset: f32,
+    pub movement_dead_zone: f32,
+}
+
 impl GameSettings {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, GameSettingsLoadError> {
         let path = path.as_ref();
@@ -449,6 +458,16 @@ impl GameSettings {
         if self.weapon_stations.trigger_radius <= 0.0 {
             return Err(GameSettingsLoadError::Invalid(
                 "weapon station trigger radius must be greater than zero".into(),
+            ));
+        }
+        if self.mobile_controls.joystick_size <= 0.0
+            || self.mobile_controls.knob_size <= 0.0
+            || self.mobile_controls.knob_size > self.mobile_controls.joystick_size
+            || self.mobile_controls.screen_inset < 0.0
+            || !(0.0..1.0).contains(&self.mobile_controls.movement_dead_zone)
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "mobile controls joystick_size, knob_size, screen_inset, and movement_dead_zone are invalid".into(),
             ));
         }
         for station in &self.weapon_stations.stations {

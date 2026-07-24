@@ -125,3 +125,33 @@ Firefox currently needs a local `xwt-web` patch that avoids BYOB readers for Web
 [MOZGIII/xwt issue 156](https://github.com/MOZGIII/xwt/issues/156).
 
 Native and wasm clients use the same async Edgegap discovery path before connecting.
+
+## Deploy to itch.io
+
+Publish the browser build with [Butler](https://itchio.itch.io/butler):
+
+1. Install Butler and put it on your `PATH`
+2. Authenticate once: `butler login`
+3. Install `trunk` if you have not already
+
+Then run:
+
+```powershell
+.\scripts\deploy-itch.ps1
+```
+
+Flow:
+
+1. `trunk build --release`
+2. Package `dist` as `inventory_jam_wasm.zip`
+3. `butler push` to `dragonaxegaming/inventory-jam-rust-mmo:web`
+
+Flags: `-SkipBuild`, `-Version <label>`, `-Channel <channel>`, `-Project <user/game>`. Use `-SkipBuild` only when `dist` is already up to date.
+
+### Deploy Edgegap + itch together
+
+Run Edgegap, then itch:
+
+```powershell
+.\scripts\deploy-all.ps1
+```

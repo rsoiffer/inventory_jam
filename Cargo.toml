@@ -96,6 +96,7 @@ bevy = { version = "0.19", default-features = false, features = [
 bevy_kira_audio = { version = "0.26" }
 bevy_asset_loader = { version = "0.27" }
 rand = { version = "0.9" }
+virtual_joystick = "2.8.0"
 webbrowser = { version = "1", features = ["hardened"] }
 
 winit = { version = "0.30", default-features = false }
@@ -137,7 +138,7 @@ getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
 getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Location", "Window"] }
+web-sys = { version = "0.3", features = ["Location", "Window", "Navigator", "MediaQueryList"] }
 
 [patch.crates-io]
 xwt-web = { path = "vendor/xwt-web" }

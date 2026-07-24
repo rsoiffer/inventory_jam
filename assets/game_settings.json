@@ -348,6 +348,12 @@
       0.35
     ]
   },
+  "mobile_controls": {
+    "joystick_size": 140.0,
+    "knob_size": 70.0,
+    "screen_inset": 24.0,
+    "movement_dead_zone": 0.15
+  },
   "global_aristeia": {
     "threshold": 1000,
     "contribution_per_kill": 5,
