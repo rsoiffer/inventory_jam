@@ -294,7 +294,10 @@ fn apply_teleport_room_commands(
                 GameRooms::Arena => GameRooms::Safezone,
                 GameRooms::Safezone => GameRooms::Arena,
             };
-            position.0 = random_position_in_room(*room, &settings, &mut rng);
+            position.0 = match room.room {
+                GameRooms::Arena => random_position_in_room(*room, &settings, &mut rng),
+                GameRooms::Safezone => settings.world.safezone_bounds().center(),
+            };
         }
     }
 }
