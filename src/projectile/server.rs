@@ -67,9 +67,11 @@ pub fn simulate_server_projectiles(
     mut aristeia_tracking: MessageWriter<AddKillsToAristeia>,
     mut global_aristeia: MessageWriter<AddGlobalAristeia>,
     settings: Res<GameSettings>,
+    time: Res<Time>,
 ) {
+    let delta_secs = time.delta_secs();
     for (projectile_entity, projectile, mut position, room) in &mut projectiles {
-        move_projectile(&mut position, projectile);
+        move_projectile(&mut position, projectile, delta_secs);
 
         if get_hit_player(&mut players, projectile, &position, room, &settings).is_some() {
             spawn_projectile_impact(
@@ -137,6 +139,7 @@ fn spawn_projectile_impact(
     commands.spawn((
         ProjectileImpact {
             position: position.0,
+            direction: projectile.direction,
             weapon: projectile.weapon,
             damage: projectile.damage,
         },

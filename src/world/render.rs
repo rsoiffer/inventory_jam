@@ -251,8 +251,6 @@ fn spawn_world_tile(
     world_position: Vec2,
     settings: &GameSettings,
 ) -> Entity {
-    let scale = settings.world.tile_pixel_size / 16.0;
-
     let index = arena_floor_index(key.x, key.y, &settings.world.arena_floor_tiles);
     commands
         .spawn((
@@ -266,7 +264,6 @@ fn spawn_world_tile(
             ),
             Transform {
                 translation: world_position.extend(0.0),
-                scale: Vec3::splat(scale),
                 ..default()
             },
             Name::new("Arena Floor Tile"),
@@ -370,7 +367,6 @@ fn spawn_pit_tile(
         ),
         Transform {
             translation: (origin + Vec2::new(x as f32 + 0.5, y as f32 + 0.5) * tile_size).extend(z),
-            scale: Vec3::splat(tile_size / 16.0),
             ..default()
         },
     ));

@@ -27,7 +27,7 @@ pub struct PlayerProjectile {
     pub weapon: WeaponKind,
     pub origin: Vec2,
     pub direction: Vec2,
-    pub speed_per_tick: f32,
+    pub speed: f32,
     pub damage: u32,
     pub max_range: f32,
     pub radius: f32,
@@ -41,6 +41,7 @@ pub struct PlayerProjectile {
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct ProjectileImpact {
     pub position: Vec2,
+    pub direction: Vec2,
     pub weapon: WeaponKind,
     pub damage: u32,
 }
@@ -64,7 +65,8 @@ pub struct ProjectileLifetime {
 }
 
 impl ProjectileLifetime {
-    pub fn new(current_tick: &Tick, max_range: f32, speed_per_tick: f32) -> Self {
+    pub fn new(current_tick: &Tick, max_range: f32, speed: f32, tick_duration_secs: f32) -> Self {
+        let speed_per_tick = speed * tick_duration_secs.max(0.001);
         let travel_ticks = (max_range / speed_per_tick.max(0.001)).ceil() as u32;
 
         Self {

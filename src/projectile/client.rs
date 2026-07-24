@@ -37,9 +37,11 @@ fn simulate_predicted_projectiles(
     >,
     local_timeline: Res<LocalTimeline>,
     settings: Res<GameSettings>,
+    time: Res<Time>,
 ) {
+    let delta_secs = time.delta_secs();
     for (entity, projectile, mut position, room) in &mut projectiles {
-        move_projectile(&mut position, projectile);
+        move_projectile(&mut position, projectile, delta_secs);
         check_projectile_range(
             &mut commands,
             &local_timeline,

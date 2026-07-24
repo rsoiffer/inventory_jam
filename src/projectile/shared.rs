@@ -58,8 +58,12 @@ pub fn projectile_spawn_position(
                 + settings.projectile.spawn_gap)
 }
 
-pub fn move_projectile(position: &mut ProjectilePosition, projectile: &PlayerProjectile) {
-    position.0 += projectile.direction.normalize_or_zero() * projectile.speed_per_tick;
+pub fn move_projectile(
+    position: &mut ProjectilePosition,
+    projectile: &PlayerProjectile,
+    delta_secs: f32,
+) {
+    position.0 += projectile.direction.normalize_or_zero() * projectile.speed * delta_secs;
 }
 
 pub fn projectile_reached_max_range(

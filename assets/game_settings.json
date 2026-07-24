@@ -85,6 +85,68 @@
     "impact_lifetime_ticks": 12,
     "spawn_gap": 0.32
   },
+  "weapons": {
+    "sword": {
+      "damage": 20,
+      "damage_per_level": 4,
+      "range": 96.0,
+      "range_per_level": 1.92,
+      "attacks_per_second": 2.5,
+      "attacks_per_second_per_level": 0.08,
+      "projectile_speed": 160.0,
+      "projectile_radius": 16.0
+    },
+    "spear": {
+      "damage": 32,
+      "damage_per_level": 6,
+      "range": 160.0,
+      "range_per_level": 2.56,
+      "attacks_per_second": 1.5,
+      "attacks_per_second_per_level": 0.05,
+      "projectile_speed": 225.28,
+      "projectile_radius": 8.0
+    },
+    "staff": {
+      "damage": 16,
+      "damage_per_level": 3,
+      "range": 320.0,
+      "range_per_level": 2.24,
+      "attacks_per_second": 3.2,
+      "attacks_per_second_per_level": 0.1,
+      "projectile_speed": 163.84,
+      "projectile_radius": 8.0
+    },
+    "bow": {
+      "damage": 28,
+      "damage_per_level": 5,
+      "range": 320.0,
+      "range_per_level": 2.88,
+      "attacks_per_second": 1.8,
+      "attacks_per_second_per_level": 0.06,
+      "projectile_speed": 245.76,
+      "projectile_radius": 8.0
+    },
+    "shuriken": {
+      "damage": 12,
+      "damage_per_level": 2,
+      "range": 240.0,
+      "range_per_level": 1.92,
+      "attacks_per_second": 4.0,
+      "attacks_per_second_per_level": 0.12,
+      "projectile_speed": 194.56,
+      "projectile_radius": 8.0
+    },
+    "boomerang": {
+      "damage": 24,
+      "damage_per_level": 4,
+      "range": 240.0,
+      "range_per_level": 2.4,
+      "attacks_per_second": 1.6,
+      "attacks_per_second_per_level": 0.05,
+      "projectile_speed": 153.6,
+      "projectile_radius": 8.0
+    }
+  },
   "menu": {
     "normal_button": [
       0.18,

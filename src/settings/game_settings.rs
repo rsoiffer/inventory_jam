@@ -14,6 +14,7 @@ pub(crate) struct GameSettings {
     pub world: WorldSettings,
     pub server_camera: ServerCameraSettings,
     pub projectile: ProjectileSettings,
+    pub weapons: WeaponsSettings,
     pub menu: MenuSettings,
     pub global_aristeia: GlobalAristeiaSettings,
 }
@@ -133,6 +134,39 @@ pub struct ServerCameraSettings {
 pub struct ProjectileSettings {
     pub impact_lifetime_ticks: u16,
     pub spawn_gap: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WeaponsSettings {
+    pub sword: WeaponKindSettings,
+    pub spear: WeaponKindSettings,
+    pub staff: WeaponKindSettings,
+    pub bow: WeaponKindSettings,
+    pub shuriken: WeaponKindSettings,
+    pub boomerang: WeaponKindSettings,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WeaponKindSettings {
+    pub damage: u32,
+    pub damage_per_level: u32,
+    pub range: f32,
+    pub range_per_level: f32,
+    pub attacks_per_second: f32,
+    pub attacks_per_second_per_level: f32,
+    pub projectile_speed: f32,
+    pub projectile_radius: f32,
+}
+
+impl WeaponKindSettings {
+    fn is_valid(&self) -> bool {
+        self.range > 0.0
+            && self.range_per_level >= 0.0
+            && self.attacks_per_second > 0.0
+            && self.attacks_per_second_per_level >= 0.0
+            && self.projectile_speed > 0.0
+            && self.projectile_radius >= 0.0
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -259,6 +293,20 @@ impl GameSettings {
             return Err(GameSettingsLoadError::Invalid(
                 "server camera scale range is invalid".into(),
             ));
+        }
+        for weapon in [
+            &self.weapons.sword,
+            &self.weapons.spear,
+            &self.weapons.staff,
+            &self.weapons.bow,
+            &self.weapons.shuriken,
+            &self.weapons.boomerang,
+        ] {
+            if !weapon.is_valid() {
+                return Err(GameSettingsLoadError::Invalid(
+                    "weapon settings are invalid".into(),
+                ));
+            }
         }
         Ok(())
     }

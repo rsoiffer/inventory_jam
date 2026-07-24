@@ -6,7 +6,6 @@ use bevy::sprite::Anchor;
 
 const ENEMY_SPRITE_Z: f32 = 6.0;
 const SPAWNER_SPRITE_Z: f32 = 4.0;
-const ENEMY_ART_PIXELS_PER_TILE: f32 = 16.0;
 const SPAWNER_FRAME_PIXELS: UVec2 = UVec2::new(48, 32);
 const IDLE_FRAME_SECONDS: f32 = 0.12;
 const FACING_MOVE_THRESHOLD: f32 = 0.01;
@@ -109,11 +108,8 @@ fn load_enemy_visual_assets(
 fn ensure_enemy_sprites(
     mut commands: Commands,
     assets: Res<EnemyVisualAssets>,
-    settings: Res<GameSettings>,
     enemies: Query<(Entity, &EnemyKind), (With<EnemyPosition>, Without<EnemySpriteVisual>)>,
 ) {
-    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
-
     for (entity, kind) in &enemies {
         let sheet = match kind {
             EnemyKind::Regular => &assets.regular,
@@ -131,7 +127,6 @@ fn ensure_enemy_sprites(
             Anchor::BOTTOM_CENTER,
             Transform {
                 translation: Vec3::new(0.0, 0.0, ENEMY_SPRITE_Z),
-                scale: Vec3::splat(scale),
                 ..default()
             },
             EnemySpriteVisual {
@@ -147,7 +142,6 @@ fn ensure_enemy_sprites(
 }
 
 fn sync_enemy_sprites(
-    settings: Res<GameSettings>,
     mut enemies: Query<(
         &EnemyPosition,
         &mut EnemySpriteVisual,
@@ -155,8 +149,6 @@ fn sync_enemy_sprites(
         &mut Transform,
     )>,
 ) {
-    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
-
     for (position, mut visual, mut sprite, mut transform) in &mut enemies {
         if let Some(previous) = visual.previous_position {
             let delta_x = position.0.x - previous.x;
@@ -167,7 +159,7 @@ fn sync_enemy_sprites(
 
         visual.previous_position = Some(position.0);
         transform.translation = position.0.extend(ENEMY_SPRITE_Z);
-        transform.scale = Vec3::splat(scale);
+        transform.scale = Vec3::ONE;
     }
 }
 
@@ -191,10 +183,8 @@ fn animate_enemy_sprites(
 fn ensure_spawner_sprites(
     mut commands: Commands,
     assets: Res<EnemyVisualAssets>,
-    settings: Res<GameSettings>,
     spawners: Query<Entity, (With<EnemySpawnerPosition>, Without<SpawnerSpriteVisual>)>,
 ) {
-    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
     let sheet = &assets.spawner;
 
     for entity in &spawners {
@@ -209,7 +199,6 @@ fn ensure_spawner_sprites(
             Anchor::CENTER,
             Transform {
                 translation: Vec3::new(0.0, 0.0, SPAWNER_SPRITE_Z),
-                scale: Vec3::splat(scale),
                 ..default()
             },
             SpawnerSpriteVisual {
@@ -224,13 +213,11 @@ fn ensure_spawner_sprites(
 }
 
 fn sync_spawner_sprites(
-    settings: Res<GameSettings>,
     mut spawners: Query<(&EnemySpawnerPosition, &mut Transform), With<SpawnerSpriteVisual>>,
 ) {
-    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
     for (position, mut transform) in &mut spawners {
         transform.translation = position.0.extend(SPAWNER_SPRITE_Z);
-        transform.scale = Vec3::splat(scale);
+        transform.scale = Vec3::ONE;
     }
 }
 

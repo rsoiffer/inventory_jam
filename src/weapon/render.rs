@@ -75,7 +75,7 @@ fn sync_weapon_sprites(
         let visual_position = position.0 + direction * settings.player.held_weapon_offset;
         transform.translation = visual_position.extend(10.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
-        transform.scale = Vec3::splat(held_weapon_scale(equipped_weapon.kind));
+        transform.scale = Vec3::ONE;
     }
 }
 
@@ -87,13 +87,5 @@ fn weapon_sprite_path(kind: WeaponKind) -> &'static str {
         WeaponKind::Bow => "weapon/bow/spr_icon_bow.png",
         WeaponKind::Shuriken => "weapon/shuriken/spr_icon_shuriken.png",
         WeaponKind::Boomerang => "weapon/boomerang/spr_icon_boomerang.png",
-    }
-}
-
-fn held_weapon_scale(kind: WeaponKind) -> f32 {
-    match kind {
-        WeaponKind::Bow => 0.32,
-        WeaponKind::Boomerang => 0.192,
-        _ => 0.224,
     }
 }

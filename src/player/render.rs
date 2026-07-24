@@ -26,7 +26,6 @@ use bevy::window::PrimaryWindow;
 use lightyear::prediction::Predicted;
 
 const PLAYER_SPRITE_Z: f32 = 5.0;
-const PLAYER_ART_PIXELS_PER_TILE: f32 = 16.0;
 const PLAYER_IDLE_FRAME_COUNT: usize = 2;
 const PLAYER_IDLE_FRAME_SECONDS: f32 = 0.12;
 const FACING_MOVE_THRESHOLD: f32 = 0.01;
@@ -144,12 +143,9 @@ fn load_player_visual_assets(
 fn ensure_player_sprites(
     mut commands: Commands,
     assets: Res<PlayerVisualAssets>,
-    settings: Res<GameSettings>,
     players: Query<Entity, With<PlayerVisual>>,
     bodies: Query<&PlayerBodySprite>,
 ) {
-    let scale = settings.world.tile_pixel_size / PLAYER_ART_PIXELS_PER_TILE;
-
     for player in &players {
         if bodies.iter().any(|body| body.player == player) {
             continue;
@@ -170,7 +166,6 @@ fn ensure_player_sprites(
             Anchor::CENTER,
             Transform {
                 translation: Vec3::new(0.0, 0.0, PLAYER_SPRITE_Z),
-                scale: Vec3::splat(scale),
                 ..default()
             },
             PlayerSpriteAnimation {
@@ -182,13 +177,10 @@ fn ensure_player_sprites(
 }
 
 fn sync_player_sprites(
-    settings: Res<GameSettings>,
     players: Query<&PlayerPosition, With<PlayerVisual>>,
     mut bodies: Query<(Entity, &mut PlayerBodySprite, &mut Sprite, &mut Transform)>,
     mut commands: Commands,
 ) {
-    let scale = settings.world.tile_pixel_size / PLAYER_ART_PIXELS_PER_TILE;
-
     for (body_entity, mut body, mut sprite, mut transform) in &mut bodies {
         let Ok(position) = players.get(body.player) else {
             commands.entity(body_entity).despawn();
@@ -204,7 +196,7 @@ fn sync_player_sprites(
 
         body.previous_position = Some(position.0);
         transform.translation = position.0.extend(PLAYER_SPRITE_Z);
-        transform.scale = Vec3::splat(scale);
+        transform.scale = Vec3::ONE;
     }
 }
 

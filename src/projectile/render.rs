@@ -31,7 +31,6 @@ struct AnimatedVisualAsset {
     layout: Handle<TextureAtlasLayout>,
     frame_count: usize,
     frame_seconds: f32,
-    scale: f32,
 }
 
 #[derive(Resource)]
@@ -153,84 +152,72 @@ fn load_projectile_visual_assets(
             layout: sword_projectile_layout,
             frame_count: 4,
             frame_seconds: 0.08,
-            scale: 0.104,
         },
         sword_impact: AnimatedVisualAsset {
             image: asset_server.load("weapon/sword/spr_vfx_impact_sword.png"),
             layout: sword_impact_layout,
             frame_count: 6,
             frame_seconds: 0.06,
-            scale: 0.136,
         },
         spear_projectile: AnimatedVisualAsset {
             image: asset_server.load("weapon/spear/spr_vfx_projectile_spear.png"),
             layout: spear_projectile_layout,
             frame_count: 6,
             frame_seconds: 0.06,
-            scale: 0.16,
         },
         spear_impact: AnimatedVisualAsset {
             image: asset_server.load("weapon/spear/spr_vfx_impact_spear.png"),
             layout: spear_impact_layout,
             frame_count: 6,
             frame_seconds: 0.05,
-            scale: 0.16,
         },
         staff_projectile: AnimatedVisualAsset {
             image: asset_server.load("weapon/staff/spr_vfx_projectile_staff.png"),
             layout: staff_projectile_layout,
             frame_count: 8,
             frame_seconds: 0.06,
-            scale: 0.12,
         },
         staff_impact: AnimatedVisualAsset {
             image: asset_server.load("weapon/staff/spr_vfx_impact_staff.png"),
             layout: staff_impact_layout,
             frame_count: 7,
             frame_seconds: 0.05,
-            scale: 0.096,
         },
         bow_projectile: AnimatedVisualAsset {
             image: asset_server.load("weapon/bow/spr_vfx_projectile_arrow.png"),
             layout: bow_projectile_layout,
             frame_count: 6,
             frame_seconds: 0.07,
-            scale: 0.176,
         },
         bow_impact: AnimatedVisualAsset {
             image: asset_server.load("weapon/bow/spr_vfx_impact_arrow.png"),
             layout: bow_impact_layout,
             frame_count: 7,
             frame_seconds: 0.05,
-            scale: 0.192,
         },
         shuriken_projectile: AnimatedVisualAsset {
             image: asset_server.load("weapon/shuriken/spr_vfx_projectile_shuriken.png"),
             layout: shuriken_projectile_layout,
             frame_count: 5,
             frame_seconds: 0.05,
-            scale: 0.224,
         },
         shuriken_impact: AnimatedVisualAsset {
             image: asset_server.load("weapon/shuriken/spr_vfx_impact_shuriken.png"),
             layout: shuriken_impact_layout,
             frame_count: 5,
             frame_seconds: 0.04,
-            scale: 0.32,
         },
         boomerang_projectile: AnimatedVisualAsset {
             image: asset_server.load("weapon/boomerang/spr_vfx_projectile_boomerang.png"),
             layout: boomerang_projectile_layout,
             frame_count: 16,
             frame_seconds: 0.04,
-            scale: 0.16,
         },
         boomerang_impact: AnimatedVisualAsset {
             image: asset_server.load("weapon/boomerang/spr_vfx_part_boomerang_trail.png"),
             layout: boomerang_impact_layout,
             frame_count: 11,
             frame_seconds: 0.035,
-            scale: 0.32,
         },
     });
 }
@@ -260,22 +247,20 @@ fn ensure_projectile_sprites(
             Transform {
                 translation: position.0.extend(8.0),
                 rotation: Quat::from_rotation_z(direction.y.atan2(direction.x)),
-                scale: Vec3::splat(visual.scale),
+                ..default()
             },
         ));
     }
 }
 
 fn sync_projectile_sprites(
-    assets: Res<ProjectileVisualAssets>,
     mut projectiles: Query<(&ProjectilePosition, &PlayerProjectile, &mut Transform)>,
 ) {
     for (position, projectile, mut transform) in &mut projectiles {
-        let visual = projectile_assets(projectile.weapon, &assets);
         let direction = projectile.direction.normalize_or_zero();
         transform.translation = position.0.extend(8.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
-        transform.scale = Vec3::splat(visual.scale);
+        transform.scale = Vec3::ONE;
     }
 }
 
@@ -286,6 +271,7 @@ fn ensure_impact_sprites(
 ) {
     for (entity, impact) in &impacts {
         let visual = impact_assets(impact.weapon, &assets);
+        let direction = impact.direction.normalize_or_zero();
 
         commands.entity(entity).insert((
             Sprite::from_atlas_image(
@@ -297,7 +283,7 @@ fn ensure_impact_sprites(
             ),
             Transform {
                 translation: impact.position.extend(9.0),
-                scale: Vec3::splat(visual.scale),
+                rotation: Quat::from_rotation_z(direction.y.atan2(direction.x)),
                 ..default()
             },
             SpriteAnimation {
@@ -309,14 +295,12 @@ fn ensure_impact_sprites(
     }
 }
 
-fn sync_impact_sprites(
-    assets: Res<ProjectileVisualAssets>,
-    mut impacts: Query<(&ProjectileImpact, &mut Transform)>,
-) {
+fn sync_impact_sprites(mut impacts: Query<(&ProjectileImpact, &mut Transform)>) {
     for (impact, mut transform) in &mut impacts {
-        let visual = impact_assets(impact.weapon, &assets);
+        let direction = impact.direction.normalize_or_zero();
         transform.translation = impact.position.extend(9.0);
-        transform.scale = Vec3::splat(visual.scale);
+        transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
+        transform.scale = Vec3::ONE;
     }
 }
 
