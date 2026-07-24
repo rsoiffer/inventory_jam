@@ -16,10 +16,11 @@ use bevy::ecs::query::Without;
 use bevy::image::Image;
 use bevy::math::{StableInterpolate, UVec2, Vec2, Vec3};
 use bevy::prelude::{
-    BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize, GlobalTransform,
-    IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res, ResMut, Resource, Single,
-    Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas, TextureAtlasLayout, Time, Timer,
-    TimerMode, Transform, UiRect, Val, Window, With, default, in_state,
+    AlignItems, BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize,
+    GlobalTransform, IntoScheduleConfigs, JustifyContent, Node, OnEnter, OnExit, PositionType,
+    Query, Res, ResMut, Resource, Single, Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas,
+    TextureAtlasLayout, Time, Timer, TimerMode, Transform, UiRect, Val, Window, With, default,
+    in_state,
 };
 use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
@@ -39,7 +40,10 @@ impl Plugin for PlayerRenderPlugin {
         app.add_systems(Startup, load_player_visual_assets);
         app.add_systems(OnEnter(ClientState::Playing), spawn_aristeia_ui);
 
-        app.add_systems(OnExit(ClientState::Playing), despawn_aristeia_ui);
+        app.add_systems(
+            OnExit(ClientState::Playing),
+            (despawn_aristeia_ui, despawn_death_overlay),
+        );
 
         app.add_systems(
             Update,
@@ -57,7 +61,7 @@ impl Plugin for PlayerRenderPlugin {
 
         app.add_systems(
             Update,
-            update_aristeia_ui.run_if(in_state(ClientState::Playing)),
+            (update_aristeia_ui, sync_death_overlay).run_if(in_state(ClientState::Playing)),
         );
 
         app.add_systems(
@@ -123,6 +127,9 @@ struct GlobalAristeiaValueText;
 
 #[derive(Component)]
 struct GlobalAristeiaBarFill;
+
+#[derive(Component)]
+struct DeathOverlayRoot;
 
 fn load_player_visual_assets(
     mut commands: Commands,
@@ -617,5 +624,55 @@ fn update_aristeia_ui(
     } else {
         global_text.0 = "GLOBAL ARISTEIA 0 / 0".to_string();
         global_bar.width = Val::Percent(0.0);
+    }
+}
+
+fn sync_death_overlay(
+    mut commands: Commands,
+    local_player: Query<&PlayerHealth, With<Predicted>>,
+    existing: Query<Entity, With<DeathOverlayRoot>>,
+) {
+    let is_dead = local_player.iter().any(|health| health.current == 0);
+
+    if is_dead {
+        if !existing.is_empty() {
+            return;
+        }
+
+        commands
+            .spawn((
+                DeathOverlayRoot,
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Px(0.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.05, 0.02, 0.02, 0.72)),
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Text::new("You died"),
+                    TextFont {
+                        font_size: FontSize::Px(56.0),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.95, 0.3, 0.28)),
+                ));
+            });
+    } else {
+        for entity in &existing {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn despawn_death_overlay(mut commands: Commands, roots: Query<Entity, With<DeathOverlayRoot>>) {
+    for root in &roots {
+        commands.entity(root).despawn();
     }
 }

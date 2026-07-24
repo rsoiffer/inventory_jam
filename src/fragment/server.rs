@@ -3,22 +3,27 @@ use crate::fragment::api::SpawnFragmentPool;
 use crate::fragment::{
     protocol::Fragment,
     shared::{
-        self as fragment_shared, FragmentLifetime, FragmentMagnetAge, FragmentPosition, ServerFragment,
+        self as fragment_shared, FragmentLifetime, FragmentMagnetAge, FragmentPosition,
+        ServerFragment,
     },
 };
 use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
 use crate::player::{PlayerId, PlayerPosition, PlayerUsername};
+#[cfg(feature = "dev")]
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::GameRoom;
 use crate::settings::GameSettings;
 use crate::shared::FixedGameplaySet;
 use bevy::prelude::*;
+#[cfg(feature = "dev")]
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 use lightyear::{core::tick::TickDuration, prediction::Predicted};
 use rand::Rng;
 
+#[cfg(feature = "dev")]
 const MIN_FRAGMENTS_PER_DEBUG_POOL: u32 = 50;
+#[cfg(feature = "dev")]
 const MAX_FRAGMENTS_PER_DEBUG_POOL: u32 = 150;
 
 /// Installs only server-authoritative fragment behavior.
@@ -28,6 +33,7 @@ impl Plugin for FragmentServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<SpawnFragmentPool>();
 
+        #[cfg(feature = "dev")]
         app.add_systems(
             FixedUpdate,
             (
@@ -39,11 +45,21 @@ impl Plugin for FragmentServerPlugin {
                 .before(FixedGameplaySet::Persistence)
                 .run_if(in_state(ServerState::Hosting)),
         );
+
+        #[cfg(not(feature = "dev"))]
+        app.add_systems(
+            FixedUpdate,
+            (spawn_requested_fragment_pools, simulate_server_fragments)
+                .chain()
+                .before(FixedGameplaySet::Persistence)
+                .run_if(in_state(ServerState::Hosting)),
+        );
     }
 }
 
 /// Temporary debug adapter: Shift requests a pool from the Fragment feature.
 /// Replace this system later with requests emitted by enemy deaths.
+#[cfg(feature = "dev")]
 pub(crate) fn request_debug_fragment_pool(
     players: Query<(
         &PlayerPosition,
@@ -112,8 +128,7 @@ pub(crate) fn spawn_requested_fragment_pools(
                         ..=settings.fragment.pool_max_radius * settings.fragment.pool_max_radius,
                 )
                 .sqrt();
-            let spawn_position =
-                request.center + Vec2::new(angle.cos(), angle.sin()) * radius;
+            let spawn_position = request.center + Vec2::new(angle.cos(), angle.sin()) * radius;
 
             commands.spawn((
                 Fragment::available(spawn_position, value),

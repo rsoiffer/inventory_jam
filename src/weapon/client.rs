@@ -2,9 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::{
-    app::ClientState, shared::WeaponSystemSet, weapon::shared::fire_equipped_weapons,
-};
+use crate::{app::ClientState, shared::WeaponSystemSet, weapon::shared::fire_equipped_weapons};
 
 pub struct WeaponClientPlugin;
 

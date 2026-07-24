@@ -23,6 +23,11 @@ struct EnemyContactDamageCooldown {
     remaining_seconds: f32,
 }
 
+#[derive(Component, Clone, Copy, Debug, Default)]
+struct PlayerDeathTimer {
+    remaining_seconds: f32,
+}
+
 pub struct PlayerServerPlugin;
 
 impl Plugin for PlayerServerPlugin {
@@ -37,6 +42,7 @@ impl Plugin for PlayerServerPlugin {
                 add_requested_aristeia,
                 restore_safezone_health,
                 apply_enemy_contact_damage,
+                tick_player_death,
                 control_dedicated_server_camera,
                 tick_player_aristeia,
             )
@@ -117,6 +123,7 @@ pub(crate) fn handle_connected(
             ),
             PlayerVisual,
             EnemyContactDamageCooldown::default(),
+            PlayerDeathTimer::default(),
             PortalTeleportCooldown {
                 remaining_ticks: settings.portal.teleport_cooldown_ticks,
             },
@@ -146,6 +153,7 @@ pub(crate) fn authoritative_player_movement(
             Has<Predicted>,
             &mut PlayerPosition,
             &GameRoom,
+            &PlayerHealth,
             &ActionState<PlayerAction>,
         ),
         With<PlayerId>,
@@ -154,12 +162,12 @@ pub(crate) fn authoritative_player_movement(
 ) {
     let skip_predicted = !host_server.is_empty();
 
-    for (predicted, mut position, room, actions) in &mut players {
+    for (predicted, mut position, room, health, actions) in &mut players {
         if skip_predicted && predicted {
             continue;
         }
 
-        apply_player_movement(&mut position, room, actions, &settings);
+        apply_player_movement(&mut position, room, health, actions, &settings);
     }
 }
 
@@ -185,11 +193,12 @@ pub(crate) fn authoritative_player_aim(
     }
 }
 
-fn restore_safezone_health(
-    mut players: Query<(&GameRoom, &mut PlayerHealth), With<ControlledBy>>,
-) {
+fn restore_safezone_health(mut players: Query<(&GameRoom, &mut PlayerHealth), With<ControlledBy>>) {
     for (room, mut health) in &mut players {
-        if room.room == GameRooms::Safezone && health.current != health.maximum {
+        if room.room == GameRooms::Safezone
+            && health.current > 0
+            && health.current != health.maximum
+        {
             health.current = health.maximum;
         }
     }
@@ -200,27 +209,19 @@ fn apply_enemy_contact_damage(
     mut players: Query<
         (
             Entity,
-            &mut PlayerPosition,
-            &mut GameRoom,
+            &PlayerPosition,
+            &GameRoom,
             &mut PlayerHealth,
             &mut EnemyContactDamageCooldown,
-            &mut PortalTeleportCooldown,
+            &mut PlayerDeathTimer,
         ),
         With<ControlledBy>,
     >,
     enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
     settings: Res<GameSettings>,
 ) {
-    let safezone_center = settings.world.safezone_bounds().center();
-
-    for (
-        player_entity,
-        mut player_position,
-        mut room,
-        mut health,
-        mut cooldown,
-        mut portal_cooldown,
-    ) in &mut players
+    for (player_entity, player_position, room, mut health, mut cooldown, mut death_timer) in
+        &mut players
     {
         cooldown.remaining_seconds = (cooldown.remaining_seconds - time.delta_secs()).max(0.0);
 
@@ -258,13 +259,47 @@ fn apply_enemy_contact_damage(
         );
 
         if health.current == 0 {
-            let maximum = health.maximum;
-            health.current = maximum;
-            room.room = GameRooms::Safezone;
-            player_position.0 = safezone_center;
-            portal_cooldown.remaining_ticks = settings.portal.teleport_cooldown_ticks;
-            info!(?player_entity, "Player died and respawned in the safe room");
+            death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
+            info!(?player_entity, "Player died");
         }
+    }
+}
+
+fn tick_player_death(
+    time: Res<Time>,
+    settings: Res<GameSettings>,
+    mut players: Query<
+        (
+            Entity,
+            &mut PlayerPosition,
+            &mut GameRoom,
+            &mut PlayerHealth,
+            &mut PlayerDeathTimer,
+            &mut PortalTeleportCooldown,
+        ),
+        With<ControlledBy>,
+    >,
+) {
+    let safezone_center = settings.world.safezone_bounds().center();
+
+    for (player_entity, mut position, mut room, mut health, mut death_timer, mut portal_cooldown) in
+        &mut players
+    {
+        if health.current > 0 || death_timer.remaining_seconds <= 0.0 {
+            continue;
+        }
+
+        death_timer.remaining_seconds =
+            (death_timer.remaining_seconds - time.delta_secs()).max(0.0);
+        if death_timer.remaining_seconds > 0.0 {
+            continue;
+        }
+
+        health.current = health.maximum;
+        room.room = GameRooms::Safezone;
+        position.0 = safezone_center;
+        portal_cooldown.remaining_ticks = settings.portal.teleport_cooldown_ticks;
+        info!(?player_entity, "Player respawned in the pit");
     }
 }
 
@@ -369,18 +404,4 @@ fn axis(
     let positive_pressed = keyboard.pressed(positive) || keyboard.pressed(alternate_positive);
 
     positive_pressed as i8 as f32 - negative_pressed as i8 as f32
-}
-
-#[allow(unused)]
-fn draw_world_boundaries(settings: Res<GameSettings>, mut gizmos: Gizmos) {
-    for bounds in [
-        settings.world.arena_bounds(),
-        settings.world.safezone_bounds(),
-    ] {
-        gizmos.rect_2d(
-            Isometry2d::from_translation(bounds.center()),
-            bounds.size(),
-            Color::srgb(0.95, 0.25, 0.2),
-        );
-    }
 }

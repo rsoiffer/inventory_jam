@@ -28,12 +28,15 @@ fn init(mut commands: Commands, settings: Res<GameSettings>) {
 struct InstructionsText;
 
 fn setup_instructions(mut commands: Commands) {
+    #[cfg(feature = "dev")]
+    let text = "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit\nShift spawns a debug fragment pool";
+    #[cfg(not(feature = "dev"))]
+    let text = "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit";
+
     commands.spawn((
         InstructionsText,
         Name::new("Input Control Instructions"),
-        Text::new(
-            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nWalk over Upgrade to spend fragments leveling your equipped weapon\nTouch portals to travel between the Arena and Pit\nShift spawns a debug fragment pool",
-        ),
+        Text::new(text),
         Node {
             position_type: PositionType::Absolute,
             bottom: px(12),

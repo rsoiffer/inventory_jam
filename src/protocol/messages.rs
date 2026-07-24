@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "dev")]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DebugServerMessage(pub usize);
 
@@ -11,6 +12,7 @@ pub struct SetUsername {
 }
 
 pub fn register(app: &mut App) {
+    #[cfg(feature = "dev")]
     app.register_message::<DebugServerMessage>()
         .add_direction(NetworkDirection::ServerToClient);
 

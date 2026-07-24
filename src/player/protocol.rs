@@ -1,8 +1,11 @@
+#[cfg(feature = "dev")]
+use crate::protocol::inputs::PlayerAction;
+use crate::protocol::rooms::GameRoom;
 #[cfg(feature = "server")]
 use crate::protocol::rooms::GameRooms;
-use crate::protocol::{inputs::PlayerAction, rooms::GameRoom};
 use bevy::math::Curve;
 use bevy::prelude::*;
+#[cfg(feature = "dev")]
 use leafwing_input_manager::action_state::ActionState;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -16,6 +19,7 @@ impl Plugin for PlayerProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.component::<PlayerId>().replicate();
 
+        #[cfg(feature = "dev")]
         app.add_systems(PostUpdate, debug_player_position);
         app.component::<PlayerPosition>()
             .replicate()
@@ -36,6 +40,7 @@ impl Plugin for PlayerProtocolPlugin {
     }
 }
 
+#[cfg(feature = "dev")]
 #[allow(unused)]
 fn debug_player_position(
     q: Query<(Entity, &PlayerPosition, &ActionState<PlayerAction>)>,

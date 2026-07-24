@@ -13,6 +13,7 @@ impl Plugin for WorldRenderPlugin {
             (load_world_tile_assets, spawn_pit_decorations).chain(),
         );
         app.add_systems(Update, stream_world_tiles);
+        #[cfg(feature = "dev")]
         app.add_systems(Update, draw_world_boundaries);
     }
 }
@@ -385,6 +386,7 @@ fn floor_tile(floor: FloorRect, x: i32, y: i32) -> Tile {
     )
 }
 
+#[cfg(feature = "dev")]
 fn draw_world_boundaries(settings: Res<GameSettings>, mut gizmos: Gizmos) {
     for bounds in [
         settings.world.arena_bounds(),

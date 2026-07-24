@@ -1,17 +1,14 @@
 use crate::fragment::{
     protocol::Fragment,
     shared::{
-        self as fragment_shared, ClientFragment, FragmentMagnetAge, FragmentPosition, ServerFragment,
+        self as fragment_shared, ClientFragment, FragmentMagnetAge, FragmentPosition,
+        ServerFragment,
     },
 };
 use crate::player::{PlayerId, PlayerPosition};
 use crate::{app::ClientState, settings::GameSettings};
 use bevy::prelude::*;
-use lightyear::{
-    core::tick::TickDuration,
-    prediction::Predicted,
-    prelude::PeerId,
-};
+use lightyear::{core::tick::TickDuration, prediction::Predicted, prelude::PeerId};
 
 /// Installs only client-side fragment presentation behavior.
 pub struct FragmentClientPlugin;

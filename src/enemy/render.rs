@@ -192,7 +192,11 @@ fn animate_enemy_sprites(
     }
 }
 
-fn enemy_health_bar_layout(settings: &GameSettings, kind: EnemyKind, position: Vec2) -> (Vec2, f32) {
+fn enemy_health_bar_layout(
+    settings: &GameSettings,
+    kind: EnemyKind,
+    position: Vec2,
+) -> (Vec2, f32) {
     let width = kind.display_size(settings.enemy.size);
     let height = settings.player.health_bar_height;
     (Vec2::new(width, height), position.y + width + height)
@@ -273,11 +277,9 @@ fn sync_enemy_health_bars(
         let fill_size = Vec2::new(full_size.x * health_fraction, full_size.y);
         sprite.color = Color::srgb(0.9, 0.2, 0.2);
         sprite.custom_size = Some(fill_size);
-        transform.translation = Vec2::new(
-            position.0.x + (fill_size.x - full_size.x) * 0.5,
-            center_y,
-        )
-        .extend(ENEMY_HEALTH_BAR_Z + 0.1);
+        transform.translation =
+            Vec2::new(position.0.x + (fill_size.x - full_size.x) * 0.5, center_y)
+                .extend(ENEMY_HEALTH_BAR_Z + 0.1);
     }
 }
 

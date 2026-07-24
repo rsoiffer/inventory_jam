@@ -23,9 +23,9 @@ struct StatusText;
 #[derive(Component, Clone, Copy, Debug)]
 enum MenuButton {
     Join,
-    #[cfg(all(feature = "server", not(target_family = "wasm")))]
+    #[cfg(all(feature = "dev", feature = "server", not(target_family = "wasm")))]
     HostLocal,
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
+    #[cfg(all(feature = "dev", feature = "client", not(target_family = "wasm")))]
     JoinLocal,
 }
 
@@ -111,7 +111,7 @@ fn spawn_main_menu(
         menu_button(&mut commands, &settings, MenuButton::Join, "Join", 1),
     ];
 
-    #[cfg(all(feature = "server", not(target_family = "wasm")))]
+    #[cfg(all(feature = "dev", feature = "server", not(target_family = "wasm")))]
     children.push(menu_button(
         &mut commands,
         &settings,
@@ -119,7 +119,7 @@ fn spawn_main_menu(
         "Host Local Server",
         2,
     ));
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
+    #[cfg(all(feature = "dev", feature = "client", not(target_family = "wasm")))]
     children.push(menu_button(
         &mut commands,
         &settings,
@@ -320,14 +320,14 @@ fn handle_menu_buttons(
                 }
                 Err(error) => status.message = error,
             },
-            #[cfg(all(feature = "server", not(target_family = "wasm")))]
+            #[cfg(all(feature = "dev", feature = "server", not(target_family = "wasm")))]
             MenuButton::HostLocal => {
                 starts.write(StartGame {
                     mode: LaunchMode::DedicatedServer,
                     username: String::new(),
                 });
             }
-            #[cfg(all(feature = "client", not(target_family = "wasm")))]
+            #[cfg(all(feature = "dev", feature = "client", not(target_family = "wasm")))]
             MenuButton::JoinLocal => match username.validated() {
                 Ok(name) => {
                     username.0.clone_from(&name);

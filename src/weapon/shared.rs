@@ -8,6 +8,7 @@ use lightyear::{
 use crate::{
     app::ServerState,
     persistence::CachedPersistentState,
+    player::protocol::PlayerHealth,
     player::{PlayerAimDirection, PlayerPosition},
     projectile::ProjectileBuffer,
     protocol::inputs::PlayerAction,
@@ -20,6 +21,7 @@ pub(crate) fn fire_equipped_weapons(
         Has<Predicted>,
         &PlayerPosition,
         &PlayerAimDirection,
+        &PlayerHealth,
         &ActionState<PlayerAction>,
         &CachedPersistentState,
         &mut WeaponCooldown,
@@ -36,13 +38,24 @@ pub(crate) fn fire_equipped_weapons(
         .as_ref()
         .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
 
-    for (predicted, player_position, aim_direction, actions, cache, mut cooldown, mut buffer) in
-        &mut players
+    for (
+        predicted,
+        player_position,
+        aim_direction,
+        health,
+        actions,
+        cache,
+        mut cooldown,
+        mut buffer,
+    ) in &mut players
     {
         if (host_server && predicted) || !(authoritative || predicted) {
             continue;
         }
-        if !actions.pressed(&PlayerAction::Fire) || !cooldown.is_ready(local_timeline.tick()) {
+        if health.current == 0
+            || !actions.pressed(&PlayerAction::Fire)
+            || !cooldown.is_ready(local_timeline.tick())
+        {
             continue;
         }
 

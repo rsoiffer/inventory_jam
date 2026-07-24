@@ -7,7 +7,7 @@ use leafwing_input_manager::action_state::ActionState;
 use lightyear::prediction::Predicted;
 
 use crate::{
-    player::{PlayerAimDirection, PlayerPosition},
+    player::protocol::{PlayerAimDirection, PlayerHealth, PlayerPosition},
     protocol::{inputs::PlayerAction, rooms::GameRoom},
     settings::GameSettings,
 };
@@ -15,9 +15,14 @@ use crate::{
 pub fn apply_player_movement(
     position: &mut PlayerPosition,
     room: &GameRoom,
+    health: &PlayerHealth,
     actions: &ActionState<PlayerAction>,
     settings: &GameSettings,
 ) {
+    if health.current == 0 {
+        return;
+    }
+
     let movement = actions.clamped_axis_pair(&PlayerAction::Move);
 
     if movement != Vec2::ZERO {
@@ -46,12 +51,17 @@ pub fn apply_player_aim(
 pub fn predicted_player_movement(
     settings: Res<GameSettings>,
     mut player_query: Query<
-        (&mut PlayerPosition, &GameRoom, &ActionState<PlayerAction>),
+        (
+            &mut PlayerPosition,
+            &GameRoom,
+            &PlayerHealth,
+            &ActionState<PlayerAction>,
+        ),
         With<Predicted>,
     >,
 ) {
-    for (mut position, room, actions) in player_query.iter_mut() {
-        apply_player_movement(&mut position, room, actions, &settings);
+    for (mut position, room, health, actions) in player_query.iter_mut() {
+        apply_player_movement(&mut position, room, health, actions, &settings);
     }
 }
 

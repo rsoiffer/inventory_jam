@@ -172,7 +172,10 @@ fn update_station_labels(
     weapon_stations: Query<(&WeaponStationId, &Children), With<WeaponStationSpriteVisual>>,
     upgrade_stations: Query<&Children, With<UpgradeStationSpriteVisual>>,
     mut weapon_labels: Query<&mut Text2d, (With<WeaponStationLabel>, Without<UpgradeStationLabel>)>,
-    mut upgrade_labels: Query<&mut Text2d, (With<UpgradeStationLabel>, Without<WeaponStationLabel>)>,
+    mut upgrade_labels: Query<
+        &mut Text2d,
+        (With<UpgradeStationLabel>, Without<WeaponStationLabel>),
+    >,
 ) {
     let state = local_player.single().ok();
 

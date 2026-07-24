@@ -5,20 +5,26 @@ use crate::player::protocol::{
 use crate::player::shared::{predicted_player_aim, predicted_player_movement};
 use crate::protocol::channels::ClientEventsChannel;
 use crate::protocol::inputs::PlayerAction;
-use crate::protocol::messages::{DebugServerMessage, SetUsername};
-use bevy::app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
+#[cfg(feature = "dev")]
+use crate::protocol::messages::DebugServerMessage;
+use crate::protocol::messages::SetUsername;
+#[cfg(feature = "dev")]
+use bevy::app::Update;
+use bevy::app::{App, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy::color::{Color, Hsva};
+#[cfg(feature = "dev")]
+use bevy::prelude::Single;
 use bevy::prelude::{
-    Add, Commands, IntoScheduleConfigs, Name, On, Query, Res, Single, Vec2, With, Without, in_state,
+    Add, Commands, IntoScheduleConfigs, Name, On, Query, Res, Vec2, With, Without, in_state,
 };
 use leafwing_input_manager::action_state::ActionState;
 use leafwing_input_manager::input_map::InputMap;
 use lightyear::input::client::InputSystems;
 use lightyear::interpolation::Interpolated;
 use lightyear::prediction::Predicted;
-use lightyear::prelude::{
-    Client, Connected, Controlled, ControlledBy, MessageReceiver, MessageSender,
-};
+#[cfg(feature = "dev")]
+use lightyear::prelude::MessageReceiver;
+use lightyear::prelude::{Client, Connected, Controlled, ControlledBy, MessageSender};
 
 pub struct PlayerClientPlugin;
 
@@ -39,6 +45,7 @@ impl Plugin for PlayerClientPlugin {
                 .run_if(in_state(ClientState::Playing)),
         );
 
+        #[cfg(feature = "dev")]
         app.add_systems(
             Update,
             receive_message1.run_if(in_state(ClientState::Playing)),
@@ -69,6 +76,7 @@ fn write_local_aim_to_leafwing(
     }
 }
 
+#[cfg(feature = "dev")]
 fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
     for _message in receiver.receive() {
         //info!("Received message: {:?}", message);

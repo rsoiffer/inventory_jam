@@ -32,8 +32,11 @@ impl PlayerAction {
 
         input_map.insert(Self::Interact, KeyCode::KeyE);
 
-        input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
-        input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
+        #[cfg(feature = "dev")]
+        {
+            input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
+            input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
+        }
 
         input_map
     }

@@ -1,6 +1,9 @@
 use crate::weapon::protocol::WeaponId;
-use bevy::prelude::{App, Component, Plugin, Vec2};
-use lightyear::prelude::{AppComponentExt, PredictionBuilderExt, Tick};
+use bevy::math::Curve;
+use bevy::prelude::{App, Component, Ease, FunctionCurve, Interval, Plugin, Vec2};
+use lightyear::prelude::{
+    AppComponentExt, InterpolationRegistrationExt, PredictionBuilderExt, Tick,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{protocol::rooms::GameRoom, settings::GameSettings};
@@ -9,7 +12,10 @@ pub struct ProjectileProtocolPlugin;
 
 impl Plugin for ProjectileProtocolPlugin {
     fn build(&self, app: &mut App) {
-        app.component::<ProjectileBuffer>().replicate().predict();
+        app.component::<ProjectileBuffer>()
+            .replicate()
+            .predict()
+            .add_linear_interpolation();
     }
 }
 
@@ -47,6 +53,55 @@ pub fn overlaps(
 pub struct ProjectileBuffer {
     pub slots: Vec<ProjectileSlot>,
     pub next_index: u16,
+}
+
+impl Ease for ProjectileBuffer {
+    fn interpolating_curve_unbounded(start: Self, end: Self) -> impl Curve<Self> {
+        FunctionCurve::new(Interval::UNIT, move |t| {
+            let slot_count = end.slots.len();
+            let mut slots = Vec::with_capacity(slot_count);
+            for i in 0..slot_count {
+                let start_slot = start
+                    .slots
+                    .get(i)
+                    .copied()
+                    .unwrap_or(ProjectileSlot::Empty { generation: 0 });
+                let end_slot = end.slots[i];
+                slots.push(interpolate_slot(start_slot, end_slot, t));
+            }
+
+            ProjectileBuffer {
+                slots,
+                next_index: end.next_index,
+            }
+        })
+    }
+}
+
+fn interpolate_slot(start: ProjectileSlot, end: ProjectileSlot, t: f32) -> ProjectileSlot {
+    match (start, end) {
+        (
+            ProjectileSlot::Active {
+                generation: start_generation,
+                position: start_position,
+                ..
+            },
+            ProjectileSlot::Active {
+                generation: end_generation,
+                weapon,
+                position: end_position,
+                velocity,
+                state,
+            },
+        ) if start_generation == end_generation => ProjectileSlot::Active {
+            generation: end_generation,
+            weapon,
+            position: Vec2::lerp(start_position, end_position, t),
+            velocity,
+            state,
+        },
+        (_, end) => end,
+    }
 }
 
 impl ProjectileBuffer {

@@ -49,6 +49,7 @@
     "maximum_health": 100,
     "enemy_contact_damage": 10,
     "enemy_contact_damage_interval_seconds": 0.5,
+    "death_screen_duration_seconds": 3.0,
     "half_size": 12.0,
     "collision_radius": 12.0,
     "move_speed": 1.6,

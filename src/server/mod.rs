@@ -2,9 +2,12 @@ use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
+#[cfg(feature = "dev")]
 use crate::app::ServerState;
 use crate::networking::SEND_INTERVAL;
+#[cfg(feature = "dev")]
 use crate::protocol::channels::ServerEventsChannel;
+#[cfg(feature = "dev")]
 use crate::protocol::messages::DebugServerMessage;
 
 pub struct ExampleServerPlugin;
@@ -15,6 +18,7 @@ impl Plugin for ExampleServerPlugin {
 
         app.add_observer(handle_new_client);
 
+        #[cfg(feature = "dev")]
         app.add_systems(
             Update,
             send_debug_server_message.run_if(in_state(ServerState::Hosting)),
@@ -28,6 +32,7 @@ pub(crate) fn handle_new_client(trigger: On<Add, LinkOf>, mut commands: Commands
         .insert((ReplicationSender, Name::from("Client")));
 }
 
+#[cfg(feature = "dev")]
 pub(crate) fn send_debug_server_message(
     mut sender: ServerMultiMessageSender,
     server: Single<&Server>,

@@ -81,6 +81,7 @@ pub struct PlayerSettings {
     pub maximum_health: u32,
     pub enemy_contact_damage: u32,
     pub enemy_contact_damage_interval_seconds: f32,
+    pub death_screen_duration_seconds: f32,
     pub half_size: f32,
     pub collision_radius: f32,
     pub move_speed: f32,
@@ -381,9 +382,12 @@ impl GameSettings {
                 "world arena_floor_tiles cannot be empty".into(),
             ));
         }
-        if self.player.camera_scale <= 0.0 || self.player.maximum_health == 0 {
+        if self.player.camera_scale <= 0.0
+            || self.player.maximum_health == 0
+            || self.player.death_screen_duration_seconds <= 0.0
+        {
             return Err(GameSettingsLoadError::Invalid(
-                "player camera_scale and maximum_health must be greater than zero".into(),
+                "player camera_scale, maximum_health, and death_screen_duration_seconds must be greater than zero".into(),
             ));
         }
         if self.portal.trigger_radius <= 0.0

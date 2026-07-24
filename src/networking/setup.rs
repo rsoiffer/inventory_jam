@@ -224,7 +224,7 @@ fn handle_start_game(
                     certificate_digest: config.certificate_digest.clone(),
                 });
                 info!("connecting client to {}", config.server_addr);
-                status.message = format!("connecting to {}...", config.server_addr);
+                status.message = "connecting...".into();
                 next_client_state.set(ClientState::Connecting);
                 spawn_client(
                     &mut commands,
@@ -307,7 +307,7 @@ fn spawn_discovered_client(
         ServerDiscoveryState::Discovering => {}
         ServerDiscoveryState::Ready(server_addr) => {
             info!("connecting client to {server_addr}");
-            status.message = format!("connecting to {server_addr}...");
+            status.message = "connecting...".into();
             spawn_client(
                 &mut commands,
                 connection.client_id,
@@ -393,10 +393,7 @@ fn start_pending_servers(
 #[cfg(feature = "client")]
 fn connect_client_once(
     mut commands: Commands,
-    client: Query<
-        (Entity, &aeronet_io::connection::PeerAddr),
-        (With<Client>, Without<Connected>),
-    >,
+    client: Query<(Entity, &aeronet_io::connection::PeerAddr), (With<Client>, Without<Connected>)>,
     mut connecting: Local<Option<Entity>>,
 ) {
     let Some((entity, server_addr)) = client.iter().next() else {
