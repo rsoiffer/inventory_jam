@@ -20,9 +20,17 @@ impl Plugin for ProjectileProtocolPlugin {
     }
 }
 
+/// Deterministic identity for matching client pre-spawns with server shots.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ShotId {
+    pub owner: PeerId,
+    pub sequence: u16,
+}
+
 /// Authoritative attack snapshot carried by a projectile.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct PlayerProjectile {
+    pub shot_id: ShotId,
     pub owner: PeerId,
     pub weapon: WeaponKind,
     pub origin: Vec2,
@@ -40,11 +48,27 @@ pub struct PlayerProjectile {
 /// the hit and applied damage before this component is replicated.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct ProjectileImpact {
+    pub shot_id: ShotId,
     pub position: Vec2,
     pub direction: Vec2,
     pub weapon: WeaponKind,
     pub damage: u32,
 }
+
+/// Client-only predicted impact presentation. Never replicated.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct PredictedProjectileImpact {
+    pub shot_id: ShotId,
+    pub position: Vec2,
+    pub direction: Vec2,
+    pub weapon: WeaponKind,
+    pub remaining_ticks: u16,
+}
+
+/// Hides a predicted projectile sprite after a local predicted hit while keeping
+/// the simulation entity alive for reconciliation.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct PredictedHitHidden;
 
 /// If a projectile is "smart" (e.g. homing projectile), we want to
 /// synchronize the projectile position to avoid desync.

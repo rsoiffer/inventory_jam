@@ -83,7 +83,8 @@
   },
   "projectile": {
     "impact_lifetime_ticks": 12,
-    "spawn_gap": 0.32
+    "spawn_gap": 0.32,
+    "predicted_impact_max_lifetime_ticks": 24
   },
   "weapons": {
     "sword": {

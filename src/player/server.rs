@@ -5,7 +5,7 @@ use crate::player::api::AddKillsToAristeia;
 use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerVisual,
 };
-use crate::player::shared::player_movement;
+use crate::player::shared::{apply_player_aim, apply_player_movement};
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::messages::TeleportRoom;
 use crate::protocol::rooms::{GameRoom, GameRooms};
@@ -62,8 +62,8 @@ impl Plugin for PlayerServerPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                player_movement,
-                update_player_aim_direction,
+                authoritative_player_movement,
+                authoritative_player_aim,
                 add_requested_aristeia,
                 apply_enemy_contact_damage,
                 control_dedicated_server_camera,
@@ -207,15 +207,45 @@ fn choose_player_spawn(mode: PlayerSpawnMode, room: GameRoom, settings: &GameSet
     }
 }
 
-pub(crate) fn update_player_aim_direction(
-    mut players: Query<(&ActionState<PlayerAction>, &mut PlayerAimDirection)>,
+pub(crate) fn authoritative_player_movement(
+    settings: Res<GameSettings>,
+    mut players: Query<
+        (
+            Has<Predicted>,
+            &mut PlayerPosition,
+            &GameRoom,
+            &ActionState<PlayerAction>,
+        ),
+        With<PlayerId>,
+    >,
+    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
 ) {
-    for (actions, mut aim_direction) in &mut players {
-        let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
+    let skip_predicted = !host_server.is_empty();
 
-        if aim.length_squared() > 0.0001 {
-            aim_direction.0 = aim.normalize_or_zero();
+    for (predicted, mut position, room, actions) in &mut players {
+        if skip_predicted && predicted {
+            continue;
         }
+
+        apply_player_movement(&mut position, room, actions, &settings);
+    }
+}
+
+pub(crate) fn authoritative_player_aim(
+    mut players: Query<
+        (Has<Predicted>, &ActionState<PlayerAction>, &mut PlayerAimDirection),
+        With<PlayerId>,
+    >,
+    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+) {
+    let skip_predicted = !host_server.is_empty();
+
+    for (predicted, actions, mut aim_direction) in &mut players {
+        if skip_predicted && predicted {
+            continue;
+        }
+
+        apply_player_aim(&mut aim_direction, actions);
     }
 }
 

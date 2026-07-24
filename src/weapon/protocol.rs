@@ -6,8 +6,9 @@ pub struct WeaponProtocolPlugin;
 
 impl Plugin for WeaponProtocolPlugin {
     fn build(&self, app: &mut App) {
-        app.component::<EquippedWeapon>().replicate();
-        app.component::<WeaponCooldown>().replicate();
+        app.component::<EquippedWeapon>().replicate().predict();
+        app.component::<WeaponCooldown>().replicate().predict();
+        app.component::<ShotSequence>().replicate().predict();
     }
 }
 
@@ -56,3 +57,9 @@ impl WeaponCooldown {
         self.cooldown_tick = local_timeline.tick() + Tick(ticks_per_attack.ceil() as u32);
     }
 }
+
+/// Monotonic per-player shot counter used for pre-spawn matching and impact dedupe.
+#[derive(
+    Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, Deref, DerefMut,
+)]
+pub struct ShotSequence(pub u16);

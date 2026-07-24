@@ -1,8 +1,8 @@
 use crate::app::{ClientState, LocalUsername};
 use crate::player::protocol::{
-    LocalAimInput, PlayerAimDirection, PlayerColor, PlayerId, PlayerVisual, SmoothedAimDirection,
+    LocalAimInput, PlayerColor, PlayerId, PlayerVisual, SmoothedAimDirection,
 };
-use crate::player::shared::player_movement;
+use crate::player::shared::{predicted_player_aim, predicted_player_movement};
 use crate::protocol::channels::ClientEventsChannel;
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::messages::{DebugServerMessage, SetUsername, TeleportRoom};
@@ -33,8 +33,9 @@ impl Plugin for PlayerClientPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (apply_local_aim_to_predicted_player, player_movement)
+            (predicted_player_aim, predicted_player_movement)
                 .chain()
+                .in_set(crate::shared::FixedGameplaySet::Player)
                 .run_if(in_state(ClientState::Playing)),
         );
 
@@ -65,21 +66,6 @@ fn write_local_aim_to_leafwing(
 
     for mut actions in &mut input_entities {
         actions.set_axis_pair(&PlayerAction::Aim, direction);
-    }
-}
-
-fn apply_local_aim_to_predicted_player(
-    local_aim: Res<LocalAimInput>,
-    mut predicted_players: Query<&mut PlayerAimDirection, With<Predicted>>,
-) {
-    let direction = local_aim.0.normalize_or_zero();
-
-    if direction == Vec2::ZERO {
-        return;
-    }
-
-    for mut aim_direction in &mut predicted_players {
-        aim_direction.0 = direction;
     }
 }
 

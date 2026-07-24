@@ -12,7 +12,9 @@ use crate::{
     player::protocol::{PlayerAristeia, PlayerHealth},
     player::{PlayerId, PlayerPosition},
     projectile::protocol::{PlayerProjectile, ProjectileImpact, ProjectilePosition},
-    projectile::shared::{check_projectile_range, move_projectile},
+    projectile::shared::{
+        check_projectile_range, move_projectile, projectile_can_hit_enemy, projectile_can_hit_player,
+    },
     protocol::rooms::GameRoom,
     settings::GameSettings,
     shared::FixedGameplaySet,
@@ -138,6 +140,7 @@ fn spawn_projectile_impact(
 ) {
     commands.spawn((
         ProjectileImpact {
+            shot_id: projectile.shot_id,
             position: position.0,
             direction: projectile.direction,
             weapon: projectile.weapon,
@@ -172,16 +175,16 @@ fn get_hit_player(
     settings: &GameSettings,
 ) -> Option<Entity> {
     for (player_entity, player_id, player_position, player_room, mut health, _) in players {
-        if player_id.0 == projectile.owner || player_room != projectile_room || health.current == 0
-        {
-            continue;
-        }
-
-        let collision_radius = projectile.radius + settings.player.collision_radius;
-        let hit =
-            position.0.distance_squared(player_position.0) <= collision_radius * collision_radius;
-
-        if !hit {
+        if !projectile_can_hit_player(
+            projectile,
+            position.0,
+            projectile_room,
+            player_id.0,
+            player_position.0,
+            player_room,
+            health.current,
+            settings.player.collision_radius,
+        ) {
             continue;
         }
 
@@ -218,16 +221,15 @@ fn get_hit_enemy(
     settings: &GameSettings,
 ) -> Option<(Entity, bool)> {
     for (enemy_entity, enemy_position, kind, enemy_room, mut health) in enemies {
-        if enemy_room != projectile_room || health.current == 0 {
-            continue;
-        }
-
-        let collision_radius =
-            projectile.radius + kind.collision_radius(settings.enemy.collision_radius);
-        let hit =
-            position.0.distance_squared(enemy_position.0) <= collision_radius * collision_radius;
-
-        if !hit {
+        if !projectile_can_hit_enemy(
+            projectile,
+            position.0,
+            projectile_room,
+            enemy_position.0,
+            enemy_room,
+            health.current,
+            kind.collision_radius(settings.enemy.collision_radius),
+        ) {
             continue;
         }
 

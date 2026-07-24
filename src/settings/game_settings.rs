@@ -134,6 +134,7 @@ pub struct ServerCameraSettings {
 pub struct ProjectileSettings {
     pub impact_lifetime_ticks: u16,
     pub spawn_gap: f32,
+    pub predicted_impact_max_lifetime_ticks: u16,
 }
 
 #[derive(Debug, Clone, Deserialize)]

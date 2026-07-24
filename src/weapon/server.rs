@@ -1,13 +1,11 @@
 use bevy::prelude::*;
-use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::*;
 
 use crate::app::ServerState;
 use crate::player::PlayerId;
-use crate::protocol::inputs::PlayerAction;
 use crate::shared::FixedGameplaySet;
-use crate::weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind};
-use crate::weapon::shared::fire_equipped_weapons;
+use crate::weapon::protocol::{EquippedWeapon, ShotSequence, WeaponCooldown, WeaponKind};
+use crate::weapon::shared::{fire_equipped_weapons, switch_equipped_weapons};
 
 #[cfg(feature = "server")]
 pub struct WeaponServerPlugin;
@@ -19,7 +17,7 @@ impl Plugin for WeaponServerPlugin {
             FixedUpdate,
             (
                 ensure_player_weapons,
-                switch_player_weapons,
+                switch_equipped_weapons,
                 fire_equipped_weapons,
             )
                 .chain()
@@ -44,54 +42,7 @@ pub(crate) fn ensure_player_weapons(
         commands.entity(entity).insert((
             EquippedWeapon::new(WeaponKind::Sword, 1),
             WeaponCooldown::default(),
+            ShotSequence::default(),
         ));
-    }
-}
-
-fn switch_player_weapons(
-    mut players: Query<
-        (
-            Has<Predicted>,
-            &ActionState<PlayerAction>,
-            &mut EquippedWeapon,
-            &mut WeaponCooldown,
-        ),
-        With<PlayerId>,
-    >,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
-) {
-    let is_host_server = !host_server.is_empty();
-
-    for (predicted, actions, mut equipped, mut cooldown) in &mut players {
-        if is_host_server && predicted {
-            continue;
-        }
-
-        let requested = if actions.just_pressed(&PlayerAction::EquipSword) {
-            Some(WeaponKind::Sword)
-        } else if actions.just_pressed(&PlayerAction::EquipSpear) {
-            Some(WeaponKind::Spear)
-        } else if actions.just_pressed(&PlayerAction::EquipStaff) {
-            Some(WeaponKind::Staff)
-        } else if actions.just_pressed(&PlayerAction::EquipBow) {
-            Some(WeaponKind::Bow)
-        } else if actions.just_pressed(&PlayerAction::EquipShuriken) {
-            Some(WeaponKind::Shuriken)
-        } else if actions.just_pressed(&PlayerAction::EquipBoomerang) {
-            Some(WeaponKind::Boomerang)
-        } else {
-            None
-        };
-
-        let Some(kind) = requested else {
-            continue;
-        };
-
-        if equipped.kind == kind {
-            continue;
-        }
-
-        equipped.kind = kind;
-        *cooldown = WeaponCooldown::default();
     }
 }

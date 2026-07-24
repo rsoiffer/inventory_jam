@@ -1,6 +1,9 @@
 use crate::{
     app::game_is_active,
-    projectile::protocol::{PlayerProjectile, ProjectileImpact, ProjectilePosition},
+    projectile::protocol::{
+        PlayerProjectile, PredictedHitHidden, PredictedProjectileImpact, ProjectileImpact,
+        ProjectilePosition,
+    },
     weapon::protocol::WeaponKind,
 };
 use bevy::prelude::*;
@@ -16,7 +19,10 @@ impl Plugin for ProjectileRenderPlugin {
                 ensure_projectile_sprites,
                 sync_projectile_sprites,
                 ensure_impact_sprites,
+                ensure_predicted_impact_sprites,
+                despawn_confirmed_predicted_impacts,
                 sync_impact_sprites,
+                sync_predicted_impact_sprites,
                 animate_weapon_effect_sprites,
             )
                 .chain()
@@ -49,7 +55,7 @@ struct ProjectileVisualAssets {
     boomerang_impact: AnimatedVisualAsset,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct SpriteAnimation {
     first_frame: usize,
     last_frame: usize,
@@ -254,13 +260,24 @@ fn ensure_projectile_sprites(
 }
 
 fn sync_projectile_sprites(
-    mut projectiles: Query<(&ProjectilePosition, &PlayerProjectile, &mut Transform)>,
+    mut projectiles: Query<(
+        &ProjectilePosition,
+        &PlayerProjectile,
+        &mut Transform,
+        &mut Sprite,
+        Option<&PredictedHitHidden>,
+    )>,
 ) {
-    for (position, projectile, mut transform) in &mut projectiles {
+    for (position, projectile, mut transform, mut sprite, hidden) in &mut projectiles {
         let direction = projectile.direction.normalize_or_zero();
         transform.translation = position.0.extend(8.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
         transform.scale = Vec3::ONE;
+        sprite.color = if hidden.is_some() {
+            Color::NONE
+        } else {
+            Color::WHITE
+        };
     }
 }
 
@@ -268,34 +285,119 @@ fn ensure_impact_sprites(
     mut commands: Commands,
     assets: Res<ProjectileVisualAssets>,
     impacts: Query<(Entity, &ProjectileImpact), Without<Sprite>>,
+    predicted: Query<(&PredictedProjectileImpact, &Sprite, &SpriteAnimation)>,
 ) {
     for (entity, impact) in &impacts {
-        let visual = impact_assets(impact.weapon, &assets);
-        let direction = impact.direction.normalize_or_zero();
+        let carried = predicted
+            .iter()
+            .find(|(predicted_impact, _, _)| predicted_impact.shot_id == impact.shot_id)
+            .map(|(_, sprite, animation)| {
+                (
+                    sprite
+                        .texture_atlas
+                        .as_ref()
+                        .map(|atlas| atlas.index)
+                        .unwrap_or(0),
+                    animation.clone(),
+                )
+            });
 
-        commands.entity(entity).insert((
-            Sprite::from_atlas_image(
-                visual.image.clone(),
-                TextureAtlas {
-                    layout: visual.layout.clone(),
-                    index: 0,
-                },
-            ),
-            Transform {
-                translation: impact.position.extend(9.0),
-                rotation: Quat::from_rotation_z(direction.y.atan2(direction.x)),
-                ..default()
-            },
+        insert_impact_sprite(
+            &mut commands,
+            entity,
+            impact.weapon,
+            impact.direction,
+            impact.position,
+            &assets,
+            carried,
+        );
+    }
+}
+
+fn ensure_predicted_impact_sprites(
+    mut commands: Commands,
+    assets: Res<ProjectileVisualAssets>,
+    impacts: Query<(Entity, &PredictedProjectileImpact), Without<Sprite>>,
+) {
+    for (entity, impact) in &impacts {
+        insert_impact_sprite(
+            &mut commands,
+            entity,
+            impact.weapon,
+            impact.direction,
+            impact.position,
+            &assets,
+            None,
+        );
+    }
+}
+
+fn insert_impact_sprite(
+    commands: &mut Commands,
+    entity: Entity,
+    weapon: WeaponKind,
+    direction: Vec2,
+    position: Vec2,
+    assets: &ProjectileVisualAssets,
+    carried_animation: Option<(usize, SpriteAnimation)>,
+) {
+    let visual = impact_assets(weapon, assets);
+    let direction = direction.normalize_or_zero();
+    let (atlas_index, animation) = carried_animation.unwrap_or_else(|| {
+        (
+            0,
             SpriteAnimation {
                 first_frame: 0,
                 last_frame: visual.frame_count.saturating_sub(1),
                 timer: Timer::from_seconds(visual.frame_seconds, TimerMode::Repeating),
             },
-        ));
+        )
+    });
+
+    commands.entity(entity).insert((
+        Sprite::from_atlas_image(
+            visual.image.clone(),
+            TextureAtlas {
+                layout: visual.layout.clone(),
+                index: atlas_index,
+            },
+        ),
+        Transform {
+            translation: position.extend(9.0),
+            rotation: Quat::from_rotation_z(direction.y.atan2(direction.x)),
+            ..default()
+        },
+        animation,
+    ));
+}
+
+/// Drop local predicted impacts once the matching authoritative impact has a
+/// sprite, after animation progress has been copied over.
+fn despawn_confirmed_predicted_impacts(
+    mut commands: Commands,
+    server_impacts: Query<&ProjectileImpact, With<Sprite>>,
+    predicted_impacts: Query<(Entity, &PredictedProjectileImpact)>,
+) {
+    for (entity, predicted) in &predicted_impacts {
+        if server_impacts
+            .iter()
+            .any(|impact| impact.shot_id == predicted.shot_id)
+        {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
 fn sync_impact_sprites(mut impacts: Query<(&ProjectileImpact, &mut Transform)>) {
+    for (impact, mut transform) in &mut impacts {
+        let direction = impact.direction.normalize_or_zero();
+        transform.translation = impact.position.extend(9.0);
+        transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
+        transform.scale = Vec3::ONE;
+    }
+}
+
+fn sync_predicted_impact_sprites(mut impacts: Query<(&PredictedProjectileImpact, &mut Transform)>) {
     for (impact, mut transform) in &mut impacts {
         let direction = impact.direction.normalize_or_zero();
         transform.translation = impact.position.extend(9.0);
