@@ -26,6 +26,29 @@ canvas, #bevy {
     z-index: 2;
 }
 
+#inventory-jam-username {
+    position: fixed;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    width: min(280px, 80vw);
+    height: 40px;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 2px solid #cbd5e1;
+    border-radius: 0;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 22px;
+    font-family: sans-serif;
+    z-index: 1000;
+    outline: none;
+    touch-action: auto;
+    user-select: text;
+    -webkit-user-select: text;
+    pointer-events: auto;
+}
+
 .lds-dual-ring {
     display: inline-block;
     position: absolute;

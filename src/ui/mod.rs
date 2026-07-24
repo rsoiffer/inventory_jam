@@ -7,6 +7,9 @@ mod menu;
 #[cfg(feature = "gui")]
 mod mobile_controls;
 
+#[cfg(all(feature = "gui", target_family = "wasm"))]
+mod browser_username;
+
 use bevy::app::{App, Plugin};
 
 #[cfg(feature = "gui")]

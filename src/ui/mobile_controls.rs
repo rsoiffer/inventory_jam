@@ -222,7 +222,11 @@ fn write_touch_actions_to_leafwing(
     settings: Res<GameSettings>,
     mut players: Query<
         TouchControlledPlayer,
-        (With<Controlled>, With<Predicted>, With<InputMap<PlayerAction>>),
+        (
+            With<Controlled>,
+            With<Predicted>,
+            With<InputMap<PlayerAction>>,
+        ),
     >,
     enemies: Query<(&EnemyPosition, &EnemyHealth, &GameRoom)>,
 ) {
