@@ -31,7 +31,10 @@ pub fn apply_player_movement(
     }
 }
 
-pub fn apply_player_aim(aim_direction: &mut PlayerAimDirection, actions: &ActionState<PlayerAction>) {
+pub fn apply_player_aim(
+    aim_direction: &mut PlayerAimDirection,
+    actions: &ActionState<PlayerAction>,
+) {
     let aim = actions.clamped_axis_pair(&PlayerAction::Aim);
 
     if aim.length_squared() > 0.0001 {

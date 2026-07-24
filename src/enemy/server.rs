@@ -22,10 +22,7 @@ impl Plugin for EnemyServerPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                (
-                    despawn_distant_enemies,
-                    tick_enemy_spawners,
-                )
+                (despawn_distant_enemies, tick_enemy_spawners)
                     .chain()
                     .in_set(EnemySpawnSet::Request),
                 spawn_requested_enemy.in_set(EnemySpawnSet::Spawn),

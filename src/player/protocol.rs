@@ -66,11 +66,17 @@ pub(crate) struct PlayerBundle {
     username: PlayerUsername,
     health: PlayerHealth,
     aristeia: PlayerAristeia,
+    projectile_buffer: crate::projectile::protocol::ProjectileBuffer,
 }
 
 #[cfg(feature = "server")]
 impl PlayerBundle {
-    pub(crate) fn new(id: PeerId, position: Vec2, aristeia_duration_ticks: u16) -> Self {
+    pub(crate) fn new(
+        id: PeerId,
+        position: Vec2,
+        aristeia_duration_ticks: u16,
+        projectile_buffer_capacity: usize,
+    ) -> Self {
         let h = (((id.to_bits().wrapping_mul(30)) % 360) as f32) / 360.0;
         let color = Color::hsl(h, 0.8, 0.5);
 
@@ -85,6 +91,9 @@ impl PlayerBundle {
             username: PlayerUsername(temporary_username(id.to_bits())),
             health: PlayerHealth::new(100),
             aristeia: PlayerAristeia::new(aristeia_duration_ticks),
+            projectile_buffer: crate::projectile::protocol::ProjectileBuffer::new(
+                projectile_buffer_capacity,
+            ),
         }
     }
 }

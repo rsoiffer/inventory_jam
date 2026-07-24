@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use serde::Deserialize;
 
+use crate::weapon::protocol::WeaponKind;
+
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub(crate) struct GameSettings {
     pub enemy: EnemySettings,
@@ -134,7 +136,7 @@ pub struct ServerCameraSettings {
 pub struct ProjectileSettings {
     pub impact_lifetime_ticks: u16,
     pub spawn_gap: f32,
-    pub predicted_impact_max_lifetime_ticks: u16,
+    pub buffer_capacity: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -145,6 +147,19 @@ pub struct WeaponsSettings {
     pub bow: WeaponKindSettings,
     pub shuriken: WeaponKindSettings,
     pub boomerang: WeaponKindSettings,
+}
+
+impl WeaponsSettings {
+    pub fn get(&self, kind: WeaponKind) -> &WeaponKindSettings {
+        match kind {
+            WeaponKind::Sword => &self.sword,
+            WeaponKind::Spear => &self.spear,
+            WeaponKind::Staff => &self.staff,
+            WeaponKind::Bow => &self.bow,
+            WeaponKind::Shuriken => &self.shuriken,
+            WeaponKind::Boomerang => &self.boomerang,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -160,6 +175,23 @@ pub struct WeaponKindSettings {
 }
 
 impl WeaponKindSettings {
+    fn bonus_levels(level: u32) -> u32 {
+        level.max(1).saturating_sub(1)
+    }
+
+    pub fn damage_at(&self, level: u32) -> u32 {
+        self.damage + Self::bonus_levels(level) * self.damage_per_level
+    }
+
+    pub fn range_at(&self, level: u32) -> f32 {
+        self.range + Self::bonus_levels(level) as f32 * self.range_per_level
+    }
+
+    pub fn attacks_per_second_at(&self, level: u32) -> f32 {
+        self.attacks_per_second
+            + Self::bonus_levels(level) as f32 * self.attacks_per_second_per_level
+    }
+
     fn is_valid(&self) -> bool {
         self.range > 0.0
             && self.range_per_level >= 0.0
@@ -293,6 +325,14 @@ impl GameSettings {
         {
             return Err(GameSettingsLoadError::Invalid(
                 "server camera scale range is invalid".into(),
+            ));
+        }
+        if self.projectile.buffer_capacity == 0
+            || self.projectile.impact_lifetime_ticks == 0
+            || self.projectile.spawn_gap < 0.0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "projectile buffer capacity, impact lifetime, and spawn gap are invalid".into(),
             ));
         }
         for weapon in [

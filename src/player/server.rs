@@ -150,6 +150,7 @@ pub(crate) fn handle_connected(
                 client_id,
                 spawn_position,
                 settings.player.aristeia_duration_ticks,
+                settings.projectile.buffer_capacity,
             ),
             PlayerVisual,
             EnemyContactDamageCooldown::default(),
@@ -233,7 +234,11 @@ pub(crate) fn authoritative_player_movement(
 
 pub(crate) fn authoritative_player_aim(
     mut players: Query<
-        (Has<Predicted>, &ActionState<PlayerAction>, &mut PlayerAimDirection),
+        (
+            Has<Predicted>,
+            &ActionState<PlayerAction>,
+            &mut PlayerAimDirection,
+        ),
         With<PlayerId>,
     >,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,

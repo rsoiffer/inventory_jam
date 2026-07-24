@@ -4,7 +4,7 @@ use lightyear::prelude::*;
 use crate::app::ServerState;
 use crate::player::PlayerId;
 use crate::shared::FixedGameplaySet;
-use crate::weapon::protocol::{EquippedWeapon, ShotSequence, WeaponCooldown, WeaponKind};
+use crate::weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind};
 use crate::weapon::shared::{fire_equipped_weapons, switch_equipped_weapons};
 
 #[cfg(feature = "server")]
@@ -42,7 +42,6 @@ pub(crate) fn ensure_player_weapons(
         commands.entity(entity).insert((
             EquippedWeapon::new(WeaponKind::Sword, 1),
             WeaponCooldown::default(),
-            ShotSequence::default(),
         ));
     }
 }

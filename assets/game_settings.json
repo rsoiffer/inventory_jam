@@ -84,7 +84,7 @@
   "projectile": {
     "impact_lifetime_ticks": 12,
     "spawn_gap": 0.32,
-    "predicted_impact_max_lifetime_ticks": 24
+    "buffer_capacity": 32
   },
   "weapons": {
     "sword": {
@@ -95,7 +95,7 @@
       "attacks_per_second": 2.5,
       "attacks_per_second_per_level": 0.08,
       "projectile_speed": 160.0,
-      "projectile_radius": 16.0
+      "projectile_radius": 24.0
     },
     "spear": {
       "damage": 32,
@@ -105,17 +105,17 @@
       "attacks_per_second": 1.5,
       "attacks_per_second_per_level": 0.05,
       "projectile_speed": 225.28,
-      "projectile_radius": 8.0
+      "projectile_radius": 12.0
     },
     "staff": {
-      "damage": 16,
-      "damage_per_level": 3,
+      "damage": 32,
+      "damage_per_level": 6,
       "range": 320.0,
       "range_per_level": 2.24,
-      "attacks_per_second": 3.2,
-      "attacks_per_second_per_level": 0.1,
+      "attacks_per_second": 1.2,
+      "attacks_per_second_per_level": 0.03,
       "projectile_speed": 163.84,
-      "projectile_radius": 8.0
+      "projectile_radius": 24.0
     },
     "bow": {
       "damage": 28,
@@ -145,7 +145,7 @@
       "attacks_per_second": 1.6,
       "attacks_per_second_per_level": 0.05,
       "projectile_speed": 153.6,
-      "projectile_radius": 8.0
+      "projectile_radius": 16.0
     }
   },
   "menu": {

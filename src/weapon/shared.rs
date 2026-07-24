@@ -7,27 +7,26 @@ use lightyear::{
 
 use crate::{
     app::ServerState,
-    player::{PlayerAimDirection, PlayerId, PlayerPosition},
-    projectile::{
-        PlayerProjectile, ProjectileLifetime, ShotId, SpawnProjectile, projectile_spawn_position,
-    },
-    protocol::{inputs::PlayerAction, rooms::GameRoom},
+    player::{PlayerAimDirection, PlayerPosition},
+    projectile::ProjectileBuffer,
+    protocol::inputs::PlayerAction,
     settings::GameSettings,
-    weapon::protocol::{EquippedWeapon, ShotSequence, WeaponCooldown, WeaponKind},
+    weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind},
 };
 
+fn runs_local_sim(predicted: bool, host_server: bool, authoritative: bool) -> bool {
+    !(host_server && predicted) && (authoritative || predicted)
+}
+
 pub(crate) fn fire_equipped_weapons(
-    mut commands: Commands,
     mut players: Query<(
         Has<Predicted>,
-        &PlayerId,
         &PlayerPosition,
         &PlayerAimDirection,
-        &GameRoom,
         &ActionState<PlayerAction>,
         &EquippedWeapon,
         &mut WeaponCooldown,
-        &mut ShotSequence,
+        &mut ProjectileBuffer,
     )>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     app_state: Option<Res<State<ServerState>>>,
@@ -35,31 +34,24 @@ pub(crate) fn fire_equipped_weapons(
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
 ) {
-    let is_host_server = !host_server.is_empty();
-    let is_authoritative = app_state
+    let host_server = !host_server.is_empty();
+    let authoritative = app_state
         .as_ref()
         .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
 
     for (
         predicted,
-        player_id,
         player_position,
         aim_direction,
-        room,
         actions,
-        equipped_weapon,
+        equipped,
         mut cooldown,
-        mut shot_sequence,
+        mut buffer,
     ) in &mut players
     {
-        if is_host_server && predicted {
+        if !runs_local_sim(predicted, host_server, authoritative) {
             continue;
         }
-
-        if !is_authoritative && !predicted {
-            continue;
-        }
-
         if !actions.pressed(&PlayerAction::Fire) || !cooldown.is_ready(local_timeline.tick()) {
             continue;
         }
@@ -69,59 +61,35 @@ pub(crate) fn fire_equipped_weapons(
             continue;
         }
 
-        let level = equipped_weapon.level.max(1);
-        let bonus_levels = level.saturating_sub(1);
-        let base = match equipped_weapon.kind {
-            WeaponKind::Sword => &settings.weapons.sword,
-            WeaponKind::Spear => &settings.weapons.spear,
-            WeaponKind::Staff => &settings.weapons.staff,
-            WeaponKind::Bow => &settings.weapons.bow,
-            WeaponKind::Shuriken => &settings.weapons.shuriken,
-            WeaponKind::Boomerang => &settings.weapons.boomerang,
-        };
-        let damage = base.damage + bonus_levels * base.damage_per_level;
-        let range = base.range + bonus_levels as f32 * base.range_per_level;
-        let attacks_per_second =
-            base.attacks_per_second + bonus_levels as f32 * base.attacks_per_second_per_level;
-        let spawn_position = projectile_spawn_position(
-            player_position.0,
-            direction,
-            base.projectile_radius,
-            &settings,
-        );
-        shot_sequence.0 = shot_sequence.0.wrapping_add(1);
-        let shot_id = ShotId {
-            owner: player_id.0,
-            sequence: shot_sequence.0,
-        };
-        let expire_time = ProjectileLifetime::new(
-            &local_timeline.tick(),
-            range,
-            base.projectile_speed,
-            tick_duration.0.as_secs_f32(),
-        );
+        let weapon = settings.weapons.get(equipped.kind);
+        let position = player_position.0
+            + direction
+                * (settings.player.half_size
+                    + weapon.projectile_radius.max(0.0)
+                    + settings.projectile.spawn_gap);
 
-        commands.queue(SpawnProjectile {
-            projectile: PlayerProjectile {
-                shot_id,
-                owner: player_id.0,
-                weapon: equipped_weapon.kind,
-                origin: spawn_position,
-                direction,
-                speed: base.projectile_speed,
-                damage,
-                max_range: range,
-                radius: base.projectile_radius,
-                expire_time,
-            },
-            spawn_position,
-            room: *room,
-            is_authoritative,
-        });
-
-        cooldown.restart(&local_timeline, &tick_duration, attacks_per_second);
+        buffer.insert(
+            equipped.kind,
+            position,
+            direction * weapon.projectile_speed,
+            local_timeline.tick(),
+        );
+        cooldown.restart(
+            &local_timeline,
+            &tick_duration,
+            weapon.attacks_per_second_at(equipped.level),
+        );
     }
 }
+
+const EQUIP_ACTIONS: [(PlayerAction, WeaponKind); 6] = [
+    (PlayerAction::EquipSword, WeaponKind::Sword),
+    (PlayerAction::EquipSpear, WeaponKind::Spear),
+    (PlayerAction::EquipStaff, WeaponKind::Staff),
+    (PlayerAction::EquipBow, WeaponKind::Bow),
+    (PlayerAction::EquipShuriken, WeaponKind::Shuriken),
+    (PlayerAction::EquipBoomerang, WeaponKind::Boomerang),
+];
 
 pub(crate) fn switch_equipped_weapons(
     mut players: Query<(
@@ -133,44 +101,25 @@ pub(crate) fn switch_equipped_weapons(
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     app_state: Option<Res<State<ServerState>>>,
 ) {
-    let is_host_server = !host_server.is_empty();
-    let is_authoritative = app_state
+    let host_server = !host_server.is_empty();
+    let authoritative = app_state
         .as_ref()
         .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
 
     for (predicted, actions, mut equipped, mut cooldown) in &mut players {
-        if is_host_server && predicted {
+        if !runs_local_sim(predicted, host_server, authoritative) {
             continue;
         }
 
-        if !is_authoritative && !predicted {
-            continue;
-        }
-
-        let requested = if actions.just_pressed(&PlayerAction::EquipSword) {
-            Some(WeaponKind::Sword)
-        } else if actions.just_pressed(&PlayerAction::EquipSpear) {
-            Some(WeaponKind::Spear)
-        } else if actions.just_pressed(&PlayerAction::EquipStaff) {
-            Some(WeaponKind::Staff)
-        } else if actions.just_pressed(&PlayerAction::EquipBow) {
-            Some(WeaponKind::Bow)
-        } else if actions.just_pressed(&PlayerAction::EquipShuriken) {
-            Some(WeaponKind::Shuriken)
-        } else if actions.just_pressed(&PlayerAction::EquipBoomerang) {
-            Some(WeaponKind::Boomerang)
-        } else {
-            None
-        };
-
-        let Some(kind) = requested else {
+        let Some(kind) = EQUIP_ACTIONS
+            .into_iter()
+            .find_map(|(action, kind)| actions.just_pressed(&action).then_some(kind))
+        else {
             continue;
         };
-
         if equipped.kind == kind {
             continue;
         }
-
         equipped.kind = kind;
         *cooldown = WeaponCooldown::default();
     }

@@ -8,12 +8,12 @@ impl Plugin for WeaponProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.component::<EquippedWeapon>().replicate().predict();
         app.component::<WeaponCooldown>().replicate().predict();
-        app.component::<ShotSequence>().replicate().predict();
     }
 }
 
 /// Stable gameplay identifier replicated over the network.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum WeaponKind {
     Sword,
     Spear,
@@ -57,9 +57,3 @@ impl WeaponCooldown {
         self.cooldown_tick = local_timeline.tick() + Tick(ticks_per_attack.ceil() as u32);
     }
 }
-
-/// Monotonic per-player shot counter used for pre-spawn matching and impact dedupe.
-#[derive(
-    Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, Deref, DerefMut,
-)]
-pub struct ShotSequence(pub u16);

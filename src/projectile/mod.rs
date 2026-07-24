@@ -1,17 +1,14 @@
 #[cfg(feature = "client")]
 mod client;
-mod protocol;
+pub(crate) mod protocol;
 #[cfg(feature = "gui")]
 mod render;
 #[cfg(feature = "server")]
 mod server;
-pub(crate) mod shared;
 
 use bevy::app::{App, Plugin};
 
-pub use protocol::{PlayerProjectile, ProjectileLifetime, ShotId};
-pub use shared::SpawnProjectile;
-pub use shared::projectile_spawn_position;
+pub use protocol::ProjectileBuffer;
 
 pub struct ProjectilePlugin;
 
