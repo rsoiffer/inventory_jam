@@ -1,9 +1,9 @@
-use crate::app::{game_is_active, ClientState};
+use crate::app::{ClientState, game_is_active};
+use crate::player::PlayerUsername;
 use crate::player::protocol::{
     LocalAimInput, PlayerAimDirection, PlayerAristeia, PlayerHealth, PlayerPosition, PlayerVisual,
     SmoothedAimDirection,
 };
-use crate::player::PlayerUsername;
 use crate::settings::GameSettings;
 use crate::world::GlobalAristeia;
 
@@ -15,10 +15,10 @@ use bevy::ecs::query::Without;
 use bevy::image::Image;
 use bevy::math::{Isometry2d, StableInterpolate, UVec2, Vec2, Vec3};
 use bevy::prelude::{
-    default, in_state, BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize,
-    Gizmos, GlobalTransform, IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res,
-    ResMut, Resource, Single, Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas,
-    TextureAtlasLayout, Time, Timer, TimerMode, Transform, UiRect, Val, Window, With,
+    BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize, Gizmos, GlobalTransform,
+    IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res, ResMut, Resource, Single,
+    Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas, TextureAtlasLayout, Time, Timer,
+    TimerMode, Transform, UiRect, Val, Window, With, default, in_state,
 };
 use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
@@ -290,9 +290,8 @@ fn sync_player_health_bars(
 
         sprite.color = Color::srgb(0.15, 0.05, 0.05);
         sprite.custom_size = Some(full_size);
-        transform.translation = (position.0
-            + Vec2::new(0.0, settings.player.health_bar_offset_y))
-        .extend(PLAYER_HEALTH_BAR_Z);
+        transform.translation = (position.0 + Vec2::new(0.0, settings.player.health_bar_offset_y))
+            .extend(PLAYER_HEALTH_BAR_Z);
     }
 
     for (entity, bar, mut sprite, mut transform) in &mut fills {

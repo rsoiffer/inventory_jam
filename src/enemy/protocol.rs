@@ -13,6 +13,7 @@ impl Plugin for EnemyProtocolPlugin {
 
         app.component::<EnemyHealth>().replicate();
         app.component::<EnemyKind>().replicate();
+        app.component::<EnemySpawnerPosition>().replicate();
     }
 }
 
@@ -63,3 +64,6 @@ impl EnemyKind {
         }
     }
 }
+
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Deref, DerefMut)]
+pub struct EnemySpawnerPosition(pub Vec2);

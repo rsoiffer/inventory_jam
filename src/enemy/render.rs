@@ -1,11 +1,13 @@
 use crate::app::game_is_active;
-use crate::enemy::protocol::{EnemyHealth, EnemyKind, EnemyPosition};
+use crate::enemy::protocol::{EnemyHealth, EnemyKind, EnemyPosition, EnemySpawnerPosition};
 use crate::settings::GameSettings;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 const ENEMY_SPRITE_Z: f32 = 6.0;
+const SPAWNER_SPRITE_Z: f32 = 4.0;
 const ENEMY_ART_PIXELS_PER_TILE: f32 = 16.0;
+const SPAWNER_FRAME_PIXELS: UVec2 = UVec2::new(48, 32);
 const IDLE_FRAME_SECONDS: f32 = 0.12;
 const FACING_MOVE_THRESHOLD: f32 = 0.01;
 
@@ -21,6 +23,9 @@ impl Plugin for EnemyRenderPlugin {
                 sync_enemy_sprites,
                 animate_enemy_sprites,
                 draw_health_bars,
+                ensure_spawner_sprites,
+                sync_spawner_sprites,
+                animate_spawner_sprites,
             )
                 .chain()
                 .run_if(game_is_active),
@@ -39,6 +44,7 @@ struct IdleSheet {
 struct EnemyVisualAssets {
     regular: IdleSheet,
     champion: IdleSheet,
+    spawner: IdleSheet,
 }
 
 #[derive(Component)]
@@ -49,6 +55,14 @@ struct EnemySpriteVisual {
 
 #[derive(Component)]
 struct EnemySpriteAnimation(Timer);
+
+#[derive(Component)]
+struct SpawnerSpriteVisual {
+    frame_count: usize,
+}
+
+#[derive(Component)]
+struct SpawnerSpriteAnimation(Timer);
 
 fn load_enemy_visual_assets(
     mut commands: Commands,
@@ -71,6 +85,17 @@ fn load_enemy_visual_assets(
             image: asset_server.load("enemy/spr_champion_idle.png"),
             layout: layouts.add(TextureAtlasLayout::from_grid(
                 UVec2::splat(64),
+                4,
+                1,
+                None,
+                None,
+            )),
+            frame_count: 4,
+        },
+        spawner: IdleSheet {
+            image: asset_server.load("world_tiles/spr_gate_open.png"),
+            layout: layouts.add(TextureAtlasLayout::from_grid(
+                SPAWNER_FRAME_PIXELS,
                 4,
                 1,
                 None,
@@ -151,6 +176,73 @@ fn animate_enemy_sprites(
     mut enemies: Query<(&EnemySpriteVisual, &mut EnemySpriteAnimation, &mut Sprite)>,
 ) {
     for (visual, mut animation, mut sprite) in &mut enemies {
+        animation.0.tick(time.delta());
+        if !animation.0.just_finished() {
+            continue;
+        }
+
+        let Some(atlas) = sprite.texture_atlas.as_mut() else {
+            continue;
+        };
+        atlas.index = (atlas.index + 1) % visual.frame_count;
+    }
+}
+
+fn ensure_spawner_sprites(
+    mut commands: Commands,
+    assets: Res<EnemyVisualAssets>,
+    settings: Res<GameSettings>,
+    spawners: Query<Entity, (With<EnemySpawnerPosition>, Without<SpawnerSpriteVisual>)>,
+) {
+    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
+    let sheet = &assets.spawner;
+
+    for entity in &spawners {
+        commands.entity(entity).insert((
+            Sprite::from_atlas_image(
+                sheet.image.clone(),
+                TextureAtlas {
+                    layout: sheet.layout.clone(),
+                    index: 0,
+                },
+            ),
+            Anchor::CENTER,
+            Transform {
+                translation: Vec3::new(0.0, 0.0, SPAWNER_SPRITE_Z),
+                scale: Vec3::splat(scale),
+                ..default()
+            },
+            SpawnerSpriteVisual {
+                frame_count: sheet.frame_count,
+            },
+            SpawnerSpriteAnimation(Timer::from_seconds(
+                IDLE_FRAME_SECONDS,
+                TimerMode::Repeating,
+            )),
+        ));
+    }
+}
+
+fn sync_spawner_sprites(
+    settings: Res<GameSettings>,
+    mut spawners: Query<(&EnemySpawnerPosition, &mut Transform), With<SpawnerSpriteVisual>>,
+) {
+    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
+    for (position, mut transform) in &mut spawners {
+        transform.translation = position.0.extend(SPAWNER_SPRITE_Z);
+        transform.scale = Vec3::splat(scale);
+    }
+}
+
+fn animate_spawner_sprites(
+    time: Res<Time>,
+    mut spawners: Query<(
+        &SpawnerSpriteVisual,
+        &mut SpawnerSpriteAnimation,
+        &mut Sprite,
+    )>,
+) {
+    for (visual, mut animation, mut sprite) in &mut spawners {
         animation.0.tick(time.delta());
         if !animation.0.just_finished() {
             continue;

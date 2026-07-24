@@ -6,13 +6,15 @@ use crate::enemy::EnemyKind;
 pub(crate) struct SpawnEnemy {
     pub position: Vec2,
     pub kind: EnemyKind,
+    pub spawner: Option<Entity>,
 }
 
 impl SpawnEnemy {
-    pub const fn regular(position: Vec2) -> Self {
+    pub const fn regular(position: Vec2, spawner: Entity) -> Self {
         Self {
             position,
             kind: EnemyKind::Regular,
+            spawner: Some(spawner),
         }
     }
 
@@ -20,6 +22,7 @@ impl SpawnEnemy {
         Self {
             position,
             kind: EnemyKind::GrandChampion,
+            spawner: None,
         }
     }
 }

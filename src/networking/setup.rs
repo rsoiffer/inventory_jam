@@ -27,10 +27,10 @@ use super::shared::SERVER_ADDR;
 #[cfg(feature = "server")]
 use super::shared::SERVER_PORT;
 use super::shared::SHARED_SETTINGS;
-#[cfg(feature = "client")]
-use crate::app::{ClientState, LocalUsername, client_id_from_username, machine_local_username};
 #[cfg(feature = "server")]
 use crate::app::ServerState;
+#[cfg(feature = "client")]
+use crate::app::{ClientState, LocalUsername, client_id_from_username, machine_local_username};
 use crate::app::{LaunchMode, StartGame};
 
 #[cfg(feature = "client")]

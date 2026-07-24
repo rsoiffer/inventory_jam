@@ -1,4 +1,4 @@
-use crate::app::{game_is_active, ClientState};
+use crate::app::{ClientState, game_is_active};
 use crate::fragment::shared::FragmentPosition;
 use crate::persistence::CachedPersistentState;
 use bevy::prelude::*;

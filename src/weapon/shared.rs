@@ -10,7 +10,7 @@ use crate::{
     app::ServerState,
     player::{PlayerAimDirection, PlayerId, PlayerPosition},
     projectile::{
-        projectile_spawn_position, PlayerProjectile, ProjectileLifetime, SpawnProjectile,
+        PlayerProjectile, ProjectileLifetime, SpawnProjectile, projectile_spawn_position,
     },
     protocol::{inputs::PlayerAction, rooms::GameRoom},
     settings::GameSettings,

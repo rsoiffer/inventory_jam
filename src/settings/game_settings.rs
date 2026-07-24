@@ -8,6 +8,7 @@ use serde::Deserialize;
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub(crate) struct GameSettings {
     pub enemy: EnemySettings,
+    pub spawner: SpawnerSettings,
     pub fragment: FragmentSettings,
     pub player: PlayerSettings,
     pub world: WorldSettings,
@@ -20,19 +21,25 @@ pub(crate) struct GameSettings {
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnemySettings {
     pub size: f32,
-    pub spawn_radius: f32,
     pub max_health: u32,
     pub collision_radius: f32,
-    pub limit: usize,
-    pub max_spawns_per_tick: usize,
-    pub spawn_candidate_count: usize,
-    pub target_per_player: usize,
-    pub spawn_min_distance_from_player: f32,
     pub despawn_distance_from_players: f32,
-    pub move_speed_per_tick: f32,
+    pub move_speed: f32,
     pub wander_radius: f32,
     pub detection_radius: f32,
     pub leash_radius: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SpawnerSettings {
+    pub count: usize,
+    pub activation_radius: f32,
+    pub max_owned: usize,
+    pub spawn_radius: f32,
+    pub spawn_rate_per_second: f32,
+    pub placement_candidate_count: usize,
+    pub spawn_min_distance_from_player: f32,
+    pub spawn_candidate_count: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -85,8 +92,6 @@ pub struct WorldSettings {
     pub stream_half_width: i32,
     pub stream_half_height: i32,
     pub arena_floor_tiles: Vec<usize>,
-    #[allow(unused)]
-    pub world_radius: f32,
 }
 
 impl WorldSettings {
@@ -137,7 +142,7 @@ pub struct GlobalAristeiaSettings {
     pub drain_interval_ticks: u16,
     pub drain_amount: u32,
     pub grand_champion_health: u32,
-    pub grand_champion_move_speed_per_tick: f32,
+    pub grand_champion_move_speed: f32,
     pub grand_champion_detection_radius: f32,
     pub grand_champion_leash_radius: f32,
 }
@@ -185,14 +190,29 @@ impl GameSettings {
                 "enemy size and collision radius must be greater than zero".into(),
             ));
         }
-        if self.enemy.spawn_min_distance_from_player > self.enemy.spawn_radius
-            || self.enemy.despawn_distance_from_players <= self.enemy.spawn_radius
-            || self.enemy.move_speed_per_tick <= 0.0
+        if self.enemy.move_speed <= 0.0
             || self.enemy.detection_radius <= 0.0
+            || self.enemy.despawn_distance_from_players <= 0.0
             || self.enemy.leash_radius < self.enemy.detection_radius
+            || self.enemy.leash_radius < self.enemy.wander_radius
         {
             return Err(GameSettingsLoadError::Invalid(
-                "enemy population or movement settings are invalid".into(),
+                "enemy movement settings are invalid".into(),
+            ));
+        }
+        if self.spawner.count == 0
+            || self.spawner.activation_radius <= 0.0
+            || self.spawner.max_owned == 0
+            || self.spawner.spawn_radius <= 0.0
+            || self.spawner.spawn_rate_per_second <= 0.0
+            || self.spawner.placement_candidate_count == 0
+            || self.spawner.spawn_candidate_count == 0
+            || self.spawner.spawn_min_distance_from_player < 0.0
+            || self.enemy.despawn_distance_from_players
+                <= self.spawner.spawn_min_distance_from_player
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "spawner settings are invalid".into(),
             ));
         }
         if self.fragment.pool_min_radius > self.fragment.pool_max_radius {
