@@ -61,59 +61,59 @@ const PROP_BARREL: Tile = Tile { x: 8, y: 1 };
 const PIT_FLOORS: &[FloorRect] = &[
     FloorRect {
         center: BLUE_FLOOR,
-        x: 2,
-        y: 2,
-        width: 12,
-        height: 8,
+        x: 4,
+        y: 4,
+        width: 24,
+        height: 16,
     },
     FloorRect {
         center: GREY_FLOOR,
-        x: 6,
-        y: 5,
-        width: 4,
-        height: 2,
+        x: 12,
+        y: 10,
+        width: 8,
+        height: 4,
     },
     FloorRect {
         center: BLUE_FLOOR_02,
-        x: 3,
-        y: 7,
-        width: 4,
-        height: 3,
+        x: 6,
+        y: 14,
+        width: 8,
+        height: 6,
     },
     FloorRect {
         center: GREY_FLOOR_02,
-        x: 10,
-        y: 3,
-        width: 3,
-        height: 3,
+        x: 20,
+        y: 6,
+        width: 6,
+        height: 6,
     },
 ];
 
 const PIT_PROPS: &[PropPlacement] = &[
     PropPlacement {
         tile: PROP_TABLE,
-        x: 8,
-        y: 6,
+        x: 16,
+        y: 12,
     },
     PropPlacement {
         tile: PROP_STOOL,
-        x: 7,
-        y: 5,
+        x: 14,
+        y: 10,
     },
     PropPlacement {
         tile: PROP_ANVIL,
-        x: 9,
-        y: 5,
+        x: 18,
+        y: 10,
     },
     PropPlacement {
         tile: PROP_ROCK,
-        x: 10,
-        y: 4,
+        x: 20,
+        y: 8,
     },
     PropPlacement {
         tile: PROP_BARREL,
-        x: 6,
-        y: 6,
+        x: 12,
+        y: 12,
     },
 ];
 
@@ -290,7 +290,7 @@ fn spawn_pit_decorations(
     let bounds = settings.world.safezone_bounds();
     let tile_size = settings.world.tile_pixel_size;
     let room_tiles = (bounds.size() / tile_size).as_ivec2();
-    let layout_origin = bounds.center() - Vec2::new(8.0, 6.0) * tile_size;
+    let layout_origin = bounds.min;
 
     commands.spawn((
         Sprite::from_color(Color::srgb(0.08, 0.1, 0.14), bounds.size()),

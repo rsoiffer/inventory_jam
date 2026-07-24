@@ -11,6 +11,12 @@ pub enum FixedGameplaySet {
     Persistence,
 }
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WeaponSystemSet {
+    Stations,
+    Fire,
+}
+
 pub struct SharedPlugin;
 
 impl Plugin for SharedPlugin {
@@ -25,6 +31,12 @@ impl Plugin for SharedPlugin {
                 FixedGameplaySet::Persistence,
             )
                 .chain(),
+        );
+        app.configure_sets(
+            FixedUpdate,
+            (WeaponSystemSet::Stations, WeaponSystemSet::Fire)
+                .chain()
+                .in_set(FixedGameplaySet::Weapon),
         );
 
         #[cfg(feature = "server")]

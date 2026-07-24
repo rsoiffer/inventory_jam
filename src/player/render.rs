@@ -13,9 +13,9 @@ use bevy::camera::{Camera, Camera2d};
 use bevy::color::Color;
 use bevy::ecs::query::Without;
 use bevy::image::Image;
-use bevy::math::{Isometry2d, StableInterpolate, UVec2, Vec2, Vec3};
+use bevy::math::{StableInterpolate, UVec2, Vec2, Vec3};
 use bevy::prelude::{
-    BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize, Gizmos, GlobalTransform,
+    BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize, GlobalTransform,
     IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res, ResMut, Resource, Single,
     Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas, TextureAtlasLayout, Time, Timer,
     TimerMode, Transform, UiRect, Val, Window, With, default, in_state,
@@ -56,7 +56,7 @@ impl Plugin for PlayerRenderPlugin {
 
         app.add_systems(
             Update,
-            (draw_local_aimstick, update_aristeia_ui).run_if(in_state(ClientState::Playing)),
+            update_aristeia_ui.run_if(in_state(ClientState::Playing)),
         );
 
         app.add_systems(
@@ -399,31 +399,6 @@ fn sample_cursor_aim(
     }
 
     local_aim.0 = direction;
-}
-
-fn draw_local_aimstick(
-    settings: Res<GameSettings>,
-    mut gizmos: Gizmos,
-    players: Query<(&PlayerPosition, &SmoothedAimDirection), With<Predicted>>,
-) {
-    for (position, smoothed_aim) in &players {
-        let direction = smoothed_aim.0.normalize_or_zero();
-
-        if direction == Vec2::ZERO {
-            continue;
-        }
-
-        let start = position.0;
-        let end = start + direction * settings.player.aim_stick_length;
-
-        gizmos.line_2d(start, end, Color::srgb(1.0, 0.85, 0.2));
-
-        gizmos.circle_2d(
-            Isometry2d::from_translation(end),
-            0.8,
-            Color::srgb(1.0, 0.85, 0.2),
-        );
-    }
 }
 
 fn smooth_local_aim_visual(

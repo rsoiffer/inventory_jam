@@ -18,13 +18,6 @@ pub enum PlayerAction {
     Fire,
     Interact,
     UseSkill,
-
-    EquipSword,
-    EquipSpear,
-    EquipStaff,
-    EquipBow,
-    EquipShuriken,
-    EquipBoomerang,
 }
 
 impl PlayerAction {
@@ -41,13 +34,6 @@ impl PlayerAction {
 
         input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
         input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
-
-        input_map.insert(Self::EquipSword, KeyCode::Digit1);
-        input_map.insert(Self::EquipSpear, KeyCode::Digit2);
-        input_map.insert(Self::EquipStaff, KeyCode::Digit3);
-        input_map.insert(Self::EquipBow, KeyCode::Digit4);
-        input_map.insert(Self::EquipShuriken, KeyCode::Digit5);
-        input_map.insert(Self::EquipBoomerang, KeyCode::Digit6);
 
         input_map
     }

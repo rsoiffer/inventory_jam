@@ -32,7 +32,7 @@ fn setup_instructions(mut commands: Commands) {
         InstructionsText,
         Name::new("Input Control Instructions"),
         Text::new(
-            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\n1-6 change weapons\nTouch portals to travel between the Arena and Pit\nN spawns an enemy (host/server debug)\nShift spawns a debug fragment pool",
+            "Move with WASD\nAim with Mouse\nHold Left Click to Fire\nWalk over weapon stations in the Pit to change weapons\nTouch portals to travel between the Arena and Pit\nShift spawns a debug fragment pool",
         ),
         Node {
             position_type: PositionType::Absolute,

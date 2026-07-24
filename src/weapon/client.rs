@@ -1,11 +1,11 @@
-//! Client weapon systems run shared predicted fire and equip logic.
+//! Client weapon systems run shared predicted fire logic.
 
 use bevy::prelude::*;
 
 use crate::{
     app::ClientState,
-    shared::FixedGameplaySet,
-    weapon::shared::{fire_equipped_weapons, switch_equipped_weapons},
+    shared::{FixedGameplaySet, WeaponSystemSet},
+    weapon::shared::fire_equipped_weapons,
 };
 
 pub struct WeaponClientPlugin;
@@ -19,8 +19,8 @@ impl Plugin for WeaponClientPlugin {
 
             app.add_systems(
                 FixedUpdate,
-                (switch_equipped_weapons, fire_equipped_weapons)
-                    .chain()
+                fire_equipped_weapons
+                    .in_set(WeaponSystemSet::Fire)
                     .in_set(FixedGameplaySet::Weapon)
                     .run_if(in_state(ClientState::Playing))
                     .run_if(not(in_state(ServerState::Hosting))),
@@ -31,8 +31,8 @@ impl Plugin for WeaponClientPlugin {
         {
             app.add_systems(
                 FixedUpdate,
-                (switch_equipped_weapons, fire_equipped_weapons)
-                    .chain()
+                fire_equipped_weapons
+                    .in_set(WeaponSystemSet::Fire)
                     .in_set(FixedGameplaySet::Weapon)
                     .run_if(in_state(ClientState::Playing)),
             );

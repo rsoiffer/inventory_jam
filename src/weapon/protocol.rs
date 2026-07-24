@@ -12,26 +12,17 @@ impl Plugin for WeaponProtocolPlugin {
 }
 
 /// Stable gameplay identifier replicated over the network.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum WeaponKind {
-    Sword,
-    Spear,
-    Staff,
-    Bow,
-    Shuriken,
-    Boomerang,
-}
+pub type WeaponId = u16;
 
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EquippedWeapon {
-    pub kind: WeaponKind,
+    pub id: WeaponId,
     pub level: u32,
 }
 
 impl EquippedWeapon {
-    pub const fn new(kind: WeaponKind, level: u32) -> Self {
-        Self { kind, level }
+    pub const fn new(id: WeaponId, level: u32) -> Self {
+        Self { id, level }
     }
 }
 

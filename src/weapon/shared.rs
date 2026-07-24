@@ -11,7 +11,7 @@ use crate::{
     projectile::ProjectileBuffer,
     protocol::inputs::PlayerAction,
     settings::GameSettings,
-    weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind},
+    weapon::protocol::{EquippedWeapon, WeaponCooldown},
 };
 
 fn runs_local_sim(predicted: bool, host_server: bool, authoritative: bool) -> bool {
@@ -54,7 +54,9 @@ pub(crate) fn fire_equipped_weapons(
             continue;
         }
 
-        let weapon = settings.weapons.get(equipped.kind);
+        let Some(weapon) = settings.weapons.get(equipped.id) else {
+            continue;
+        };
         let position = player_position.0
             + direction
                 * (settings.player.half_size
@@ -62,7 +64,7 @@ pub(crate) fn fire_equipped_weapons(
                     + settings.projectile.spawn_gap);
 
         buffer.insert(
-            equipped.kind,
+            equipped.id,
             position,
             direction * weapon.projectile_speed,
             local_timeline.tick(),
@@ -72,48 +74,5 @@ pub(crate) fn fire_equipped_weapons(
             &tick_duration,
             weapon.attacks_per_second_at(equipped.level),
         );
-    }
-}
-
-const EQUIP_ACTIONS: [(PlayerAction, WeaponKind); 6] = [
-    (PlayerAction::EquipSword, WeaponKind::Sword),
-    (PlayerAction::EquipSpear, WeaponKind::Spear),
-    (PlayerAction::EquipStaff, WeaponKind::Staff),
-    (PlayerAction::EquipBow, WeaponKind::Bow),
-    (PlayerAction::EquipShuriken, WeaponKind::Shuriken),
-    (PlayerAction::EquipBoomerang, WeaponKind::Boomerang),
-];
-
-pub(crate) fn switch_equipped_weapons(
-    mut players: Query<(
-        Has<Predicted>,
-        &ActionState<PlayerAction>,
-        &mut EquippedWeapon,
-        &mut WeaponCooldown,
-    )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
-    app_state: Option<Res<State<ServerState>>>,
-) {
-    let host_server = !host_server.is_empty();
-    let authoritative = app_state
-        .as_ref()
-        .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
-
-    for (predicted, actions, mut equipped, mut cooldown) in &mut players {
-        if !runs_local_sim(predicted, host_server, authoritative) {
-            continue;
-        }
-
-        let Some(kind) = EQUIP_ACTIONS
-            .into_iter()
-            .find_map(|(action, kind)| actions.just_pressed(&action).then_some(kind))
-        else {
-            continue;
-        };
-        if equipped.kind == kind {
-            continue;
-        }
-        equipped.kind = kind;
-        *cooldown = WeaponCooldown::default();
     }
 }

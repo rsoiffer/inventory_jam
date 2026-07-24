@@ -3,9 +3,10 @@ use lightyear::prelude::*;
 
 use crate::app::ServerState;
 use crate::player::PlayerId;
-use crate::shared::FixedGameplaySet;
-use crate::weapon::protocol::{EquippedWeapon, WeaponCooldown, WeaponKind};
-use crate::weapon::shared::{fire_equipped_weapons, switch_equipped_weapons};
+use crate::settings::GameSettings;
+use crate::shared::{FixedGameplaySet, WeaponSystemSet};
+use crate::weapon::protocol::{EquippedWeapon, WeaponCooldown};
+use crate::weapon::shared::fire_equipped_weapons;
 
 #[cfg(feature = "server")]
 pub struct WeaponServerPlugin;
@@ -16,11 +17,9 @@ impl Plugin for WeaponServerPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                ensure_player_weapons,
-                switch_equipped_weapons,
-                fire_equipped_weapons,
+                ensure_player_weapons.in_set(WeaponSystemSet::Stations),
+                fire_equipped_weapons.in_set(WeaponSystemSet::Fire),
             )
-                .chain()
                 .in_set(FixedGameplaySet::Weapon)
                 .run_if(in_state(ServerState::Hosting)),
         );
@@ -31,6 +30,7 @@ pub(crate) fn ensure_player_weapons(
     mut commands: Commands,
     players: Query<(Entity, Has<Predicted>), (With<PlayerId>, Without<EquippedWeapon>)>,
     host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    settings: Res<GameSettings>,
 ) {
     let is_host_server = !host_server.is_empty();
 
@@ -40,7 +40,7 @@ pub(crate) fn ensure_player_weapons(
         }
 
         commands.entity(entity).insert((
-            EquippedWeapon::new(WeaponKind::Sword, 1),
+            EquippedWeapon::new(settings.weapons.default_id(), 1),
             WeaponCooldown::default(),
         ));
     }

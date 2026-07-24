@@ -13,6 +13,7 @@ mod settings;
 mod shared;
 mod ui;
 mod weapon;
+mod weapon_station;
 mod world;
 
 use crate::settings::{GameSettings, GameSettingsLoadError};
@@ -34,6 +35,7 @@ use server::ExampleServerPlugin;
 use shared::SharedPlugin;
 use std::{process::ExitCode, time::Duration};
 use weapon::WeaponPlugin;
+use weapon_station::WeaponStationPlugin;
 use world::WorldPlugin;
 
 use crate::ui::UiPlugin;
@@ -82,6 +84,7 @@ fn run() -> Result<(), GameSettingsLoadError> {
     app.add_plugins((
         WorldPlugin,
         PortalPlugin,
+        WeaponStationPlugin,
         UiPlugin,
         LaunchPlugin,
         SharedPlugin,

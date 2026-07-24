@@ -1,10 +1,12 @@
 use crate::{
     app::game_is_active,
     projectile::protocol::{ProjectileBuffer, ProjectileSlot, ProjectileState},
-    weapon::protocol::WeaponKind,
+    settings::{GameSettings, WeaponSpriteSheetSettings},
+    weapon::protocol::WeaponId,
 };
 use bevy::prelude::*;
 use lightyear::{interpolation::Interpolated, prediction::Predicted, prelude::Replicate};
+use std::collections::HashMap;
 
 pub struct ProjectileRenderPlugin;
 
@@ -30,12 +32,12 @@ struct AnimatedVisualAsset {
 
 #[derive(Resource)]
 struct ProjectileVisualAssets {
-    by_weapon: [[AnimatedVisualAsset; 2]; 6],
+    by_weapon: HashMap<WeaponId, [AnimatedVisualAsset; 2]>,
 }
 
 impl ProjectileVisualAssets {
-    fn get(&self, kind: WeaponKind, impact: bool) -> &AnimatedVisualAsset {
-        &self.by_weapon[kind as usize][impact as usize]
+    fn get(&self, id: WeaponId, impact: bool) -> Option<&AnimatedVisualAsset> {
+        self.by_weapon.get(&id).map(|pair| &pair[impact as usize])
     }
 }
 
@@ -56,16 +58,19 @@ struct ProjectileVisualKey {
 fn load_anim(
     asset_server: &AssetServer,
     atlas_layouts: &mut Assets<TextureAtlasLayout>,
-    path: &'static str,
-    cell: UVec2,
-    frames: u32,
-    frame_seconds: f32,
+    sheet: &WeaponSpriteSheetSettings,
 ) -> AnimatedVisualAsset {
     AnimatedVisualAsset {
-        image: asset_server.load(path),
-        layout: atlas_layouts.add(TextureAtlasLayout::from_grid(cell, frames, 1, None, None)),
-        frame_count: frames as usize,
-        frame_seconds,
+        image: asset_server.load(sheet.path.clone()),
+        layout: atlas_layouts.add(TextureAtlasLayout::from_grid(
+            sheet.cell,
+            sheet.frames,
+            1,
+            None,
+            None,
+        )),
+        frame_count: sheet.frames as usize,
+        frame_seconds: sheet.frame_seconds,
     }
 }
 
@@ -73,99 +78,23 @@ fn load_projectile_visual_assets(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    settings: Res<GameSettings>,
 ) {
-    let mut load = |path, cell, frames, secs| {
-        load_anim(&asset_server, &mut atlas_layouts, path, cell, frames, secs)
-    };
-    // Index order matches WeaponKind discriminant: projectile then impact.
-    commands.insert_resource(ProjectileVisualAssets {
-        by_weapon: [
-            [
-                load(
-                    "weapon/sword/spr_vfx_projectile_sword.png",
-                    UVec2::new(24, 48),
-                    4,
-                    0.08,
-                ),
-                load(
-                    "weapon/sword/spr_vfx_impact_sword.png",
-                    UVec2::new(24, 48),
-                    6,
-                    0.06,
-                ),
-            ],
-            [
-                load(
-                    "weapon/spear/spr_vfx_projectile_spear.png",
-                    UVec2::new(24, 24),
-                    6,
-                    0.06,
-                ),
-                load(
-                    "weapon/spear/spr_vfx_impact_spear.png",
-                    UVec2::new(24, 24),
-                    6,
-                    0.05,
-                ),
-            ],
-            [
-                load(
-                    "weapon/staff/spr_vfx_projectile_staff.png",
-                    UVec2::new(48, 48),
-                    8,
-                    0.06,
-                ),
-                load(
-                    "weapon/staff/spr_vfx_impact_staff.png",
-                    UVec2::new(96, 96),
-                    7,
-                    0.05,
-                ),
-            ],
-            [
-                load(
-                    "weapon/bow/spr_vfx_projectile_arrow.png",
-                    UVec2::new(16, 16),
-                    6,
-                    0.07,
-                ),
-                load(
-                    "weapon/bow/spr_vfx_impact_arrow.png",
-                    UVec2::new(24, 16),
-                    7,
-                    0.05,
-                ),
-            ],
-            [
-                load(
-                    "weapon/shuriken/spr_vfx_projectile_shuriken.png",
-                    UVec2::new(16, 16),
-                    5,
-                    0.05,
-                ),
-                load(
-                    "weapon/shuriken/spr_vfx_impact_shuriken.png",
-                    UVec2::new(8, 8),
-                    5,
-                    0.04,
-                ),
-            ],
-            [
-                load(
-                    "weapon/boomerang/spr_vfx_projectile_boomerang.png",
-                    UVec2::new(32, 32),
-                    16,
-                    0.04,
-                ),
-                load(
-                    "weapon/boomerang/spr_vfx_part_boomerang_trail.png",
-                    UVec2::new(8, 8),
-                    11,
-                    0.035,
-                ),
-            ],
-        ],
-    });
+    let by_weapon = settings
+        .weapons
+        .0
+        .iter()
+        .map(|weapon| {
+            (
+                weapon.id,
+                [
+                    load_anim(&asset_server, &mut atlas_layouts, &weapon.projectile),
+                    load_anim(&asset_server, &mut atlas_layouts, &weapon.impact),
+                ],
+            )
+        })
+        .collect();
+    commands.insert_resource(ProjectileVisualAssets { by_weapon });
 }
 
 fn sync_buffer_visuals(
@@ -214,7 +143,9 @@ fn sync_buffer_visuals(
                 continue;
             }
 
-            let visual = assets.get(*weapon, is_impact);
+            let Some(visual) = assets.get(*weapon, is_impact) else {
+                continue;
+            };
             commands.spawn((
                 key,
                 Name::new(if is_impact {

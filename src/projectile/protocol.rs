@@ -1,4 +1,4 @@
-use crate::weapon::protocol::WeaponKind;
+use crate::weapon::protocol::WeaponId;
 use bevy::prelude::{App, Component, Plugin, Vec2};
 use lightyear::prelude::{AppComponentExt, PredictionBuilderExt, Tick};
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ pub enum ProjectileSlot {
     },
     Active {
         generation: u32,
-        weapon: WeaponKind,
+        weapon: WeaponId,
         position: Vec2,
         velocity: Vec2,
         state: ProjectileState,
@@ -57,7 +57,7 @@ impl ProjectileBuffer {
         }
     }
 
-    pub fn insert(&mut self, weapon: WeaponKind, position: Vec2, velocity: Vec2, spawn_tick: Tick) {
+    pub fn insert(&mut self, weapon: WeaponId, position: Vec2, velocity: Vec2, spawn_tick: Tick) {
         let index = (self.next_index as usize) % self.slots.len();
         let generation = match self.slots[index] {
             ProjectileSlot::Empty { generation } | ProjectileSlot::Active { generation, .. } => {
@@ -82,7 +82,7 @@ impl ProjectileBuffer {
         tick_secs: f32,
         weapon_level: u32,
         settings: &GameSettings,
-        mut on_hit: impl FnMut(WeaponKind, Vec2) -> bool,
+        mut on_hit: impl FnMut(WeaponId, Vec2) -> bool,
     ) {
         for i in 0..self.slots.len() {
             match &mut self.slots[i] {
@@ -112,7 +112,10 @@ impl ProjectileBuffer {
                     let velocity = *velocity;
                     let spawn_tick = *spawn_tick;
 
-                    let stats = settings.weapons.get(weapon);
+                    let Some(stats) = settings.weapons.get(weapon) else {
+                        self.slots[i] = ProjectileSlot::Empty { generation };
+                        continue;
+                    };
                     let speed_per_tick = velocity.length() * tick_secs.max(0.001);
                     let expired = tick
                         > spawn_tick

@@ -39,7 +39,6 @@
       26.0,
       10.0
     ],
-    "aim_stick_length": 10.24,
     "aim_visual_smooth_rate": 35.0,
     "health_bar_width": 32.0,
     "health_bar_height": 3.2,
@@ -60,8 +59,9 @@
     "tile_pixel_size": 16.0,
     "arena_width_in_tiles": 512,
     "arena_height_in_tiles": 512,
-    "safezone_width_in_tiles": 16,
-    "safezone_height_in_tiles": 12,
+    "safezone_width_in_tiles": 32,
+    "safezone_height_in_tiles": 24,
+    "safezone_gap_in_tiles": 128,
     "stream_half_width": 28,
     "stream_half_height": 20,
     "arena_floor_tiles": [
@@ -82,7 +82,10 @@
     "arena_edge_inset": 48.0,
     "placement_attempts": 64,
     "teleport_cooldown_ticks": 30,
-    "safezone_portal_offset": [64.0, 48.0]
+    "safezone_portal_offset": [
+      0.0,
+      120.0
+    ]
   },
   "server_camera": {
     "zoom_speed": 1.8,
@@ -95,67 +98,240 @@
     "spawn_gap": 0.32,
     "buffer_capacity": 32
   },
-  "weapons": {
-    "sword": {
-      "damage": 20,
-      "damage_per_level": 4,
-      "range": 96.0,
-      "range_per_level": 1.92,
-      "attacks_per_second": 2.5,
-      "attacks_per_second_per_level": 0.08,
-      "projectile_speed": 160.0,
-      "projectile_radius": 24.0
-    },
-    "spear": {
-      "damage": 32,
-      "damage_per_level": 6,
-      "range": 160.0,
-      "range_per_level": 2.56,
+  "weapons": [
+    {
+      "id": 0,
+      "name": "Sword",
+      "damage": 70,
+      "damage_per_level": 0,
+      "range": 84.0,
+      "range_per_level": 0,
       "attacks_per_second": 1.5,
-      "attacks_per_second_per_level": 0.05,
-      "projectile_speed": 225.28,
-      "projectile_radius": 12.0
+      "attacks_per_second_per_level": 0,
+      "projectile_speed": 240.0,
+      "projectile_radius": 24.0,
+      "icon": "weapon/sword/spr_icon_sword.png",
+      "projectile": {
+        "path": "weapon/sword/spr_vfx_projectile_sword.png",
+        "cell": [
+          24,
+          48
+        ],
+        "frames": 4,
+        "frame_seconds": 0.08
+      },
+      "impact": {
+        "path": "weapon/sword/spr_vfx_impact_sword.png",
+        "cell": [
+          24,
+          48
+        ],
+        "frames": 6,
+        "frame_seconds": 0.06
+      }
     },
-    "staff": {
-      "damage": 32,
-      "damage_per_level": 6,
-      "range": 320.0,
-      "range_per_level": 2.24,
-      "attacks_per_second": 1.2,
-      "attacks_per_second_per_level": 0.03,
-      "projectile_speed": 163.84,
-      "projectile_radius": 24.0
+    {
+      "id": 1,
+      "name": "Spear",
+      "damage": 60,
+      "damage_per_level": 0,
+      "range": 115.0,
+      "range_per_level": 0,
+      "attacks_per_second": 1.5,
+      "attacks_per_second_per_level": 0,
+      "projectile_speed": 310.0,
+      "projectile_radius": 12.0,
+      "icon": "weapon/spear/spr_icon_spear.png",
+      "projectile": {
+        "path": "weapon/spear/spr_vfx_projectile_spear.png",
+        "cell": [
+          24,
+          24
+        ],
+        "frames": 6,
+        "frame_seconds": 0.06
+      },
+      "impact": {
+        "path": "weapon/spear/spr_vfx_impact_spear.png",
+        "cell": [
+          24,
+          24
+        ],
+        "frames": 6,
+        "frame_seconds": 0.05
+      }
     },
-    "bow": {
-      "damage": 28,
-      "damage_per_level": 5,
-      "range": 320.0,
-      "range_per_level": 2.88,
-      "attacks_per_second": 1.8,
-      "attacks_per_second_per_level": 0.06,
-      "projectile_speed": 245.76,
-      "projectile_radius": 8.0
+    {
+      "id": 2,
+      "name": "Staff",
+      "damage": 40,
+      "damage_per_level": 0,
+      "range": 204.0,
+      "range_per_level": 0,
+      "attacks_per_second": 1.5,
+      "attacks_per_second_per_level": 0,
+      "projectile_speed": 430.0,
+      "projectile_radius": 24.0,
+      "icon": "weapon/staff/spr_icon_staff.png",
+      "projectile": {
+        "path": "weapon/staff/spr_vfx_projectile_staff.png",
+        "cell": [
+          48,
+          48
+        ],
+        "frames": 8,
+        "frame_seconds": 0.06
+      },
+      "impact": {
+        "path": "weapon/staff/spr_vfx_impact_staff.png",
+        "cell": [
+          96,
+          96
+        ],
+        "frames": 7,
+        "frame_seconds": 0.05
+      }
     },
-    "shuriken": {
-      "damage": 12,
-      "damage_per_level": 2,
-      "range": 240.0,
-      "range_per_level": 1.92,
-      "attacks_per_second": 4.0,
-      "attacks_per_second_per_level": 0.12,
-      "projectile_speed": 194.56,
-      "projectile_radius": 8.0
+    {
+      "id": 3,
+      "name": "Bow",
+      "damage": 40,
+      "damage_per_level": 0,
+      "range": 216.0,
+      "range_per_level": 0,
+      "attacks_per_second": 1.5,
+      "attacks_per_second_per_level": 0,
+      "projectile_speed": 430.0,
+      "projectile_radius": 0,
+      "icon": "weapon/bow/spr_icon_bow.png",
+      "projectile": {
+        "path": "weapon/bow/spr_vfx_projectile_arrow.png",
+        "cell": [
+          16,
+          16
+        ],
+        "frames": 6,
+        "frame_seconds": 0.07
+      },
+      "impact": {
+        "path": "weapon/bow/spr_vfx_impact_arrow.png",
+        "cell": [
+          24,
+          16
+        ],
+        "frames": 7,
+        "frame_seconds": 0.05
+      }
     },
-    "boomerang": {
-      "damage": 24,
-      "damage_per_level": 4,
-      "range": 240.0,
-      "range_per_level": 2.4,
-      "attacks_per_second": 1.6,
-      "attacks_per_second_per_level": 0.05,
-      "projectile_speed": 153.6,
-      "projectile_radius": 16.0
+    {
+      "id": 4,
+      "name": "Shuriken",
+      "damage": 50,
+      "damage_per_level": 0,
+      "range": 135.0,
+      "range_per_level": 0,
+      "attacks_per_second": 1.5,
+      "attacks_per_second_per_level": 0,
+      "projectile_speed": 335.0,
+      "projectile_radius": 8.0,
+      "icon": "weapon/shuriken/spr_icon_shuriken.png",
+      "projectile": {
+        "path": "weapon/shuriken/spr_vfx_projectile_shuriken.png",
+        "cell": [
+          20,
+          16
+        ],
+        "frames": 4,
+        "frame_seconds": 0.05
+      },
+      "impact": {
+        "path": "weapon/shuriken/spr_vfx_impact_shuriken.png",
+        "cell": [
+          8,
+          8
+        ],
+        "frames": 5,
+        "frame_seconds": 0.04
+      }
+    },
+    {
+      "id": 5,
+      "name": "Boomerang",
+      "damage": 50,
+      "damage_per_level": 0,
+      "range": 135.0,
+      "range_per_level": 0,
+      "attacks_per_second": 1.5,
+      "attacks_per_second_per_level": 0,
+      "projectile_speed": 335.0,
+      "projectile_radius": 16.0,
+      "icon": "weapon/boomerang/spr_icon_boomerang.png",
+      "projectile": {
+        "path": "weapon/boomerang/spr_vfx_projectile_boomerang.png",
+        "cell": [
+          32,
+          32
+        ],
+        "frames": 16,
+        "frame_seconds": 0.04
+      },
+      "impact": {
+        "path": "weapon/boomerang/spr_vfx_part_boomerang_trail.png",
+        "cell": [
+          8,
+          8
+        ],
+        "frames": 11,
+        "frame_seconds": 0.035
+      }
     }
+  ],
+  "weapon_stations": {
+    "trigger_radius": 16.0,
+    "stations": [
+      {
+        "weapon_id": 0,
+        "offset": [
+          -160.0,
+          -152.0
+        ]
+      },
+      {
+        "weapon_id": 1,
+        "offset": [
+          -96.0,
+          -152.0
+        ]
+      },
+      {
+        "weapon_id": 2,
+        "offset": [
+          -32.0,
+          -152.0
+        ]
+      },
+      {
+        "weapon_id": 3,
+        "offset": [
+          32.0,
+          -152.0
+        ]
+      },
+      {
+        "weapon_id": 4,
+        "offset": [
+          96.0,
+          -152.0
+        ]
+      },
+      {
+        "weapon_id": 5,
+        "offset": [
+          160.0,
+          -152.0
+        ]
+      }
+    ]
   },
   "menu": {
     "normal_button": [

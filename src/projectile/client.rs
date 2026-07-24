@@ -45,7 +45,13 @@ fn simulate_predicted_projectile_buffers(
             equipped.level,
             &settings,
             |weapon, pos| {
-                let radius = settings.weapons.get(weapon).projectile_radius;
+                let Some(radius) = settings
+                    .weapons
+                    .get(weapon)
+                    .map(|stats| stats.projectile_radius)
+                else {
+                    return false;
+                };
                 enemies.iter().any(|(enemy, kind, enemy_room, health)| {
                     enemy_room == room
                         && health.current > 0

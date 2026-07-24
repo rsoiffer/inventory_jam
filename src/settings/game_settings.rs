@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use serde::Deserialize;
 
-use crate::weapon::protocol::WeaponKind;
+use crate::weapon::protocol::WeaponId;
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub(crate) struct GameSettings {
@@ -18,6 +18,7 @@ pub(crate) struct GameSettings {
     pub server_camera: ServerCameraSettings,
     pub projectile: ProjectileSettings,
     pub weapons: WeaponsSettings,
+    pub weapon_stations: WeaponStationsSettings,
     pub menu: MenuSettings,
     pub global_aristeia: GlobalAristeiaSettings,
 }
@@ -68,7 +69,6 @@ pub struct PlayerSettings {
     #[serde(deserialize_with = "deserialize_vec3")]
     pub username_label_offset: Vec3,
 
-    pub aim_stick_length: f32,
     pub aim_visual_smooth_rate: f32,
     pub health_bar_width: f32,
     pub health_bar_height: f32,
@@ -95,6 +95,7 @@ pub struct WorldSettings {
     pub arena_height_in_tiles: u32,
     pub safezone_width_in_tiles: u32,
     pub safezone_height_in_tiles: u32,
+    pub safezone_gap_in_tiles: u32,
     pub stream_half_width: i32,
     pub stream_half_height: i32,
     pub arena_floor_tiles: Vec<usize>,
@@ -126,11 +127,9 @@ impl WorldSettings {
     pub fn safezone_bounds(&self) -> Rect {
         let arena_width = self.arena_width_in_tiles as f32 * self.tile_pixel_size;
         let safezone_width = self.safezone_width_in_tiles as f32 * self.tile_pixel_size;
+        let gap = self.safezone_gap_in_tiles as f32 * self.tile_pixel_size;
         Rect::from_center_size(
-            Vec2::new(
-                arena_width * 0.5 + safezone_width * 0.5 + self.tile_pixel_size * 8.0,
-                0.0,
-            ),
+            Vec2::new(arena_width * 0.5 + safezone_width * 0.5 + gap, 0.0),
             Vec2::new(
                 safezone_width,
                 self.safezone_height_in_tiles as f32 * self.tile_pixel_size,
@@ -155,30 +154,22 @@ pub struct ProjectileSettings {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct WeaponsSettings {
-    pub sword: WeaponKindSettings,
-    pub spear: WeaponKindSettings,
-    pub staff: WeaponKindSettings,
-    pub bow: WeaponKindSettings,
-    pub shuriken: WeaponKindSettings,
-    pub boomerang: WeaponKindSettings,
-}
+pub struct WeaponsSettings(pub Vec<WeaponSettings>);
 
 impl WeaponsSettings {
-    pub fn get(&self, kind: WeaponKind) -> &WeaponKindSettings {
-        match kind {
-            WeaponKind::Sword => &self.sword,
-            WeaponKind::Spear => &self.spear,
-            WeaponKind::Staff => &self.staff,
-            WeaponKind::Bow => &self.bow,
-            WeaponKind::Shuriken => &self.shuriken,
-            WeaponKind::Boomerang => &self.boomerang,
-        }
+    pub fn default_id(&self) -> WeaponId {
+        self.0[0].id
+    }
+
+    pub fn get(&self, id: WeaponId) -> Option<&WeaponSettings> {
+        self.0.iter().find(|weapon| weapon.id == id)
     }
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct WeaponKindSettings {
+pub struct WeaponSettings {
+    pub id: WeaponId,
+    pub name: String,
     pub damage: u32,
     pub damage_per_level: u32,
     pub range: f32,
@@ -187,9 +178,12 @@ pub struct WeaponKindSettings {
     pub attacks_per_second_per_level: f32,
     pub projectile_speed: f32,
     pub projectile_radius: f32,
+    pub icon: String,
+    pub projectile: WeaponSpriteSheetSettings,
+    pub impact: WeaponSpriteSheetSettings,
 }
 
-impl WeaponKindSettings {
+impl WeaponSettings {
     fn bonus_levels(level: u32) -> u32 {
         level.max(1).saturating_sub(1)
     }
@@ -214,7 +208,43 @@ impl WeaponKindSettings {
             && self.attacks_per_second_per_level >= 0.0
             && self.projectile_speed > 0.0
             && self.projectile_radius >= 0.0
+            && !self.name.is_empty()
+            && !self.icon.is_empty()
+            && self.projectile.is_valid()
+            && self.impact.is_valid()
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WeaponSpriteSheetSettings {
+    pub path: String,
+    #[serde(deserialize_with = "deserialize_uvec2")]
+    pub cell: UVec2,
+    pub frames: u32,
+    pub frame_seconds: f32,
+}
+
+impl WeaponSpriteSheetSettings {
+    fn is_valid(&self) -> bool {
+        !self.path.is_empty()
+            && self.cell.x > 0
+            && self.cell.y > 0
+            && self.frames > 0
+            && self.frame_seconds > 0.0
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WeaponStationsSettings {
+    pub trigger_radius: f32,
+    pub stations: Vec<WeaponStationSettings>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WeaponStationSettings {
+    pub weapon_id: WeaponId,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub offset: Vec2,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -360,18 +390,37 @@ impl GameSettings {
                 "projectile buffer capacity, impact lifetime, and spawn gap are invalid".into(),
             ));
         }
-        for weapon in [
-            &self.weapons.sword,
-            &self.weapons.spear,
-            &self.weapons.staff,
-            &self.weapons.bow,
-            &self.weapons.shuriken,
-            &self.weapons.boomerang,
-        ] {
+        if self.weapons.0.is_empty() {
+            return Err(GameSettingsLoadError::Invalid(
+                "weapons list cannot be empty".into(),
+            ));
+        }
+        let mut seen_weapon_ids = std::collections::HashSet::new();
+        for weapon in &self.weapons.0 {
+            if !seen_weapon_ids.insert(weapon.id) {
+                return Err(GameSettingsLoadError::Invalid(format!(
+                    "duplicate weapon id {}",
+                    weapon.id
+                )));
+            }
             if !weapon.is_valid() {
-                return Err(GameSettingsLoadError::Invalid(
-                    "weapon settings are invalid".into(),
-                ));
+                return Err(GameSettingsLoadError::Invalid(format!(
+                    "weapon settings are invalid for id {}",
+                    weapon.id
+                )));
+            }
+        }
+        if self.weapon_stations.trigger_radius <= 0.0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "weapon station trigger radius must be greater than zero".into(),
+            ));
+        }
+        for station in &self.weapon_stations.stations {
+            if !seen_weapon_ids.contains(&station.weapon_id) {
+                return Err(GameSettingsLoadError::Invalid(format!(
+                    "weapon station references unknown weapon id {}",
+                    station.weapon_id
+                )));
             }
         }
         Ok(())
@@ -431,6 +480,14 @@ where
 {
     let [x, y, z] = <[f32; 3]>::deserialize(deserializer)?;
     Ok(Vec3::new(x, y, z))
+}
+
+fn deserialize_uvec2<'de, D>(deserializer: D) -> Result<UVec2, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let [x, y] = <[u32; 2]>::deserialize(deserializer)?;
+    Ok(UVec2::new(x, y))
 }
 
 fn deserialize_color<'de, D>(deserializer: D) -> Result<Color, D::Error>

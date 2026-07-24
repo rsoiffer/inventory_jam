@@ -70,7 +70,9 @@ fn simulate_server_projectile_buffers(
         let personal_aristeia = aristeia.current;
         let level = equipped.level;
         buffer.simulate(room, tick, tick_secs, level, &settings, |weapon, pos| {
-            let stats = settings.weapons.get(weapon);
+            let Some(stats) = settings.weapons.get(weapon) else {
+                return false;
+            };
             let damage = stats.damage_at(level);
             let radius = stats.projectile_radius;
 
