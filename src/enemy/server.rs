@@ -102,12 +102,11 @@ fn simulate_enemy_ai(
     players: Query<(&PlayerId, &PlayerPosition, &PlayerHealth, &GameRoom)>,
 ) {
     let mut rng = rand::rng();
-    let arena = settings
-        .world
-        .arena_bounds()
-        .inflate(-settings.enemy.collision_radius);
+    let arena = settings.world.arena_bounds();
 
     for (mut position, home, mut wander_target, mut behavior, kind) in &mut enemies {
+        let collision_radius = kind.collision_radius(settings.enemy.collision_radius);
+        let arena = arena.inflate(-collision_radius);
         let (speed, detection, leash, wander_radius) = match kind {
             EnemyKind::Regular => (
                 settings.enemy.move_speed_per_tick,

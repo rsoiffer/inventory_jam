@@ -1,5 +1,5 @@
 use crate::app::ServerState;
-use crate::enemy::{EnemyHealth, EnemyPosition};
+use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition};
 use crate::player::api::AddKillsToAristeia;
 use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerVisual,
@@ -231,7 +231,7 @@ fn apply_enemy_contact_damage(
         ),
         With<ControlledBy>,
     >,
-    enemies: Query<(&EnemyPosition, &EnemyHealth)>,
+    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
     settings: Res<GameSettings>,
 ) {
     for (player_entity, player_position, room, mut health, mut cooldown) in &mut players {
@@ -242,13 +242,13 @@ fn apply_enemy_contact_damage(
             continue;
         }
 
-        let touching_enemy = enemies.iter().any(|(enemy_position, enemy_health)| {
+        let touching_enemy = enemies.iter().any(|(enemy_position, enemy_health, kind)| {
             if enemy_health.current == 0 {
                 return false;
             }
 
-            let collision_radius =
-                settings.player.collision_radius + settings.enemy.collision_radius;
+            let collision_radius = settings.player.collision_radius
+                + kind.collision_radius(settings.enemy.collision_radius);
             player_position.0.distance_squared(enemy_position.0)
                 <= collision_radius * collision_radius
         });

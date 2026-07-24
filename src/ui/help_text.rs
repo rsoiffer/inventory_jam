@@ -1,4 +1,5 @@
 use crate::app::{ClientState, ServerState};
+use crate::settings::GameSettings;
 use bevy::prelude::*;
 
 #[derive(Clone)]
@@ -13,11 +14,11 @@ impl Plugin for HelpTextPlugin {
     }
 }
 
-fn init(mut commands: Commands) {
+fn init(mut commands: Commands, settings: Res<GameSettings>) {
     commands.spawn((
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
-            scale: 0.16,
+            scale: settings.player.camera_scale,
             ..OrthographicProjection::default_2d()
         }),
     ));

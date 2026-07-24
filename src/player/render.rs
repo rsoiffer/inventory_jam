@@ -3,36 +3,56 @@ use crate::player::protocol::{
     LocalAimInput, PlayerAimDirection, PlayerAristeia, PlayerHealth, PlayerPosition, PlayerVisual,
     SmoothedAimDirection,
 };
-use crate::player::{PlayerColor, PlayerUsername};
+use crate::player::PlayerUsername;
 use crate::settings::GameSettings;
 use crate::world::GlobalAristeia;
 
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, Plugin, Startup, Update};
+use bevy::asset::{AssetServer, Assets, Handle};
 use bevy::camera::{Camera, Camera2d};
 use bevy::color::Color;
 use bevy::ecs::query::Without;
-use bevy::math::{Isometry2d, StableInterpolate, Vec2, Vec3};
+use bevy::image::Image;
+use bevy::math::{Isometry2d, StableInterpolate, UVec2, Vec2, Vec3};
 use bevy::prelude::{
     default, in_state, BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize,
     Gizmos, GlobalTransform, IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res,
-    ResMut, Single, Text, Text2d, TextColor, TextFont, Time, Transform, UiRect, Val, Window, With,
+    ResMut, Resource, Single, Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas,
+    TextureAtlasLayout, Time, Timer, TimerMode, Transform, UiRect, Val, Window, With,
 };
 use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
 
 use lightyear::prediction::Predicted;
 
+const PLAYER_SPRITE_Z: f32 = 5.0;
+const PLAYER_ART_PIXELS_PER_TILE: f32 = 16.0;
+const PLAYER_IDLE_FRAME_COUNT: usize = 2;
+const PLAYER_IDLE_FRAME_SECONDS: f32 = 0.12;
+const FACING_MOVE_THRESHOLD: f32 = 0.01;
+const PLAYER_IDLE_FRAME_SIZE: UVec2 = UVec2::new(24, 24);
+
 pub struct PlayerRenderPlugin;
 
 impl Plugin for PlayerRenderPlugin {
     fn build(&self, app: &mut App) {
+        app.add_systems(Startup, load_player_visual_assets);
         app.add_systems(OnEnter(ClientState::Playing), spawn_aristeia_ui);
 
         app.add_systems(OnExit(ClientState::Playing), despawn_aristeia_ui);
 
         app.add_systems(
             Update,
-            (draw_player_boxes, sync_username_labels).run_if(game_is_active),
+            (
+                ensure_player_sprites,
+                sync_player_sprites,
+                animate_player_sprites,
+                ensure_player_health_bars,
+                sync_player_health_bars,
+                sync_username_labels,
+            )
+                .chain()
+                .run_if(game_is_active),
         );
 
         app.add_systems(
@@ -54,6 +74,36 @@ impl Plugin for PlayerRenderPlugin {
     }
 }
 
+#[derive(Resource)]
+struct PlayerVisualAssets {
+    idle_image: Handle<Image>,
+    idle_layout: Handle<TextureAtlasLayout>,
+}
+
+#[derive(Component)]
+struct PlayerBodySprite {
+    player: Entity,
+    previous_position: Option<Vec2>,
+}
+
+#[derive(Component)]
+struct PlayerSpriteAnimation {
+    timer: Timer,
+    frame_count: usize,
+}
+
+#[derive(Component)]
+struct PlayerHealthBarBackground {
+    player: Entity,
+}
+
+#[derive(Component)]
+struct PlayerHealthBarFill {
+    player: Entity,
+}
+
+const PLAYER_HEALTH_BAR_Z: f32 = 11.0;
+
 #[derive(Component)]
 struct UsernameLabel {
     player: Entity,
@@ -74,19 +124,198 @@ struct GlobalAristeiaValueText;
 #[derive(Component)]
 struct GlobalAristeiaBarFill;
 
-pub(crate) fn draw_player_boxes(
-    settings: Res<GameSettings>,
-    mut gizmos: Gizmos,
-    players: Query<(&PlayerPosition, &PlayerColor, &PlayerHealth), With<PlayerVisual>>,
+fn load_player_visual_assets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    for (position, color, health) in &players {
-        gizmos.rect_2d(
-            Isometry2d::from_translation(position.0),
-            Vec2::ONE * settings.player.half_size * 2.0,
-            color.0,
-        );
+    commands.insert_resource(PlayerVisualAssets {
+        idle_image: asset_server.load("player/spr_gladiator_idle.png"),
+        idle_layout: layouts.add(TextureAtlasLayout::from_grid(
+            PLAYER_IDLE_FRAME_SIZE,
+            PLAYER_IDLE_FRAME_COUNT as u32,
+            1,
+            None,
+            None,
+        )),
+    });
+}
 
-        draw_health_bar(&settings, &mut gizmos, position, health);
+fn ensure_player_sprites(
+    mut commands: Commands,
+    assets: Res<PlayerVisualAssets>,
+    settings: Res<GameSettings>,
+    players: Query<Entity, With<PlayerVisual>>,
+    bodies: Query<&PlayerBodySprite>,
+) {
+    let scale = settings.world.tile_pixel_size / PLAYER_ART_PIXELS_PER_TILE;
+
+    for player in &players {
+        if bodies.iter().any(|body| body.player == player) {
+            continue;
+        }
+
+        commands.spawn((
+            PlayerBodySprite {
+                player,
+                previous_position: None,
+            },
+            Sprite::from_atlas_image(
+                assets.idle_image.clone(),
+                TextureAtlas {
+                    layout: assets.idle_layout.clone(),
+                    index: 0,
+                },
+            ),
+            Anchor::CENTER,
+            Transform {
+                translation: Vec3::new(0.0, 0.0, PLAYER_SPRITE_Z),
+                scale: Vec3::splat(scale),
+                ..default()
+            },
+            PlayerSpriteAnimation {
+                timer: Timer::from_seconds(PLAYER_IDLE_FRAME_SECONDS, TimerMode::Repeating),
+                frame_count: PLAYER_IDLE_FRAME_COUNT,
+            },
+        ));
+    }
+}
+
+fn sync_player_sprites(
+    settings: Res<GameSettings>,
+    players: Query<&PlayerPosition, With<PlayerVisual>>,
+    mut bodies: Query<(Entity, &mut PlayerBodySprite, &mut Sprite, &mut Transform)>,
+    mut commands: Commands,
+) {
+    let scale = settings.world.tile_pixel_size / PLAYER_ART_PIXELS_PER_TILE;
+
+    for (body_entity, mut body, mut sprite, mut transform) in &mut bodies {
+        let Ok(position) = players.get(body.player) else {
+            commands.entity(body_entity).despawn();
+            continue;
+        };
+
+        if let Some(previous) = body.previous_position {
+            let delta_x = position.0.x - previous.x;
+            if delta_x.abs() > FACING_MOVE_THRESHOLD {
+                sprite.flip_x = delta_x < 0.0;
+            }
+        }
+
+        body.previous_position = Some(position.0);
+        transform.translation = position.0.extend(PLAYER_SPRITE_Z);
+        transform.scale = Vec3::splat(scale);
+    }
+}
+
+fn animate_player_sprites(
+    time: Res<Time>,
+    mut bodies: Query<(&mut PlayerSpriteAnimation, &mut Sprite)>,
+) {
+    for (mut animation, mut sprite) in &mut bodies {
+        animation.timer.tick(time.delta());
+        if !animation.timer.just_finished() {
+            continue;
+        }
+
+        let Some(atlas) = sprite.texture_atlas.as_mut() else {
+            continue;
+        };
+        atlas.index = (atlas.index + 1) % animation.frame_count;
+    }
+}
+
+fn ensure_player_health_bars(
+    mut commands: Commands,
+    settings: Res<GameSettings>,
+    players: Query<(Entity, &PlayerPosition), With<PlayerVisual>>,
+    backgrounds: Query<&PlayerHealthBarBackground>,
+) {
+    let bar_size = Vec2::new(
+        settings.player.health_bar_width,
+        settings.player.health_bar_height,
+    );
+
+    for (player, position) in &players {
+        if backgrounds.iter().any(|bar| bar.player == player) {
+            continue;
+        }
+
+        let center = position.0 + Vec2::new(0.0, settings.player.health_bar_offset_y);
+
+        commands.spawn((
+            PlayerHealthBarBackground { player },
+            Sprite::from_color(Color::WHITE, bar_size),
+            Transform::from_translation(center.extend(PLAYER_HEALTH_BAR_Z)).with_scale(Vec3::ONE),
+        ));
+
+        let mut fill = Sprite::from_color(Color::WHITE, bar_size);
+        fill.color = Color::srgb(0.9, 0.2, 0.2);
+        commands.spawn((
+            PlayerHealthBarFill { player },
+            fill,
+            Transform::from_translation(center.extend(PLAYER_HEALTH_BAR_Z + 0.1)),
+        ));
+    }
+}
+
+fn sync_player_health_bars(
+    settings: Res<GameSettings>,
+    mut commands: Commands,
+    players: Query<(&PlayerPosition, &PlayerHealth), With<PlayerVisual>>,
+    mut backgrounds: Query<
+        (
+            Entity,
+            &PlayerHealthBarBackground,
+            &mut Sprite,
+            &mut Transform,
+        ),
+        Without<PlayerHealthBarFill>,
+    >,
+    mut fills: Query<
+        (Entity, &PlayerHealthBarFill, &mut Sprite, &mut Transform),
+        Without<PlayerHealthBarBackground>,
+    >,
+) {
+    let full_size = Vec2::new(
+        settings.player.health_bar_width,
+        settings.player.health_bar_height,
+    );
+
+    for (entity, bar, mut sprite, mut transform) in &mut backgrounds {
+        let Ok((position, _)) = players.get(bar.player) else {
+            commands.entity(entity).despawn();
+            continue;
+        };
+
+        sprite.color = Color::srgb(0.15, 0.05, 0.05);
+        sprite.custom_size = Some(full_size);
+        transform.translation = (position.0
+            + Vec2::new(0.0, settings.player.health_bar_offset_y))
+        .extend(PLAYER_HEALTH_BAR_Z);
+    }
+
+    for (entity, bar, mut sprite, mut transform) in &mut fills {
+        let Ok((position, health)) = players.get(bar.player) else {
+            commands.entity(entity).despawn();
+            continue;
+        };
+
+        let health_fraction = if health.maximum == 0 {
+            0.0
+        } else {
+            (health.current as f32 / health.maximum as f32).clamp(0.0, 1.0)
+        };
+
+        let fill_size = Vec2::new(full_size.x * health_fraction, full_size.y);
+        sprite.color = Color::srgb(0.9, 0.2, 0.2);
+        sprite.custom_size = Some(fill_size);
+        transform.translation = (position.0
+            + Vec2::new(
+                (fill_size.x - full_size.x) * 0.5,
+                settings.player.health_bar_offset_y,
+            ))
+        .extend(PLAYER_HEALTH_BAR_Z + 0.1);
     }
 }
 
@@ -123,7 +352,7 @@ fn sync_username_labels(
             Transform::from_translation(
                 position.0.extend(0.0) + settings.player.username_label_offset,
             )
-            .with_scale(Vec3::splat(0.16)),
+            .with_scale(Vec3::splat(0.48)),
         ));
     }
 
@@ -225,51 +454,6 @@ fn smooth_local_aim_visual(
             .lerp(target_direction, interpolation)
             .normalize_or_zero();
     }
-}
-
-fn draw_health_bar(
-    settings: &GameSettings,
-    gizmos: &mut Gizmos<'_, '_>,
-    position: &PlayerPosition,
-    health: &PlayerHealth,
-) {
-    let health_fraction = if health.maximum == 0 {
-        0.0
-    } else {
-        (health.current as f32 / health.maximum as f32).clamp(0.0, 1.0)
-    };
-
-    let background_center = position.0 + Vec2::new(0.0, settings.player.health_bar_offset_y);
-
-    gizmos.rect_2d(
-        Isometry2d::from_translation(background_center),
-        Vec2::new(
-            settings.player.health_bar_width,
-            settings.player.health_bar_height,
-        ),
-        Color::srgb(0.2, 0.05, 0.05),
-    );
-
-    if health_fraction <= 0.0 {
-        return;
-    }
-
-    let foreground_size = Vec2::new(
-        settings.player.health_bar_width * health_fraction,
-        settings.player.health_bar_height,
-    );
-
-    let foreground_center = position.0
-        + Vec2::new(
-            (foreground_size.x - settings.player.health_bar_width) * 0.5,
-            settings.player.health_bar_offset_y,
-        );
-
-    gizmos.rect_2d(
-        Isometry2d::from_translation(foreground_center),
-        foreground_size,
-        Color::srgb(0.9, 0.2, 0.2),
-    );
 }
 
 fn spawn_aristeia_ui(

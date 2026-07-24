@@ -1,14 +1,12 @@
 use bevy::prelude::*;
 use lightyear::{
-    connection::network_target::NetworkTarget,
-    core::timeline::LocalTimeline,
-    prediction::despawn::PredictionDespawnCommandsExt,
-    prelude::Replicate,
+    connection::network_target::NetworkTarget, core::timeline::LocalTimeline,
+    prediction::despawn::PredictionDespawnCommandsExt, prelude::Replicate,
 };
 
 use crate::{
     app::ServerState,
-    enemy::{EnemyHealth, EnemyPosition},
+    enemy::{EnemyHealth, EnemyKind, EnemyPosition},
     fragment::api::SpawnFragmentPool,
     player::api::AddKillsToAristeia,
     player::protocol::{PlayerAristeia, PlayerHealth},
@@ -57,7 +55,13 @@ pub fn simulate_server_projectiles(
         &mut PlayerHealth,
         &PlayerAristeia,
     )>,
-    mut enemies: Query<(Entity, &EnemyPosition, &GameRoom, &mut EnemyHealth)>,
+    mut enemies: Query<(
+        Entity,
+        &EnemyPosition,
+        &EnemyKind,
+        &GameRoom,
+        &mut EnemyHealth,
+    )>,
     local_timeline: Res<LocalTimeline>,
     mut fragment_drops: MessageWriter<SpawnFragmentPool>,
     mut aristeia_tracking: MessageWriter<AddKillsToAristeia>,
@@ -194,18 +198,29 @@ fn get_hit_player(
 }
 
 fn get_hit_enemy(
-    enemies: &mut Query<'_, '_, (Entity, &EnemyPosition, &GameRoom, &mut EnemyHealth)>,
+    enemies: &mut Query<
+        '_,
+        '_,
+        (
+            Entity,
+            &EnemyPosition,
+            &EnemyKind,
+            &GameRoom,
+            &mut EnemyHealth,
+        ),
+    >,
     projectile: &PlayerProjectile,
     position: &ProjectilePosition,
     projectile_room: &GameRoom,
     settings: &GameSettings,
 ) -> Option<(Entity, bool)> {
-    for (enemy_entity, enemy_position, enemy_room, mut health) in enemies {
+    for (enemy_entity, enemy_position, kind, enemy_room, mut health) in enemies {
         if enemy_room != projectile_room || health.current == 0 {
             continue;
         }
 
-        let collision_radius = projectile.radius + settings.enemy.collision_radius;
+        let collision_radius =
+            projectile.radius + kind.collision_radius(settings.enemy.collision_radius);
         let hit =
             position.0.distance_squared(enemy_position.0) <= collision_radius * collision_radius;
 

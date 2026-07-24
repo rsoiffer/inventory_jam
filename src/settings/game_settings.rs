@@ -52,6 +52,7 @@ pub struct FragmentSettings {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlayerSettings {
     pub camera_decay_rate: f32,
+    pub camera_scale: f32,
 
     #[serde(deserialize_with = "deserialize_vec3")]
     pub username_label_offset: Vec3,
@@ -225,6 +226,11 @@ impl GameSettings {
         if self.world.arena_floor_tiles.is_empty() {
             return Err(GameSettingsLoadError::Invalid(
                 "world arena_floor_tiles cannot be empty".into(),
+            ));
+        }
+        if self.player.camera_scale <= 0.0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "player camera_scale must be greater than zero".into(),
             ));
         }
         if self.server_camera.min_scale <= 0.0

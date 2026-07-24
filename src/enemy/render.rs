@@ -2,6 +2,12 @@ use crate::app::game_is_active;
 use crate::enemy::protocol::{EnemyHealth, EnemyKind, EnemyPosition};
 use crate::settings::GameSettings;
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
+
+const ENEMY_SPRITE_Z: f32 = 6.0;
+const ENEMY_ART_PIXELS_PER_TILE: f32 = 16.0;
+const IDLE_FRAME_SECONDS: f32 = 0.12;
+const FACING_MOVE_THRESHOLD: f32 = 0.01;
 
 pub struct EnemyRenderPlugin;
 
@@ -10,18 +16,39 @@ impl Plugin for EnemyRenderPlugin {
         app.add_systems(Startup, load_enemy_visual_assets);
         app.add_systems(
             Update,
-            (ensure_enemy_sprites, sync_enemy_sprites, draw_health_bars)
+            (
+                ensure_enemy_sprites,
+                sync_enemy_sprites,
+                animate_enemy_sprites,
+                draw_health_bars,
+            )
                 .chain()
                 .run_if(game_is_active),
         );
     }
 }
 
-#[derive(Resource)]
-struct EnemyVisualAssets {
+#[derive(Clone)]
+struct IdleSheet {
     image: Handle<Image>,
     layout: Handle<TextureAtlasLayout>,
+    frame_count: usize,
 }
+
+#[derive(Resource)]
+struct EnemyVisualAssets {
+    regular: IdleSheet,
+    champion: IdleSheet,
+}
+
+#[derive(Component)]
+struct EnemySpriteVisual {
+    previous_position: Option<Vec2>,
+    frame_count: usize,
+}
+
+#[derive(Component)]
+struct EnemySpriteAnimation(Timer);
 
 fn load_enemy_visual_assets(
     mut commands: Commands,
@@ -29,60 +56,129 @@ fn load_enemy_visual_assets(
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     commands.insert_resource(EnemyVisualAssets {
-        image: asset_server.load("world_tiles/spr_tileset_arena_main.png"),
-        layout: layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::splat(16),
-            8,
-            11,
-            None,
-            None,
-        )),
+        regular: IdleSheet {
+            image: asset_server.load("enemy/spr_enemy_placeholder_idle.png"),
+            layout: layouts.add(TextureAtlasLayout::from_grid(
+                UVec2::splat(16),
+                4,
+                1,
+                None,
+                None,
+            )),
+            frame_count: 4,
+        },
+        champion: IdleSheet {
+            image: asset_server.load("enemy/spr_champion_idle.png"),
+            layout: layouts.add(TextureAtlasLayout::from_grid(
+                UVec2::splat(64),
+                4,
+                1,
+                None,
+                None,
+            )),
+            frame_count: 4,
+        },
     });
 }
 
 fn ensure_enemy_sprites(
     mut commands: Commands,
     assets: Res<EnemyVisualAssets>,
-    enemies: Query<(Entity, &EnemyKind), (With<EnemyPosition>, Without<Sprite>)>,
+    settings: Res<GameSettings>,
+    enemies: Query<(Entity, &EnemyKind), (With<EnemyPosition>, Without<EnemySpriteVisual>)>,
 ) {
+    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
+
     for (entity, kind) in &enemies {
-        let (index, scale) = match kind {
-            EnemyKind::Regular => (3, 0.36),
-            EnemyKind::GrandChampion => (4, 0.8),
+        let sheet = match kind {
+            EnemyKind::Regular => &assets.regular,
+            EnemyKind::GrandChampion => &assets.champion,
         };
+
         commands.entity(entity).insert((
             Sprite::from_atlas_image(
-                assets.image.clone(),
+                sheet.image.clone(),
                 TextureAtlas {
-                    layout: assets.layout.clone(),
-                    index,
+                    layout: sheet.layout.clone(),
+                    index: 0,
                 },
             ),
-            Transform::from_scale(Vec3::splat(scale)),
+            Anchor::BOTTOM_CENTER,
+            Transform {
+                translation: Vec3::new(0.0, 0.0, ENEMY_SPRITE_Z),
+                scale: Vec3::splat(scale),
+                ..default()
+            },
+            EnemySpriteVisual {
+                previous_position: None,
+                frame_count: sheet.frame_count,
+            },
+            EnemySpriteAnimation(Timer::from_seconds(
+                IDLE_FRAME_SECONDS,
+                TimerMode::Repeating,
+            )),
         ));
     }
 }
 
-fn sync_enemy_sprites(mut enemies: Query<(&EnemyPosition, &mut Transform)>) {
-    for (position, mut transform) in &mut enemies {
-        transform.translation = position.0.extend(6.0);
+fn sync_enemy_sprites(
+    settings: Res<GameSettings>,
+    mut enemies: Query<(
+        &EnemyPosition,
+        &mut EnemySpriteVisual,
+        &mut Sprite,
+        &mut Transform,
+    )>,
+) {
+    let scale = settings.world.tile_pixel_size / ENEMY_ART_PIXELS_PER_TILE;
+
+    for (position, mut visual, mut sprite, mut transform) in &mut enemies {
+        if let Some(previous) = visual.previous_position {
+            let delta_x = position.0.x - previous.x;
+            if delta_x.abs() > FACING_MOVE_THRESHOLD {
+                sprite.flip_x = delta_x < 0.0;
+            }
+        }
+
+        visual.previous_position = Some(position.0);
+        transform.translation = position.0.extend(ENEMY_SPRITE_Z);
+        transform.scale = Vec3::splat(scale);
+    }
+}
+
+fn animate_enemy_sprites(
+    time: Res<Time>,
+    mut enemies: Query<(&EnemySpriteVisual, &mut EnemySpriteAnimation, &mut Sprite)>,
+) {
+    for (visual, mut animation, mut sprite) in &mut enemies {
+        animation.0.tick(time.delta());
+        if !animation.0.just_finished() {
+            continue;
+        }
+
+        let Some(atlas) = sprite.texture_atlas.as_mut() else {
+            continue;
+        };
+        atlas.index = (atlas.index + 1) % visual.frame_count;
     }
 }
 
 fn draw_health_bars(
     settings: Res<GameSettings>,
     mut gizmos: Gizmos,
-    enemies: Query<(&EnemyPosition, &EnemyHealth)>,
+    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
 ) {
-    for (position, health) in &enemies {
+    for (position, health, kind) in &enemies {
         let health_fraction = if health.maximum == 0 {
             0.0
         } else {
             health.current as f32 / health.maximum as f32
         };
 
-        let bar_size = Vec2::new(settings.enemy.size * health_fraction, 0.8);
-        let bar_center = position.0 + Vec2::new((bar_size.x - settings.enemy.size) * 0.5, 5.44);
+        let size = kind.display_size(settings.enemy.size);
+        let bar_height = 1.6;
+        let bar_size = Vec2::new(size * health_fraction, bar_height);
+        let bar_center = position.0 + Vec2::new((bar_size.x - size) * 0.5, size + bar_height);
         gizmos.rect_2d(
             Isometry2d::from_translation(bar_center),
             bar_size,

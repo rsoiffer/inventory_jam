@@ -47,3 +47,19 @@ pub enum EnemyKind {
     Regular,
     GrandChampion,
 }
+
+impl EnemyKind {
+    pub fn collision_radius(self, base: f32) -> f32 {
+        match self {
+            Self::Regular => base,
+            Self::GrandChampion => base * 4.0,
+        }
+    }
+
+    pub fn display_size(self, base: f32) -> f32 {
+        match self {
+            Self::Regular => base,
+            Self::GrandChampion => base * 4.0,
+        }
+    }
+}
