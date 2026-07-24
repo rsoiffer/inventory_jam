@@ -9,8 +9,8 @@ use crate::{
     enemy::{EnemyHealth, EnemyKind, EnemyPosition},
     fragment::api::SpawnFragmentPool,
     player::api::AddKillsToAristeia,
-    player::protocol::{PlayerAristeia, PlayerHealth},
-    player::{PlayerId, PlayerPosition},
+    player::protocol::PlayerAristeia,
+    player::PlayerId,
     projectile::protocol::{self, ProjectileBuffer},
     protocol::rooms::GameRoom,
     settings::GameSettings,
@@ -41,13 +41,6 @@ fn simulate_server_projectile_buffers(
         &mut ProjectileBuffer,
         &PlayerAristeia,
         &EquippedWeapon,
-    )>,
-    mut targets: Query<(
-        Entity,
-        &PlayerId,
-        &PlayerPosition,
-        &GameRoom,
-        &mut PlayerHealth,
     )>,
     mut enemies: Query<(
         Entity,
@@ -80,24 +73,6 @@ fn simulate_server_projectile_buffers(
             let stats = settings.weapons.get(weapon);
             let damage = stats.damage_at(level);
             let radius = stats.projectile_radius;
-
-            for (entity, id, target, target_room, mut health) in &mut targets {
-                if id.0 == owner
-                    || target_room != room
-                    || health.current == 0
-                    || !protocol::overlaps(pos, target.0, radius, settings.player.collision_radius)
-                {
-                    continue;
-                }
-                health.current = health.current.saturating_sub(damage);
-                info!(
-                    ?entity,
-                    current_health = health.current,
-                    maximum_health = health.maximum,
-                    "Player took projectile damage"
-                );
-                return true;
-            }
 
             for (entity, enemy, kind, enemy_room, mut health) in &mut enemies {
                 if enemy_room != room

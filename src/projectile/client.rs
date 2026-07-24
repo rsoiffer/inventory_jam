@@ -7,8 +7,6 @@ use lightyear::{
 use crate::{
     app::ClientState,
     enemy::{EnemyHealth, EnemyKind, EnemyPosition},
-    player::protocol::PlayerHealth,
-    player::{PlayerId, PlayerPosition},
     projectile::protocol::{self, ProjectileBuffer},
     protocol::rooms::GameRoom,
     settings::GameSettings,
@@ -30,11 +28,7 @@ impl Plugin for ProjectileClientPlugin {
 }
 
 fn simulate_predicted_projectile_buffers(
-    mut players: Query<
-        (&PlayerId, &mut ProjectileBuffer, &GameRoom, &EquippedWeapon),
-        With<Predicted>,
-    >,
-    targets: Query<(&PlayerId, &PlayerPosition, &GameRoom, &PlayerHealth)>,
+    mut players: Query<(&mut ProjectileBuffer, &GameRoom, &EquippedWeapon), With<Predicted>>,
     enemies: Query<(&EnemyPosition, &EnemyKind, &GameRoom, &EnemyHealth)>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
@@ -43,21 +37,10 @@ fn simulate_predicted_projectile_buffers(
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
 
-    for (owner_id, mut buffer, room, equipped) in &mut players {
-        let owner = owner_id.0;
+    for (mut buffer, room, equipped) in &mut players {
         buffer.simulate(room, tick, tick_secs, equipped.level, &settings, |weapon, pos| {
             let radius = settings.weapons.get(weapon).projectile_radius;
-            targets.iter().any(|(id, target, target_room, health)| {
-                id.0 != owner
-                    && protocol::overlaps(
-                        pos,
-                        target.0,
-                        radius,
-                        settings.player.collision_radius,
-                    )
-                    && target_room == room
-                    && health.current > 0
-            }) || enemies.iter().any(|(enemy, kind, enemy_room, health)| {
+            enemies.iter().any(|(enemy, kind, enemy_room, health)| {
                 enemy_room == room
                     && health.current > 0
                     && protocol::overlaps(
