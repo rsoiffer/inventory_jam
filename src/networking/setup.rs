@@ -34,7 +34,7 @@ use crate::app::{ClientState, LocalUsername, client_id_from_username, machine_lo
 use crate::app::{LaunchMode, StartGame};
 
 #[cfg(feature = "client")]
-const CERT_DIGEST: &str = "18b16f92178824528aabb1c4274a0f247d0dec2c6f755e152739ff2fe343ec7c";
+const CERT_DIGEST: &str = "82f64641977a90d3d098bc1b217988d54554f98138f54cf3e27156aae8ff9795";
 #[cfg(feature = "client")]
 const LOCAL_SERVER_ADDR: SocketAddr = SERVER_ADDR;
 
