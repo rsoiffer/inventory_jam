@@ -1,4 +1,4 @@
-use crate::app::{ClientState, game_is_active};
+use crate::app::{game_is_active, ClientState};
 use crate::fragment::shared::FragmentPosition;
 use crate::persistence::CachedPersistentState;
 use bevy::prelude::*;
@@ -78,7 +78,7 @@ fn ensure_fragment_sprites(
                     index: 0,
                 },
             ),
-            Transform::from_scale(Vec3::splat(1.25)),
+            Transform::from_scale(Vec3::splat(0.2)),
             FragmentAnimation(Timer::from_seconds(0.08, TimerMode::Repeating)),
         ));
     }

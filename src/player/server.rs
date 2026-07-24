@@ -1,11 +1,11 @@
 use crate::app::ServerState;
 use crate::enemy::{EnemyHealth, EnemyPosition};
-use crate::player::PlayerId;
 use crate::player::api::AddKillsToAristeia;
 use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerVisual,
 };
 use crate::player::shared::player_movement;
+use crate::player::PlayerId;
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::messages::TeleportRoom;
 use crate::protocol::rooms::{GameRoom, GameRooms};
@@ -46,8 +46,8 @@ impl Default for PlayerSpawnMode {
     fn default() -> Self {
         Self::Annulus {
             center: Vec2::ZERO,
-            minimum_radius: 350.0,
-            maximum_radius: 500.0,
+            minimum_radius: 56.0,
+            maximum_radius: 80.0,
         }
     }
 }
@@ -76,8 +76,7 @@ impl Plugin for PlayerServerPlugin {
 
         app.add_systems(
             FixedUpdate,
-            (debug_switch_rooms, apply_teleport_room_commands)
-                .run_if(in_state(ServerState::Hosting)),
+            apply_teleport_room_commands.run_if(in_state(ServerState::Hosting)),
         );
     }
 }
@@ -270,19 +269,6 @@ fn apply_enemy_contact_damage(
             maximum_health = health.maximum,
             "Player took enemy contact damage"
         );
-    }
-}
-
-pub(crate) fn debug_switch_rooms(
-    mut player_query: Query<(&ActionState<PlayerAction>, &mut GameRoom)>,
-) {
-    for (actions, mut room) in &mut player_query {
-        if actions.just_pressed(&PlayerAction::DebugSwitchRooms) {
-            room.room = match room.room {
-                GameRooms::Arena => GameRooms::Safezone,
-                GameRooms::Safezone => GameRooms::Arena,
-            }
-        }
     }
 }
 

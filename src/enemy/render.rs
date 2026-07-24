@@ -47,8 +47,8 @@ fn ensure_enemy_sprites(
 ) {
     for (entity, kind) in &enemies {
         let (index, scale) = match kind {
-            EnemyKind::Regular => (3, 2.25),
-            EnemyKind::GrandChampion => (4, 5.0),
+            EnemyKind::Regular => (3, 0.36),
+            EnemyKind::GrandChampion => (4, 0.8),
         };
         commands.entity(entity).insert((
             Sprite::from_atlas_image(
@@ -81,8 +81,8 @@ fn draw_health_bars(
             health.current as f32 / health.maximum as f32
         };
 
-        let bar_size = Vec2::new(settings.enemy.size * health_fraction, 5.0);
-        let bar_center = position.0 + Vec2::new((bar_size.x - settings.enemy.size) * 0.5, 34.0);
+        let bar_size = Vec2::new(settings.enemy.size * health_fraction, 0.8);
+        let bar_center = position.0 + Vec2::new((bar_size.x - settings.enemy.size) * 0.5, 5.44);
         gizmos.rect_2d(
             Isometry2d::from_translation(bar_center),
             bar_size,

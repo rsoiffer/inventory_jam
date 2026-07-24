@@ -1,4 +1,4 @@
-use crate::app::{ClientState, game_is_active};
+use crate::app::{game_is_active, ClientState};
 use crate::player::protocol::{
     LocalAimInput, PlayerAimDirection, PlayerAristeia, PlayerHealth, PlayerPosition, PlayerVisual,
     SmoothedAimDirection,
@@ -11,11 +11,11 @@ use bevy::app::{App, Plugin, Update};
 use bevy::camera::{Camera, Camera2d};
 use bevy::color::Color;
 use bevy::ecs::query::Without;
-use bevy::math::{Isometry2d, StableInterpolate, Vec2};
+use bevy::math::{Isometry2d, StableInterpolate, Vec2, Vec3};
 use bevy::prelude::{
-    BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize, Gizmos, GlobalTransform,
-    IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res, ResMut, Single, Text,
-    Text2d, TextColor, TextFont, Time, Transform, UiRect, Val, Window, With, default, in_state,
+    default, in_state, BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize,
+    Gizmos, GlobalTransform, IntoScheduleConfigs, Node, OnEnter, OnExit, PositionType, Query, Res,
+    ResMut, Single, Text, Text2d, TextColor, TextFont, Time, Transform, UiRect, Val, Window, With,
 };
 use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
@@ -122,7 +122,8 @@ fn sync_username_labels(
             Anchor::BOTTOM_CENTER,
             Transform::from_translation(
                 position.0.extend(0.0) + settings.player.username_label_offset,
-            ),
+            )
+            .with_scale(Vec3::splat(0.16)),
         ));
     }
 
@@ -143,11 +144,15 @@ fn update_camera(
 ) {
     let target = player.0.extend(camera.translation.z);
 
-    camera.translation.smooth_nudge(
-        &target,
-        settings.player.camera_decay_rate,
-        time.delta_secs(),
-    );
+    if camera.translation.truncate().distance_squared(player.0) > 96.0_f32.powi(2) {
+        camera.translation = target;
+    } else {
+        camera.translation.smooth_nudge(
+            &target,
+            settings.player.camera_decay_rate,
+            time.delta_secs(),
+        );
+    }
 }
 
 fn sample_cursor_aim(
@@ -195,7 +200,7 @@ fn draw_local_aimstick(
 
         gizmos.circle_2d(
             Isometry2d::from_translation(end),
-            5.0,
+            0.8,
             Color::srgb(1.0, 0.85, 0.2),
         );
     }

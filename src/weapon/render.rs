@@ -4,6 +4,7 @@ use lightyear::prelude::{Interpolated, Predicted, Replicate};
 use crate::player::{PlayerAimDirection, PlayerPosition};
 use crate::{
     app::game_is_active,
+    settings::GameSettings,
     weapon::protocol::{EquippedWeapon, WeaponKind},
 };
 
@@ -50,6 +51,7 @@ fn ensure_weapon_sprites(
 
 fn sync_weapon_sprites(
     asset_server: Res<AssetServer>,
+    settings: Res<GameSettings>,
     mut players: Query<(
         &PlayerPosition,
         &PlayerAimDirection,
@@ -59,8 +61,6 @@ fn sync_weapon_sprites(
         &mut Transform,
     )>,
 ) {
-    const HELD_WEAPON_OFFSET: f32 = 34.0;
-
     for (position, aim, equipped_weapon, mut visual, mut sprite, mut transform) in &mut players {
         let direction = aim.0.normalize_or_zero();
         if direction == Vec2::ZERO {
@@ -72,7 +72,7 @@ fn sync_weapon_sprites(
             visual.kind = equipped_weapon.kind;
         }
 
-        let visual_position = position.0 + direction * HELD_WEAPON_OFFSET;
+        let visual_position = position.0 + direction * settings.player.held_weapon_offset;
         transform.translation = visual_position.extend(10.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
         transform.scale = Vec3::splat(held_weapon_scale(equipped_weapon.kind));
@@ -92,8 +92,8 @@ fn weapon_sprite_path(kind: WeaponKind) -> &'static str {
 
 fn held_weapon_scale(kind: WeaponKind) -> f32 {
     match kind {
-        WeaponKind::Bow => 2.0,
-        WeaponKind::Boomerang => 1.2,
-        _ => 1.4,
+        WeaponKind::Bow => 0.32,
+        WeaponKind::Boomerang => 0.192,
+        _ => 0.224,
     }
 }

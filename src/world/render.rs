@@ -8,7 +8,10 @@ pub struct WorldRenderPlugin;
 impl Plugin for WorldRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LoadedWorldTiles>();
-        app.add_systems(Startup, load_world_tile_assets);
+        app.add_systems(
+            Startup,
+            (load_world_tile_assets, spawn_pit_decorations).chain(),
+        );
         app.add_systems(Update, stream_world_tiles);
         app.add_systems(Update, draw_world_boundaries);
     }
@@ -18,14 +21,7 @@ impl Plugin for WorldRenderPlugin {
 struct WorldTile;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum TileRoom {
-    Arena,
-    Safezone,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct TileKey {
-    room: TileRoom,
     x: i32,
     y: i32,
 }
@@ -34,9 +30,7 @@ struct TileKey {
 struct WorldTileAssets {
     arena_image: Handle<Image>,
     arena_layout: Handle<TextureAtlasLayout>,
-    #[allow(unused)]
     safezone_image: Handle<Image>,
-    #[allow(unused)]
     safezone_layout: Handle<TextureAtlasLayout>,
 }
 
@@ -44,6 +38,118 @@ struct WorldTileAssets {
 struct LoadedWorldTiles {
     entities: HashMap<TileKey, Entity>,
     last_camera_tile: Option<IVec2>,
+}
+
+const PIT_ATLAS_COLUMNS: u32 = 9;
+const PIT_BACKGROUND_Z: f32 = -2.0;
+const PIT_FLOOR_Z: f32 = -1.0;
+const PIT_WALL_Z: f32 = 0.0;
+const PIT_PROP_Z: f32 = 1.0;
+const PIT_WALL_RING_THICKNESS: i32 = 3;
+
+const BLUE_FLOOR: Tile = Tile { x: 1, y: 1 };
+const GREY_FLOOR: Tile = Tile { x: 1, y: 4 };
+const BLUE_FLOOR_02: Tile = Tile { x: 4, y: 1 };
+const GREY_FLOOR_02: Tile = Tile { x: 4, y: 4 };
+const WALL: Tile = Tile { x: 6, y: 0 };
+const PROP_STOOL: Tile = Tile { x: 7, y: 0 };
+const PROP_TABLE: Tile = Tile { x: 8, y: 0 };
+const PROP_ROCK: Tile = Tile { x: 6, y: 1 };
+const PROP_ANVIL: Tile = Tile { x: 7, y: 1 };
+const PROP_BARREL: Tile = Tile { x: 8, y: 1 };
+
+const PIT_FLOORS: &[FloorRect] = &[
+    FloorRect {
+        center: BLUE_FLOOR,
+        x: 2,
+        y: 2,
+        width: 12,
+        height: 8,
+    },
+    FloorRect {
+        center: GREY_FLOOR,
+        x: 6,
+        y: 5,
+        width: 4,
+        height: 2,
+    },
+    FloorRect {
+        center: BLUE_FLOOR_02,
+        x: 3,
+        y: 7,
+        width: 4,
+        height: 3,
+    },
+    FloorRect {
+        center: GREY_FLOOR_02,
+        x: 10,
+        y: 3,
+        width: 3,
+        height: 3,
+    },
+];
+
+const PIT_PROPS: &[PropPlacement] = &[
+    PropPlacement {
+        tile: PROP_TABLE,
+        x: 8,
+        y: 6,
+    },
+    PropPlacement {
+        tile: PROP_STOOL,
+        x: 7,
+        y: 5,
+    },
+    PropPlacement {
+        tile: PROP_ANVIL,
+        x: 9,
+        y: 5,
+    },
+    PropPlacement {
+        tile: PROP_ROCK,
+        x: 10,
+        y: 4,
+    },
+    PropPlacement {
+        tile: PROP_BARREL,
+        x: 6,
+        y: 6,
+    },
+];
+
+#[derive(Clone, Copy)]
+struct Tile {
+    x: u32,
+    y: u32,
+}
+
+impl Tile {
+    fn atlas_index(self) -> usize {
+        self.y as usize * PIT_ATLAS_COLUMNS as usize + self.x as usize
+    }
+
+    fn offset(self, x: i32, y: i32) -> Self {
+        Self {
+            x: (self.x as i32 + x) as u32,
+            y: (self.y as i32 + y) as u32,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct FloorRect {
+    center: Tile,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+}
+
+#[derive(Clone, Copy)]
+struct PropPlacement {
+    tile: Tile,
+    x: i32,
+    y: i32,
 }
 
 fn load_world_tile_assets(
@@ -110,11 +216,11 @@ fn stream_world_tiles(
                 (y as f32 + 0.5) * settings.world.tile_pixel_size,
             );
 
-            let Some(room) = room_for_position(world_position, &settings) else {
+            if !settings.world.arena_bounds().contains(world_position) {
                 continue;
-            };
+            }
 
-            let key = TileKey { room, x, y };
+            let key = TileKey { x, y };
             desired.insert(key);
 
             if loaded.entities.contains_key(&key) {
@@ -147,48 +253,25 @@ fn spawn_world_tile(
 ) -> Entity {
     let scale = settings.world.tile_pixel_size / 16.0;
 
-    match key.room {
-        TileRoom::Arena => {
-            let index = arena_floor_index(key.x, key.y, &settings.world.arena_floor_tiles);
-            commands
-                .spawn((
-                    WorldTile,
-                    Sprite::from_atlas_image(
-                        assets.arena_image.clone(),
-                        TextureAtlas {
-                            layout: assets.arena_layout.clone(),
-                            index,
-                        },
-                    ),
-                    Transform {
-                        translation: world_position.extend(0.0),
-                        scale: Vec3::splat(scale),
-                        ..default()
-                    },
-                    Name::new("Arena Floor Tile"),
-                ))
-                .id()
-        }
-        TileRoom::Safezone => {
-            // The safezone sheet primarily contains props and multi-cell
-            // structures, not a set of opaque floor variants. Randomly treating
-            // those pieces as floor tiles caused the sliced staircase pattern.
-            // Use a stable opaque floor tile and reserve the atlas for authored
-            // props/walls rather than scattering transparent fragments.
-            commands
-                .spawn((
-                    WorldTile,
-                    Sprite::from_color(Color::srgb(0.105, 0.12, 0.13), Vec2::splat(16.0)),
-                    Transform {
-                        translation: world_position.extend(0.0),
-                        scale: Vec3::splat(scale),
-                        ..default()
-                    },
-                    Name::new("Safezone Floor Tile"),
-                ))
-                .id()
-        }
-    }
+    let index = arena_floor_index(key.x, key.y, &settings.world.arena_floor_tiles);
+    commands
+        .spawn((
+            WorldTile,
+            Sprite::from_atlas_image(
+                assets.arena_image.clone(),
+                TextureAtlas {
+                    layout: assets.arena_layout.clone(),
+                    index,
+                },
+            ),
+            Transform {
+                translation: world_position.extend(0.0),
+                scale: Vec3::splat(scale),
+                ..default()
+            },
+            Name::new("Arena Floor Tile"),
+        ))
+        .id()
 }
 
 fn arena_floor_index(x: i32, y: i32, arena_floor_tiles: &[usize]) -> usize {
@@ -202,14 +285,114 @@ fn arena_floor_index(x: i32, y: i32, arena_floor_tiles: &[usize]) -> usize {
     arena_floor_tiles[value as usize % arena_floor_tiles.len()]
 }
 
-fn room_for_position(position: Vec2, settings: &GameSettings) -> Option<TileRoom> {
-    if settings.world.arena_bounds().contains(position) {
-        Some(TileRoom::Arena)
-    } else if settings.world.safezone_bounds().contains(position) {
-        Some(TileRoom::Safezone)
-    } else {
-        None
+fn spawn_pit_decorations(
+    mut commands: Commands,
+    assets: Res<WorldTileAssets>,
+    settings: Res<GameSettings>,
+) {
+    let bounds = settings.world.safezone_bounds();
+    let tile_size = settings.world.tile_pixel_size;
+    let room_tiles = (bounds.size() / tile_size).as_ivec2();
+    let layout_origin = bounds.center() - Vec2::new(8.0, 6.0) * tile_size;
+
+    commands.spawn((
+        Sprite::from_color(Color::srgb(0.08, 0.1, 0.14), bounds.size()),
+        Transform::from_translation(bounds.center().extend(PIT_BACKGROUND_Z)),
+        Name::new("Pit Background"),
+    ));
+
+    for floor in PIT_FLOORS {
+        for y in (floor.y - 1)..(floor.y + floor.height + 1) {
+            for x in (floor.x - 1)..(floor.x + floor.width + 1) {
+                spawn_pit_tile(
+                    &mut commands,
+                    &assets,
+                    layout_origin,
+                    x,
+                    y,
+                    floor_tile(*floor, x, y),
+                    tile_size,
+                    PIT_FLOOR_Z,
+                );
+            }
+        }
     }
+
+    for y in -PIT_WALL_RING_THICKNESS..room_tiles.y + PIT_WALL_RING_THICKNESS {
+        for x in -PIT_WALL_RING_THICKNESS..room_tiles.x + PIT_WALL_RING_THICKNESS {
+            if (0..room_tiles.x).contains(&x) && (0..room_tiles.y).contains(&y) {
+                continue;
+            }
+            spawn_pit_tile(
+                &mut commands,
+                &assets,
+                bounds.min,
+                x,
+                y,
+                WALL,
+                tile_size,
+                PIT_WALL_Z,
+            );
+        }
+    }
+
+    for prop in PIT_PROPS {
+        spawn_pit_tile(
+            &mut commands,
+            &assets,
+            layout_origin,
+            prop.x,
+            prop.y,
+            prop.tile,
+            tile_size,
+            PIT_PROP_Z,
+        );
+    }
+}
+
+fn spawn_pit_tile(
+    commands: &mut Commands,
+    assets: &WorldTileAssets,
+    origin: Vec2,
+    x: i32,
+    y: i32,
+    tile: Tile,
+    tile_size: f32,
+    z: f32,
+) {
+    commands.spawn((
+        Sprite::from_atlas_image(
+            assets.safezone_image.clone(),
+            TextureAtlas {
+                layout: assets.safezone_layout.clone(),
+                index: tile.atlas_index(),
+            },
+        ),
+        Transform {
+            translation: (origin + Vec2::new(x as f32 + 0.5, y as f32 + 0.5) * tile_size).extend(z),
+            scale: Vec3::splat(tile_size / 16.0),
+            ..default()
+        },
+    ));
+}
+
+fn floor_tile(floor: FloorRect, x: i32, y: i32) -> Tile {
+    floor.center.offset(
+        if x == floor.x - 1 {
+            -1
+        } else if x == floor.x + floor.width {
+            1
+        } else {
+            0
+        },
+        if y == floor.y + floor.height {
+            -1
+        } else if y == floor.y - 1 {
+            1
+        } else {
+            0
+        },
+    )
 }
 
 fn draw_world_boundaries(settings: Res<GameSettings>, mut gizmos: Gizmos) {
