@@ -1,4 +1,7 @@
 {
+  "network": {
+    "interest_radius": 512.0
+  },
   "enemy": {
     "size": 16.0,
     "max_health": 100,

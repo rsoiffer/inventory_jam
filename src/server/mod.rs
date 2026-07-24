@@ -10,11 +10,14 @@ use crate::protocol::channels::ServerEventsChannel;
 #[cfg(feature = "dev")]
 use crate::protocol::messages::DebugServerMessage;
 
+mod interest;
+
 pub struct ExampleServerPlugin;
 
 impl Plugin for ExampleServerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ReplicationMetadata::new(SEND_INTERVAL));
+        app.add_plugins(interest::InterestPlugin);
 
         app.add_observer(handle_new_client);
 

@@ -9,6 +9,7 @@ use crate::weapon::protocol::WeaponId;
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub(crate) struct GameSettings {
+    pub network: NetworkSettings,
     pub enemy: EnemySettings,
     pub spawner: SpawnerSettings,
     pub fragment: FragmentSettings,
@@ -22,6 +23,11 @@ pub(crate) struct GameSettings {
     pub progression: ProgressionSettings,
     pub menu: MenuSettings,
     pub global_aristeia: GlobalAristeiaSettings,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct NetworkSettings {
+    pub interest_radius: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -307,6 +313,11 @@ impl GameSettings {
         Ok(settings)
     }
     fn validate(&self) -> Result<(), GameSettingsLoadError> {
+        if self.network.interest_radius <= 0.0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "network interest_radius must be greater than zero".into(),
+            ));
+        }
         if self.enemy.size <= 0.0 || self.enemy.collision_radius <= 0.0 {
             return Err(GameSettingsLoadError::Invalid(
                 "enemy size and collision radius must be greater than zero".into(),

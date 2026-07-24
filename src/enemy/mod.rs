@@ -8,7 +8,7 @@ pub mod shared;
 
 use bevy::app::{App, Plugin};
 
-pub use protocol::{EnemyHealth, EnemyKind, EnemyPosition};
+pub use protocol::{EnemyHealth, EnemyKind, EnemyPosition, EnemySpawnerPosition};
 
 pub struct EnemyPlugin;
 
