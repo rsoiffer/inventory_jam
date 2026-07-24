@@ -39,15 +39,8 @@ pub(crate) fn fire_equipped_weapons(
         .as_ref()
         .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
 
-    for (
-        predicted,
-        player_position,
-        aim_direction,
-        actions,
-        equipped,
-        mut cooldown,
-        mut buffer,
-    ) in &mut players
+    for (predicted, player_position, aim_direction, actions, equipped, mut cooldown, mut buffer) in
+        &mut players
     {
         if !runs_local_sim(predicted, host_server, authoritative) {
             continue;

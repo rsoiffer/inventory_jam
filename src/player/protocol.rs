@@ -74,6 +74,7 @@ impl PlayerBundle {
     pub(crate) fn new(
         id: PeerId,
         position: Vec2,
+        maximum_health: u32,
         aristeia_duration_ticks: u16,
         projectile_buffer_capacity: usize,
     ) -> Self {
@@ -86,10 +87,10 @@ impl PlayerBundle {
             color: PlayerColor(color),
             aim_direction: PlayerAimDirection::default(),
             game_room: GameRoom {
-                room: GameRooms::Arena,
+                room: GameRooms::Safezone,
             },
             username: PlayerUsername(temporary_username(id.to_bits())),
-            health: PlayerHealth::new(100),
+            health: PlayerHealth::new(maximum_health),
             aristeia: PlayerAristeia::new(aristeia_duration_ticks),
             projectile_buffer: crate::projectile::protocol::ProjectileBuffer::new(
                 projectile_buffer_capacity,

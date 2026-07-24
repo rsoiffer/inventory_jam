@@ -25,8 +25,6 @@ pub enum PlayerAction {
     EquipBow,
     EquipShuriken,
     EquipBoomerang,
-
-    TeleportRoom,
 }
 
 impl PlayerAction {
@@ -50,9 +48,6 @@ impl PlayerAction {
         input_map.insert(Self::EquipBow, KeyCode::Digit4);
         input_map.insert(Self::EquipShuriken, KeyCode::Digit5);
         input_map.insert(Self::EquipBoomerang, KeyCode::Digit6);
-
-        input_map.insert(Self::TeleportRoom, KeyCode::KeyR);
-        input_map.insert(Self::TeleportRoom, KeyCode::KeyT);
 
         input_map
     }

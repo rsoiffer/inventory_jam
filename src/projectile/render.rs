@@ -204,8 +204,9 @@ fn sync_buffer_visuals(
             let translation = position.extend(if is_impact { 9.0 } else { 8.0 });
             let rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
 
-            if let Some((_, _, mut transform)) =
-                visuals.iter_mut().find(|(_, existing, _)| **existing == key)
+            if let Some((_, _, mut transform)) = visuals
+                .iter_mut()
+                .find(|(_, existing, _)| **existing == key)
             {
                 transform.translation = translation;
                 transform.rotation = rotation;

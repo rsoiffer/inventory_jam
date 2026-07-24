@@ -5,7 +5,7 @@ use crate::player::protocol::{
 use crate::player::shared::{predicted_player_aim, predicted_player_movement};
 use crate::protocol::channels::ClientEventsChannel;
 use crate::protocol::inputs::PlayerAction;
-use crate::protocol::messages::{DebugServerMessage, SetUsername, TeleportRoom};
+use crate::protocol::messages::{DebugServerMessage, SetUsername};
 use bevy::app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy::color::{Color, Hsva};
 use bevy::prelude::{
@@ -41,7 +41,7 @@ impl Plugin for PlayerClientPlugin {
 
         app.add_systems(
             Update,
-            (receive_message1, send_teleport_room_command).run_if(in_state(ClientState::Playing)),
+            receive_message1.run_if(in_state(ClientState::Playing)),
         );
 
         app.add_observer(handle_predicted_spawn);
@@ -72,22 +72,6 @@ fn write_local_aim_to_leafwing(
 fn receive_message1(mut receiver: Single<&mut MessageReceiver<DebugServerMessage>>) {
     for _message in receiver.receive() {
         //info!("Received message: {:?}", message);
-    }
-}
-
-fn send_teleport_room_command(
-    players: Query<&ActionState<PlayerAction>, (With<Controlled>, With<InputMap<PlayerAction>>)>,
-    mut senders: Query<&mut MessageSender<TeleportRoom>, With<Client>>,
-) {
-    if !players
-        .iter()
-        .any(|actions| actions.just_pressed(&PlayerAction::TeleportRoom))
-    {
-        return;
-    }
-
-    for mut sender in &mut senders {
-        sender.send::<ClientEventsChannel>(TeleportRoom);
     }
 }
 

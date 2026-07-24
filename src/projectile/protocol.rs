@@ -57,13 +57,7 @@ impl ProjectileBuffer {
         }
     }
 
-    pub fn insert(
-        &mut self,
-        weapon: WeaponKind,
-        position: Vec2,
-        velocity: Vec2,
-        spawn_tick: Tick,
-    ) {
+    pub fn insert(&mut self, weapon: WeaponKind, position: Vec2, velocity: Vec2, spawn_tick: Tick) {
         let index = (self.next_index as usize) % self.slots.len();
         let generation = match self.slots[index] {
             ProjectileSlot::Empty { generation } | ProjectileSlot::Active { generation, .. } => {

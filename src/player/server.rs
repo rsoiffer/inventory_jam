@@ -6,8 +6,8 @@ use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerVisual,
 };
 use crate::player::shared::{apply_player_aim, apply_player_movement};
+use crate::portal::PortalTeleportCooldown;
 use crate::protocol::inputs::PlayerAction;
-use crate::protocol::messages::TeleportRoom;
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::settings::GameSettings;
 use crate::shared::FixedGameplaySet;
@@ -17,46 +17,16 @@ use leafwing_input_manager::prelude::*;
 use lightyear::connection::client::Connected;
 use lightyear::connection::client_of::ClientOf;
 use lightyear::prelude::*;
-use rand::Rng;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 struct EnemyContactDamageCooldown {
     remaining_seconds: f32,
 }
 
-/// Controls where newly connected players appear.
-///
-/// `Annulus` chooses a random point between `minimum_radius` and
-/// `maximum_radius` from `center`. Set both radii to the same value to spawn at
-/// an exact distance from the center.
-///
-/// `Fixed` always uses the requested position, clamped inside the room bounds.
-#[derive(Resource, Clone, Copy, Debug)]
-pub enum PlayerSpawnMode {
-    Annulus {
-        center: Vec2,
-        minimum_radius: f32,
-        maximum_radius: f32,
-    },
-    #[allow(unused)]
-    Fixed(Vec2),
-}
-
-impl Default for PlayerSpawnMode {
-    fn default() -> Self {
-        Self::Annulus {
-            center: Vec2::ZERO,
-            minimum_radius: 56.0,
-            maximum_radius: 80.0,
-        }
-    }
-}
-
 pub struct PlayerServerPlugin;
 
 impl Plugin for PlayerServerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<PlayerSpawnMode>();
         app.add_observer(handle_connected);
 
         app.add_systems(
@@ -72,11 +42,6 @@ impl Plugin for PlayerServerPlugin {
                 .chain()
                 .in_set(FixedGameplaySet::Player)
                 .run_if(in_state(ServerState::Hosting)),
-        );
-
-        app.add_systems(
-            FixedUpdate,
-            apply_teleport_room_commands.run_if(in_state(ServerState::Hosting)),
         );
     }
 }
@@ -129,7 +94,6 @@ fn tick_player_aristeia(mut players: Query<&mut PlayerAristeia>) {
 pub(crate) fn handle_connected(
     trigger: On<Add, Connected>,
     query: Query<&RemoteId, With<ClientOf>>,
-    spawn_mode: Res<PlayerSpawnMode>,
     settings: Res<GameSettings>,
     mut commands: Commands,
 ) {
@@ -138,10 +102,7 @@ pub(crate) fn handle_connected(
     };
 
     let client_id = client_id.0;
-    let room = GameRoom {
-        room: GameRooms::Arena,
-    };
-    let spawn_position = choose_player_spawn(*spawn_mode, room, &settings);
+    let spawn_position = settings.world.safezone_bounds().center();
 
     let entity = commands
         .spawn((
@@ -149,11 +110,15 @@ pub(crate) fn handle_connected(
             PlayerBundle::new(
                 client_id,
                 spawn_position,
+                settings.player.maximum_health,
                 settings.player.aristeia_duration_ticks,
                 settings.projectile.buffer_capacity,
             ),
             PlayerVisual,
             EnemyContactDamageCooldown::default(),
+            PortalTeleportCooldown {
+                remaining_ticks: settings.portal.teleport_cooldown_ticks,
+            },
             ActionState::<PlayerAction>::default(),
             Replicate::to_clients(NetworkTarget::All),
             PredictionTarget::to_clients(NetworkTarget::Single(client_id)),
@@ -171,41 +136,6 @@ pub(crate) fn handle_connected(
         ?spawn_position,
         "Created player entity"
     );
-}
-
-fn choose_player_spawn(mode: PlayerSpawnMode, room: GameRoom, settings: &GameSettings) -> Vec2 {
-    let bounds = room
-        .bounds(&settings.world)
-        .inflate(-settings.player.half_size);
-
-    match mode {
-        PlayerSpawnMode::Fixed(position) => position.clamp(bounds.min, bounds.max),
-        PlayerSpawnMode::Annulus {
-            center,
-            minimum_radius,
-            maximum_radius,
-        } => {
-            let minimum_radius = minimum_radius.max(0.0);
-            let maximum_radius = maximum_radius.max(minimum_radius);
-            let mut rng = rand::rng();
-
-            for _ in 0..settings.player.spawn_attempts {
-                let angle = rng.random_range(0.0..std::f32::consts::TAU);
-                let radius_squared = rng.random_range(
-                    minimum_radius * minimum_radius..=maximum_radius * maximum_radius,
-                );
-                let radius = radius_squared.sqrt();
-                let candidate = center + Vec2::new(angle.cos(), angle.sin()) * radius;
-
-                if bounds.contains(candidate) {
-                    return candidate;
-                }
-            }
-
-            // A malformed or impossible annulus still produces a valid position.
-            center.clamp(bounds.min, bounds.max)
-        }
-    }
 }
 
 pub(crate) fn authoritative_player_movement(
@@ -259,17 +189,28 @@ fn apply_enemy_contact_damage(
     mut players: Query<
         (
             Entity,
-            &PlayerPosition,
-            &GameRoom,
+            &mut PlayerPosition,
+            &mut GameRoom,
             &mut PlayerHealth,
             &mut EnemyContactDamageCooldown,
+            &mut PortalTeleportCooldown,
         ),
         With<ControlledBy>,
     >,
     enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
     settings: Res<GameSettings>,
 ) {
-    for (player_entity, player_position, room, mut health, mut cooldown) in &mut players {
+    let safezone_center = settings.world.safezone_bounds().center();
+
+    for (
+        player_entity,
+        mut player_position,
+        mut room,
+        mut health,
+        mut cooldown,
+        mut portal_cooldown,
+    ) in &mut players
+    {
         cooldown.remaining_seconds = (cooldown.remaining_seconds - time.delta_secs()).max(0.0);
 
         if room.room != GameRooms::Arena || health.current == 0 || cooldown.remaining_seconds > 0.0
@@ -304,47 +245,16 @@ fn apply_enemy_contact_damage(
             maximum_health = health.maximum,
             "Player took enemy contact damage"
         );
-    }
-}
 
-fn apply_teleport_room_commands(
-    mut receivers: Query<(Entity, &mut MessageReceiver<TeleportRoom>), With<ClientOf>>,
-    mut players: Query<(&ControlledBy, &mut GameRoom, &mut PlayerPosition)>,
-    settings: Res<GameSettings>,
-) {
-    let mut rng = rand::rng();
-
-    for (link_entity, mut receiver) in &mut receivers {
-        for _ in receiver.receive() {
-            let Some((mut room, mut position)) = players
-                .iter_mut()
-                .find(|(controlled_by, _, _)| controlled_by.owner == link_entity)
-                .map(|(_, room, position)| (room, position))
-            else {
-                warn!("no authoritative player for TeleportRoom from {link_entity:?}");
-                continue;
-            };
-
-            room.room = match room.room {
-                GameRooms::Arena => GameRooms::Safezone,
-                GameRooms::Safezone => GameRooms::Arena,
-            };
-            position.0 = match room.room {
-                GameRooms::Arena => random_position_in_room(*room, &settings, &mut rng),
-                GameRooms::Safezone => settings.world.safezone_bounds().center(),
-            };
+        if health.current == 0 {
+            let maximum = health.maximum;
+            health.current = maximum;
+            room.room = GameRooms::Safezone;
+            player_position.0 = safezone_center;
+            portal_cooldown.remaining_ticks = settings.portal.teleport_cooldown_ticks;
+            info!(?player_entity, "Player died and respawned in the safe room");
         }
     }
-}
-
-fn random_position_in_room(room: GameRoom, settings: &GameSettings, rng: &mut impl Rng) -> Vec2 {
-    let bounds = room
-        .bounds(&settings.world)
-        .inflate(-settings.player.half_size);
-    Vec2::new(
-        rng.random_range(bounds.min.x..=bounds.max.x),
-        rng.random_range(bounds.min.y..=bounds.max.y),
-    )
 }
 
 fn control_dedicated_server_camera(

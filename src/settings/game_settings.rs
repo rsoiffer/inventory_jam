@@ -14,6 +14,7 @@ pub(crate) struct GameSettings {
     pub fragment: FragmentSettings,
     pub player: PlayerSettings,
     pub world: WorldSettings,
+    pub portal: PortalSettings,
     pub server_camera: ServerCameraSettings,
     pub projectile: ProjectileSettings,
     pub weapons: WeaponsSettings,
@@ -72,7 +73,9 @@ pub struct PlayerSettings {
     pub health_bar_width: f32,
     pub health_bar_height: f32,
     pub health_bar_offset_y: f32,
+    #[allow(unused)]
     pub spawn_attempts: usize,
+    pub maximum_health: u32,
     pub enemy_contact_damage: u32,
     pub enemy_contact_damage_interval_seconds: f32,
     pub half_size: f32,
@@ -95,6 +98,18 @@ pub struct WorldSettings {
     pub stream_half_width: i32,
     pub stream_half_height: i32,
     pub arena_floor_tiles: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PortalSettings {
+    pub trigger_radius: f32,
+    pub arena_portal_count: usize,
+    pub arena_edge_inset: f32,
+    pub placement_attempts: usize,
+    pub teleport_cooldown_ticks: u16,
+
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub safezone_portal_offset: Vec2,
 }
 
 impl WorldSettings {
@@ -315,9 +330,19 @@ impl GameSettings {
                 "world arena_floor_tiles cannot be empty".into(),
             ));
         }
-        if self.player.camera_scale <= 0.0 {
+        if self.player.camera_scale <= 0.0 || self.player.maximum_health == 0 {
             return Err(GameSettingsLoadError::Invalid(
-                "player camera_scale must be greater than zero".into(),
+                "player camera_scale and maximum_health must be greater than zero".into(),
+            ));
+        }
+        if self.portal.trigger_radius <= 0.0
+            || self.portal.arena_portal_count == 0
+            || self.portal.arena_edge_inset < 0.0
+            || self.portal.placement_attempts == 0
+            || self.portal.teleport_cooldown_ticks == 0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "portal settings are invalid".into(),
             ));
         }
         if self.server_camera.min_scale <= 0.0
@@ -391,6 +416,14 @@ impl std::fmt::Display for GameSettingsLoadError {
 }
 
 impl std::error::Error for GameSettingsLoadError {}
+
+fn deserialize_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let [x, y] = <[f32; 2]>::deserialize(deserializer)?;
+    Ok(Vec2::new(x, y))
+}
 
 fn deserialize_vec3<'de, D>(deserializer: D) -> Result<Vec3, D::Error>
 where

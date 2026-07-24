@@ -38,18 +38,25 @@ fn simulate_predicted_projectile_buffers(
     let tick_secs = tick_duration.0.as_secs_f32();
 
     for (mut buffer, room, equipped) in &mut players {
-        buffer.simulate(room, tick, tick_secs, equipped.level, &settings, |weapon, pos| {
-            let radius = settings.weapons.get(weapon).projectile_radius;
-            enemies.iter().any(|(enemy, kind, enemy_room, health)| {
-                enemy_room == room
-                    && health.current > 0
-                    && protocol::overlaps(
-                        pos,
-                        enemy.0,
-                        radius,
-                        kind.collision_radius(settings.enemy.collision_radius),
-                    )
-            })
-        });
+        buffer.simulate(
+            room,
+            tick,
+            tick_secs,
+            equipped.level,
+            &settings,
+            |weapon, pos| {
+                let radius = settings.weapons.get(weapon).projectile_radius;
+                enemies.iter().any(|(enemy, kind, enemy_room, health)| {
+                    enemy_room == room
+                        && health.current > 0
+                        && protocol::overlaps(
+                            pos,
+                            enemy.0,
+                            radius,
+                            kind.collision_radius(settings.enemy.collision_radius),
+                        )
+                })
+            },
+        );
     }
 }

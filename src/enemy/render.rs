@@ -92,7 +92,7 @@ fn load_enemy_visual_assets(
             frame_count: 4,
         },
         spawner: IdleSheet {
-            image: asset_server.load("world_tiles/spr_gate_open.png"),
+            image: asset_server.load("world_tiles/spr_altar_active.png"),
             layout: layouts.add(TextureAtlasLayout::from_grid(
                 SPAWNER_FRAME_PIXELS,
                 4,

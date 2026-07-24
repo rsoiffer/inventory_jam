@@ -4,6 +4,7 @@ mod fragment;
 mod networking;
 mod persistence;
 mod player;
+mod portal;
 mod projectile;
 mod protocol;
 #[cfg(feature = "server")]
@@ -26,6 +27,7 @@ use enemy::EnemyPlugin;
 use fragment::FragmentPlugin;
 use persistence::PersistencePlugin;
 use player::PlayerPlugin;
+use portal::PortalPlugin;
 use projectile::ProjectilePlugin;
 #[cfg(feature = "server")]
 use server::ExampleServerPlugin;
@@ -79,6 +81,7 @@ fn run() -> Result<(), GameSettingsLoadError> {
 
     app.add_plugins((
         WorldPlugin,
+        PortalPlugin,
         UiPlugin,
         LaunchPlugin,
         SharedPlugin,

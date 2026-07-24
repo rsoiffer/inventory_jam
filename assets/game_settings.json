@@ -45,6 +45,7 @@
     "health_bar_height": 3.2,
     "health_bar_offset_y": 22.0,
     "spawn_attempts": 64,
+    "maximum_health": 100,
     "enemy_contact_damage": 10,
     "enemy_contact_damage_interval_seconds": 0.5,
     "half_size": 12.0,
@@ -74,6 +75,14 @@
       52,
       53
     ]
+  },
+  "portal": {
+    "trigger_radius": 20.0,
+    "arena_portal_count": 64,
+    "arena_edge_inset": 48.0,
+    "placement_attempts": 64,
+    "teleport_cooldown_ticks": 30,
+    "safezone_portal_offset": [64.0, 48.0]
   },
   "server_camera": {
     "zoom_speed": 1.8,
