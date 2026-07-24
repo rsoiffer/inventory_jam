@@ -34,7 +34,7 @@ use crate::app::{ClientState, LocalUsername, client_id_from_username, machine_lo
 use crate::app::{LaunchMode, StartGame};
 
 #[cfg(feature = "client")]
-const CERT_DIGEST: &str = "82f64641977a90d3d098bc1b217988d54554f98138f54cf3e27156aae8ff9795";
+const CERT_DIGEST: &str = "f45d797656c2a4199baf7a28a4cb4de9215e7fe90dfe1d43fcdacaf90e5f0beb";
 #[cfg(feature = "client")]
 const LOCAL_SERVER_ADDR: SocketAddr = SERVER_ADDR;
 
@@ -131,6 +131,7 @@ pub fn configure_networking(app: &mut App) {
     #[cfg(feature = "client")]
     {
         app.add_plugins(ReqwestPlugin::default());
+        app.add_observer(log_transport_disconnection);
         app.add_systems(
             Update,
             (
@@ -148,6 +149,15 @@ pub fn configure_networking(app: &mut App) {
 
     #[cfg(feature = "server")]
     app.add_systems(Update, start_pending_servers);
+}
+
+#[cfg(feature = "client")]
+fn log_transport_disconnection(trigger: On<aeronet_io::connection::Disconnected>) {
+    warn!(
+        entity = ?trigger.event().entity,
+        reason = ?trigger.event().reason,
+        "client transport disconnected"
+    );
 }
 
 fn link_conditioner() -> Option<RecvLinkConditioner> {
@@ -322,6 +332,11 @@ fn spawn_client(
     config: &NetworkingConfig,
     conditioner: Option<RecvLinkConditioner>,
 ) {
+    info!(
+        server_addr = %server_addr,
+        transport = ?config.transport,
+        "creating client connection"
+    );
     commands.spawn((
         Name::new("Network Client"),
         NetworkClient {
@@ -378,15 +393,19 @@ fn start_pending_servers(
 #[cfg(feature = "client")]
 fn connect_client_once(
     mut commands: Commands,
-    client: Query<Entity, (With<Client>, Without<Connected>)>,
+    client: Query<
+        (Entity, &aeronet_io::connection::PeerAddr),
+        (With<Client>, Without<Connected>),
+    >,
     mut connecting: Local<Option<Entity>>,
 ) {
-    let Some(entity) = client.iter().next() else {
+    let Some((entity, server_addr)) = client.iter().next() else {
         return;
     };
     if *connecting == Some(entity) {
         return;
     }
+    info!(server_addr = %server_addr.0, "opening client connection");
     commands.trigger(Connect { entity });
     *connecting = Some(entity);
 }
@@ -426,10 +445,12 @@ fn watch_client_connection_state(
 ) {
     let is_connected = !connected.is_empty();
     if is_connected && !*was_connected {
+        info!("client connection established");
         status.message = "connected".into();
         next_state.set(ClientState::Playing);
     }
     if !is_connected && *was_connected && *current.get() == ClientState::Playing {
+        warn!("client connection lost");
         status.message = "disconnected".into();
         next_state.set(ClientState::Disconnected);
     }

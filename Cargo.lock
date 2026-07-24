@@ -4605,6 +4605,7 @@ dependencies = [
 name = "inventory_jam"
 version = "0.1.0"
 dependencies = [
+ "aeronet_io",
  "anyhow",
  "async-compat",
  "bevy",
