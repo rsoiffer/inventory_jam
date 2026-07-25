@@ -19,7 +19,8 @@ pub struct PersistenceLoading;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WeaponProgress {
     pub fragments: u32,
-    pub level: u32,
+    #[serde(default, alias = "level")]
+    pub damage_level: u32,
     #[serde(default)]
     pub attack_speed_level: u32,
     #[serde(default)]
@@ -31,11 +32,18 @@ pub struct WeaponProgress {
 impl WeaponProgress {
     pub fn level_for(&self, kind: UpgradeStatKind) -> u32 {
         match kind {
-            UpgradeStatKind::Damage => self.level,
+            UpgradeStatKind::Damage => self.damage_level,
             UpgradeStatKind::AttackSpeed => self.attack_speed_level,
             UpgradeStatKind::Pierce => self.pierce_level,
             UpgradeStatKind::Crit => self.crit_level,
         }
+    }
+
+    pub fn total_level(&self) -> u32 {
+        self.damage_level
+            .saturating_add(self.attack_speed_level)
+            .saturating_add(self.pierce_level)
+            .saturating_add(self.crit_level)
     }
 }
 
@@ -50,7 +58,7 @@ pub struct PersistentState {
 impl Default for PersistentState {
     fn default() -> Self {
         Self {
-            version: 4,
+            version: 5,
             equipped_weapon_id: 0,
             weapons: BTreeMap::new(),
         }
@@ -78,9 +86,9 @@ impl PersistentState {
             .iter()
             .map(|(id, progress)| {
                 format!(
-                    "{id}:{{fragments={},level={},attack_speed_level={},pierce_level={},crit_level={}}}",
+                    "{id}:{{fragments={},damage_level={},attack_speed_level={},pierce_level={},crit_level={}}}",
                     progress.fragments,
-                    progress.level,
+                    progress.damage_level,
                     progress.attack_speed_level,
                     progress.pierce_level,
                     progress.crit_level
@@ -89,7 +97,7 @@ impl PersistentState {
             .collect::<Vec<_>>()
             .join(",");
         let preimage = format!(
-            "v4|{username}|equipped={}|weapons=[{weapons}]",
+            "v5|{username}|equipped={}|weapons=[{weapons}]",
             self.equipped_weapon_id
         );
         hex::encode(Sha256::digest(preimage.as_bytes()))
@@ -112,7 +120,8 @@ pub struct PlayerChange {
     pub username: String,
     pub weapon_id: WeaponId,
     pub fragment_delta: i64,
-    pub level_delta: i64,
+    #[serde(default, alias = "level_delta")]
+    pub damage_level_delta: i64,
     #[serde(default)]
     pub attack_speed_level_delta: i64,
     #[serde(default)]
@@ -127,7 +136,7 @@ pub struct PlayerChange {
 impl PlayerChange {
     fn has_progress_delta(&self) -> bool {
         self.fragment_delta != 0
-            || self.level_delta != 0
+            || self.damage_level_delta != 0
             || self.attack_speed_level_delta != 0
             || self.pierce_level_delta != 0
             || self.crit_level_delta != 0
@@ -159,7 +168,11 @@ impl PlayerChange {
             }
 
             progress.fragments = next_fragments as u32;
-            progress.level = apply_level_delta(progress.level, self.level_delta, "level")?;
+            progress.damage_level = apply_level_delta(
+                progress.damage_level,
+                self.damage_level_delta,
+                "damage_level",
+            )?;
             progress.attack_speed_level = apply_level_delta(
                 progress.attack_speed_level,
                 self.attack_speed_level_delta,
@@ -205,7 +218,7 @@ impl Transaction {
         username: impl Into<String>,
         weapon_id: WeaponId,
         fragment_delta: i64,
-        level_delta: i64,
+        damage_level_delta: i64,
         attack_speed_level_delta: i64,
         pierce_level_delta: i64,
         crit_level_delta: i64,
@@ -217,7 +230,7 @@ impl Transaction {
                 username: username.into(),
                 weapon_id,
                 fragment_delta,
-                level_delta,
+                damage_level_delta,
                 attack_speed_level_delta,
                 pierce_level_delta,
                 crit_level_delta,
@@ -240,7 +253,7 @@ impl Transaction {
         kind: UpgradeStatKind,
         cost: u32,
     ) -> Self {
-        let (level, attack_speed, pierce, crit) = match kind {
+        let (damage, attack_speed, pierce, crit) = match kind {
             UpgradeStatKind::Damage => (1, 0, 0, 0),
             UpgradeStatKind::AttackSpeed => (0, 1, 0, 0),
             UpgradeStatKind::Pierce => (0, 0, 1, 0),
@@ -250,7 +263,7 @@ impl Transaction {
             username,
             weapon_id,
             -(cost as i64),
-            level,
+            damage,
             attack_speed,
             pierce,
             crit,

@@ -337,7 +337,7 @@ fn sync_username_labels(
             Some(state) => format!(
                 "{} Lv{}",
                 username.0,
-                state.weapon(state.equipped_weapon_id).level
+                state.weapon(state.equipped_weapon_id).total_level()
             ),
             None => username.0.clone(),
         };
@@ -603,14 +603,7 @@ fn update_aristeia_ui(
 
     if let Ok(aristeia) = local_player.single() {
         personal_text.0 = format!("ARISTEIA {}", aristeia.current);
-
-        let fraction = if aristeia.maximum_ticks == 0 {
-            0.0
-        } else {
-            (aristeia.remaining_ticks as f32 / aristeia.maximum_ticks as f32).clamp(0.0, 1.0)
-        };
-
-        personal_bar.width = Val::Percent(fraction * 100.0);
+        personal_bar.width = Val::Percent(aristeia.remaining_fraction() * 100.0);
     } else {
         personal_text.0 = "ARISTEIA 0".to_string();
         personal_bar.width = Val::Percent(0.0);
@@ -618,14 +611,7 @@ fn update_aristeia_ui(
 
     if let Ok(global) = global_aristeia.single() {
         global_text.0 = format!("GLOBAL ARISTEIA {} / {}", global.current, global.maximum,);
-
-        let fraction = if global.maximum == 0 {
-            0.0
-        } else {
-            (global.current as f32 / global.maximum as f32).clamp(0.0, 1.0)
-        };
-
-        global_bar.width = Val::Percent(fraction * 100.0);
+        global_bar.width = Val::Percent(global.fraction() * 100.0);
     } else {
         global_text.0 = "GLOBAL ARISTEIA 0 / 0".to_string();
         global_bar.width = Val::Percent(0.0);

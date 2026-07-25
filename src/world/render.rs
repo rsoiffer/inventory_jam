@@ -1,4 +1,4 @@
-use crate::settings::GameSettings;
+use crate::settings::{GameSettings, SafezoneFloorRect};
 use bevy::camera::Camera2d;
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -41,147 +41,62 @@ struct LoadedWorldTiles {
     last_camera_tile: Option<IVec2>,
 }
 
-const PIT_ATLAS_COLUMNS: u32 = 9;
 const PIT_BACKGROUND_Z: f32 = -2.0;
 const PIT_FLOOR_Z: f32 = -1.0;
 const PIT_WALL_Z: f32 = 0.0;
 const PIT_PROP_Z: f32 = 1.0;
-const PIT_WALL_RING_THICKNESS: i32 = 3;
-
-const BLUE_FLOOR: Tile = Tile { x: 1, y: 1 };
-const GREY_FLOOR: Tile = Tile { x: 1, y: 4 };
-const BLUE_FLOOR_02: Tile = Tile { x: 4, y: 1 };
-const GREY_FLOOR_02: Tile = Tile { x: 4, y: 4 };
-const WALL: Tile = Tile { x: 6, y: 0 };
-const PROP_STOOL: Tile = Tile { x: 7, y: 0 };
-const PROP_TABLE: Tile = Tile { x: 8, y: 0 };
-const PROP_ROCK: Tile = Tile { x: 6, y: 1 };
-const PROP_BARREL: Tile = Tile { x: 8, y: 1 };
-
-const PIT_FLOORS: &[FloorRect] = &[
-    FloorRect {
-        center: BLUE_FLOOR,
-        x: 8,
-        y: 8,
-        width: 24,
-        height: 16,
-    },
-    FloorRect {
-        center: GREY_FLOOR,
-        x: 16,
-        y: 14,
-        width: 8,
-        height: 4,
-    },
-    FloorRect {
-        center: BLUE_FLOOR_02,
-        x: 10,
-        y: 18,
-        width: 8,
-        height: 6,
-    },
-    FloorRect {
-        center: GREY_FLOOR_02,
-        x: 24,
-        y: 10,
-        width: 6,
-        height: 6,
-    },
-    // Weapon stations (bottom row)
-    FloorRect {
-        center: BLUE_FLOOR_02,
-        x: 6,
-        y: 3,
-        width: 28,
-        height: 4,
-    },
-    // Upgrade stations (right column)
-    FloorRect {
-        center: BLUE_FLOOR_02,
-        x: 33,
-        y: 8,
-        width: 4,
-        height: 16,
-    },
-];
-
-const PIT_PROPS: &[PropPlacement] = &[
-    PropPlacement {
-        tile: PROP_TABLE,
-        x: 20,
-        y: 16,
-    },
-    PropPlacement {
-        tile: PROP_STOOL,
-        x: 18,
-        y: 14,
-    },
-    PropPlacement {
-        tile: PROP_ROCK,
-        x: 24,
-        y: 12,
-    },
-    PropPlacement {
-        tile: PROP_BARREL,
-        x: 16,
-        y: 16,
-    },
-];
 
 #[derive(Clone, Copy)]
-struct Tile {
+struct AtlasTile {
     x: u32,
     y: u32,
+    columns: u32,
 }
 
-impl Tile {
+impl AtlasTile {
+    fn from_uvec2(tile: UVec2, columns: u32) -> Self {
+        Self {
+            x: tile.x,
+            y: tile.y,
+            columns,
+        }
+    }
+
     fn atlas_index(self) -> usize {
-        self.y as usize * PIT_ATLAS_COLUMNS as usize + self.x as usize
+        self.y as usize * self.columns as usize + self.x as usize
     }
 
     fn offset(self, x: i32, y: i32) -> Self {
         Self {
             x: (self.x as i32 + x) as u32,
             y: (self.y as i32 + y) as u32,
+            columns: self.columns,
         }
     }
-}
-
-#[derive(Clone, Copy)]
-struct FloorRect {
-    center: Tile,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-}
-
-#[derive(Clone, Copy)]
-struct PropPlacement {
-    tile: Tile,
-    x: i32,
-    y: i32,
 }
 
 fn load_world_tile_assets(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
+    settings: Res<GameSettings>,
 ) {
+    let arena = &settings.world.arena_tileset;
+    let safezone = &settings.world.safezone.tileset;
     commands.insert_resource(WorldTileAssets {
-        arena_image: asset_server.load("world_tiles/spr_tileset_arena_main.png"),
+        arena_image: asset_server.load(arena.path.clone()),
         arena_layout: layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::splat(16),
-            8,
-            11,
+            arena.cell,
+            arena.columns,
+            arena.rows,
             None,
             None,
         )),
-        safezone_image: asset_server.load("world_tiles/spr_tileset_safezone.png"),
+        safezone_image: asset_server.load(safezone.path.clone()),
         safezone_layout: layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::splat(16),
-            9,
-            9,
+            safezone.cell,
+            safezone.columns,
+            safezone.rows,
             None,
             None,
         )),
@@ -302,14 +217,18 @@ fn spawn_pit_decorations(
     let tile_size = settings.world.tile_pixel_size;
     let room_tiles = (bounds.size() / tile_size).as_ivec2();
     let layout_origin = bounds.min;
+    let safezone = &settings.world.safezone;
+    let columns = safezone.tileset.columns;
+    let wall = AtlasTile::from_uvec2(safezone.wall_tile, columns);
+    let wall_thickness = safezone.wall_ring_thickness;
 
     commands.spawn((
-        Sprite::from_color(Color::srgb(0.08, 0.1, 0.14), bounds.size()),
+        Sprite::from_color(safezone.background_color, bounds.size()),
         Transform::from_translation(bounds.center().extend(PIT_BACKGROUND_Z)),
         Name::new("Pit Background"),
     ));
 
-    for floor in PIT_FLOORS {
+    for floor in &safezone.floors {
         for y in (floor.y - 1)..(floor.y + floor.height + 1) {
             for x in (floor.x - 1)..(floor.x + floor.width + 1) {
                 spawn_pit_tile(
@@ -318,7 +237,7 @@ fn spawn_pit_decorations(
                     layout_origin,
                     x,
                     y,
-                    floor_tile(*floor, x, y),
+                    floor_tile(floor, x, y, columns),
                     tile_size,
                     PIT_FLOOR_Z,
                 );
@@ -326,8 +245,8 @@ fn spawn_pit_decorations(
         }
     }
 
-    for y in -PIT_WALL_RING_THICKNESS..room_tiles.y + PIT_WALL_RING_THICKNESS {
-        for x in -PIT_WALL_RING_THICKNESS..room_tiles.x + PIT_WALL_RING_THICKNESS {
+    for y in -wall_thickness..room_tiles.y + wall_thickness {
+        for x in -wall_thickness..room_tiles.x + wall_thickness {
             if (0..room_tiles.x).contains(&x) && (0..room_tiles.y).contains(&y) {
                 continue;
             }
@@ -337,21 +256,21 @@ fn spawn_pit_decorations(
                 bounds.min,
                 x,
                 y,
-                WALL,
+                wall,
                 tile_size,
                 PIT_WALL_Z,
             );
         }
     }
 
-    for prop in PIT_PROPS {
+    for prop in &safezone.props {
         spawn_pit_tile(
             &mut commands,
             &assets,
             layout_origin,
             prop.x,
             prop.y,
-            prop.tile,
+            AtlasTile::from_uvec2(prop.tile, columns),
             tile_size,
             PIT_PROP_Z,
         );
@@ -364,7 +283,7 @@ fn spawn_pit_tile(
     origin: Vec2,
     x: i32,
     y: i32,
-    tile: Tile,
+    tile: AtlasTile,
     tile_size: f32,
     z: f32,
 ) {
@@ -383,8 +302,8 @@ fn spawn_pit_tile(
     ));
 }
 
-fn floor_tile(floor: FloorRect, x: i32, y: i32) -> Tile {
-    floor.center.offset(
+fn floor_tile(floor: &SafezoneFloorRect, x: i32, y: i32, columns: u32) -> AtlasTile {
+    AtlasTile::from_uvec2(floor.center_tile, columns).offset(
         if x == floor.x - 1 {
             -1
         } else if x == floor.x + floor.width {

@@ -57,7 +57,7 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), GameSettingsLoadError> {
-    let settings = GameSettings::load("assets/game_settings.json")?;
+    let settings = GameSettings::load("assets/settings")?;
 
     let config = config_from_env();
     let mut app = base_app();

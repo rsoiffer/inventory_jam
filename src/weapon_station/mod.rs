@@ -24,12 +24,12 @@ impl Plugin for WeaponStationPlugin {
     }
 }
 
-pub(crate) fn upgrade_station_label(kind: UpgradeStatKind, cost: u32) -> String {
+pub(crate) fn upgrade_station_label(kind: UpgradeStatKind, level: u32, cost: u32) -> String {
     let name = match kind {
         UpgradeStatKind::Damage => "Damage",
-        UpgradeStatKind::AttackSpeed => "Attack Speed",
+        UpgradeStatKind::AttackSpeed => "Atk Spd",
         UpgradeStatKind::Pierce => "Pierce",
         UpgradeStatKind::Crit => "Crit",
     };
-    format!("{name} ({cost})")
+    format!("{name} Lv{level}\nUpgrade: {cost}")
 }

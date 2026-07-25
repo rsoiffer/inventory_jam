@@ -1,12 +1,8 @@
-#[cfg(feature = "dev")]
-use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::GameRoom;
 #[cfg(feature = "server")]
 use crate::protocol::rooms::GameRooms;
 use bevy::math::Curve;
 use bevy::prelude::*;
-#[cfg(feature = "dev")]
-use leafwing_input_manager::action_state::ActionState;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -19,8 +15,6 @@ impl Plugin for PlayerProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.component::<PlayerId>().replicate();
 
-        #[cfg(feature = "dev")]
-        app.add_systems(PostUpdate, debug_player_position);
         app.component::<PlayerPosition>()
             .replicate()
             .predict()
@@ -37,26 +31,6 @@ impl Plugin for PlayerProtocolPlugin {
         app.component::<PlayerHealth>().replicate().predict();
 
         app.component::<PlayerAristeia>().replicate().predict();
-    }
-}
-
-#[cfg(feature = "dev")]
-#[allow(unused)]
-fn debug_player_position(
-    q: Query<(Entity, &PlayerPosition, &ActionState<PlayerAction>)>,
-    local_timeline: Res<LocalTimeline>,
-) {
-    for (entity, position, actions) in q.iter() {
-        let movement = actions.clamped_axis_pair(&PlayerAction::Move);
-
-        if movement != Vec2::ZERO {
-            // info!(
-            //     "Player Pos: {:?} {:?} {:?}",
-            //     local_timeline.tick(),
-            //     position,
-            //     entity
-            // );
-        }
     }
 }
 
@@ -171,7 +145,6 @@ impl PlayerAristeia {
         }
     }
 
-    #[allow(unused)]
     pub fn remaining_fraction(&self) -> f32 {
         if self.maximum_ticks == 0 {
             return 0.0;

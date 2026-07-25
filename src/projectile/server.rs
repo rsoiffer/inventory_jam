@@ -78,7 +78,7 @@ fn simulate_player_projectile_buffers(
         let owner = owner_id.0;
         let personal_aristeia = aristeia.current;
         let progress = cache.weapon(cache.equipped_weapon_id);
-        let damage_level = progress.level;
+        let damage_level = progress.damage_level;
         let crit_chance = settings.progression.crit_chance_at(progress.crit_level);
         buffer.simulate(room, tick, tick_secs, &settings, |source, pos, last_hit| {
             let ProjectileSource::Weapon(weapon) = source else {

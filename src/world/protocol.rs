@@ -24,7 +24,6 @@ impl GlobalAristeia {
         }
     }
 
-    #[allow(unused)]
     pub fn fraction(&self) -> f32 {
         if self.maximum == 0 {
             0.0

@@ -114,17 +114,12 @@ pub struct PlayerSettings {
     pub health_bar_width: f32,
     pub health_bar_height: f32,
     pub health_bar_offset_y: f32,
-    #[allow(unused)]
-    pub spawn_attempts: usize,
     pub maximum_health: u32,
-    #[allow(unused)]
-    pub enemy_contact_damage: u32,
     pub enemy_contact_damage_interval_seconds: f32,
     pub death_screen_duration_seconds: f32,
     pub half_size: f32,
     pub collision_radius: f32,
     pub move_speed: f32,
-    #[allow(unused)]
     pub held_weapon_offset: f32,
     pub aristeia_duration_ticks: u16,
     pub aristeia_bar_width: f32,
@@ -142,6 +137,57 @@ pub struct WorldSettings {
     pub stream_half_width: i32,
     pub stream_half_height: i32,
     pub arena_floor_tiles: Vec<usize>,
+    pub arena_tileset: TileAtlasSettings,
+    pub safezone: SafezoneSettings,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TileAtlasSettings {
+    pub path: String,
+    #[serde(deserialize_with = "deserialize_uvec2")]
+    pub cell: UVec2,
+    pub columns: u32,
+    pub rows: u32,
+}
+
+impl TileAtlasSettings {
+    fn is_valid(&self) -> bool {
+        !self.path.is_empty()
+            && self.cell.x > 0
+            && self.cell.y > 0
+            && self.columns > 0
+            && self.rows > 0
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SafezoneSettings {
+    #[serde(deserialize_with = "deserialize_color")]
+    pub background_color: Color,
+    pub wall_ring_thickness: i32,
+    #[serde(deserialize_with = "deserialize_uvec2")]
+    pub wall_tile: UVec2,
+    pub tileset: TileAtlasSettings,
+    pub floors: Vec<SafezoneFloorRect>,
+    pub props: Vec<SafezoneProp>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SafezoneFloorRect {
+    #[serde(deserialize_with = "deserialize_uvec2")]
+    pub center_tile: UVec2,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SafezoneProp {
+    #[serde(deserialize_with = "deserialize_uvec2")]
+    pub tile: UVec2,
+    pub x: i32,
+    pub y: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -365,30 +411,78 @@ pub struct MobileControlsSettings {
 }
 
 impl GameSettings {
+    const SETTINGS_FILES: &[&str] = &["world.json", "player.json", "enemies.json"];
+
     pub fn load(path: impl AsRef<Path>) -> Result<Self, GameSettingsLoadError> {
-        let path = path.as_ref();
+        let directory = path.as_ref();
+        let mut merged = serde_json::Map::new();
 
-        // wasm32-unknown-unknown has no filesystem, so the settings file is
-        // embedded into the binary at compile time instead of read at runtime.
-        #[cfg(target_family = "wasm")]
-        let json = include_str!("../../assets/game_settings.json").to_owned();
-
-        #[cfg(not(target_family = "wasm"))]
-        let json = fs::read_to_string(path).map_err(|source| GameSettingsLoadError::Read {
-            path: path.to_path_buf(),
-            source,
-        })?;
-
-        let settings = serde_json::from_str::<GameSettings>(&json).map_err(|source| {
-            GameSettingsLoadError::Parse {
-                path: path.to_path_buf(),
-                source,
+        for file_name in Self::SETTINGS_FILES {
+            let file_path = directory.join(file_name);
+            let json = Self::read_settings_file(&file_path, file_name)?;
+            let value = serde_json::from_str::<serde_json::Value>(&json).map_err(|source| {
+                GameSettingsLoadError::Parse {
+                    path: file_path.clone(),
+                    source,
+                }
+            })?;
+            let serde_json::Value::Object(map) = value else {
+                return Err(GameSettingsLoadError::Invalid(format!(
+                    "settings file {} must contain a JSON object",
+                    file_path.display()
+                )));
+            };
+            for (key, nested) in map {
+                if merged.insert(key.clone(), nested).is_some() {
+                    return Err(GameSettingsLoadError::Invalid(format!(
+                        "duplicate settings key '{key}' while loading {}",
+                        file_path.display()
+                    )));
+                }
             }
-        })?;
+        }
+
+        let settings = serde_json::from_value::<GameSettings>(serde_json::Value::Object(merged))
+            .map_err(|source| GameSettingsLoadError::Parse {
+                path: directory.to_path_buf(),
+                source,
+            })?;
 
         settings.validate()?;
         Ok(settings)
     }
+
+    fn read_settings_file(
+        file_path: &Path,
+        file_name: &str,
+    ) -> Result<String, GameSettingsLoadError> {
+        // wasm32-unknown-unknown has no filesystem, so settings are embedded.
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = file_path;
+            let json = match file_name {
+                "world.json" => include_str!("../../assets/settings/world.json"),
+                "player.json" => include_str!("../../assets/settings/player.json"),
+                "enemies.json" => include_str!("../../assets/settings/enemies.json"),
+                _ => {
+                    return Err(GameSettingsLoadError::Invalid(format!(
+                        "unknown embedded settings file {file_name}"
+                    )));
+                }
+            };
+            Ok(json.to_owned())
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let _ = file_name;
+            fs::read_to_string(file_path).map_err(|source| GameSettingsLoadError::Read {
+                path: file_path.to_path_buf(),
+                source,
+            })
+        }
+    }
+
     fn validate(&self) -> Result<(), GameSettingsLoadError> {
         if self.network.interest_radius <= 0.0 {
             return Err(GameSettingsLoadError::Invalid(
@@ -512,12 +606,31 @@ impl GameSettings {
                 "world arena_floor_tiles cannot be empty".into(),
             ));
         }
+        if !self.world.arena_tileset.is_valid() || !self.world.safezone.tileset.is_valid() {
+            return Err(GameSettingsLoadError::Invalid(
+                "world arena/safezone tileset settings are invalid".into(),
+            ));
+        }
+        if self.world.safezone.wall_ring_thickness < 0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "safezone wall_ring_thickness cannot be negative".into(),
+            ));
+        }
+        for (index, floor) in self.world.safezone.floors.iter().enumerate() {
+            if floor.width <= 0 || floor.height <= 0 {
+                return Err(GameSettingsLoadError::Invalid(format!(
+                    "safezone floor {index} width and height must be greater than zero"
+                )));
+            }
+        }
         if self.player.camera_scale <= 0.0
             || self.player.maximum_health == 0
             || self.player.death_screen_duration_seconds <= 0.0
+            || self.player.held_weapon_offset < 0.0
+            || self.player.enemy_contact_damage_interval_seconds <= 0.0
         {
             return Err(GameSettingsLoadError::Invalid(
-                "player camera_scale, maximum_health, and death_screen_duration_seconds must be greater than zero".into(),
+                "player camera_scale, maximum_health, death_screen_duration_seconds, held_weapon_offset, and enemy_contact_damage_interval_seconds are invalid".into(),
             ));
         }
         if self.portal.trigger_radius <= 0.0

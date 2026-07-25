@@ -143,6 +143,7 @@ fn ensure_upgrade_station_sprites(
                 UpgradeStationLabel,
                 station_label_bundle(upgrade_station_label(
                     kind.0,
+                    0,
                     settings.progression.upgrade_cost_base,
                 )),
             ));
@@ -182,7 +183,7 @@ fn update_station_labels(
             continue;
         };
         let level = state
-            .map(|cache| cache.weapon(station_id.0).level)
+            .map(|cache| cache.weapon(station_id.0).total_level())
             .unwrap_or(0);
         let label = format!("{} Lv{level}", weapon.name);
         for child in children.iter() {
@@ -195,13 +196,17 @@ fn update_station_labels(
     }
 
     for (kind, children) in &upgrade_stations {
-        let cost = state
-            .and_then(|cache| {
+        let (level, cost) = state
+            .map(|cache| {
                 let level = cache.weapon(cache.equipped_weapon_id).level_for(kind.0);
-                settings.progression.upgrade_cost(level).ok()
+                let cost = settings
+                    .progression
+                    .upgrade_cost(level)
+                    .unwrap_or(settings.progression.upgrade_cost_base);
+                (level, cost)
             })
-            .unwrap_or(settings.progression.upgrade_cost_base);
-        let upgrade_label = upgrade_station_label(kind.0, cost);
+            .unwrap_or((0, settings.progression.upgrade_cost_base));
+        let upgrade_label = upgrade_station_label(kind.0, level, cost);
         for child in children.iter() {
             if let Ok(mut text) = upgrade_labels.get_mut(child)
                 && text.0 != upgrade_label

@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS player_transaction (
 CREATE INDEX IF NOT EXISTS player_transaction_applied_at_idx
     ON player_transaction (applied_at);
 
--- Convert legacy player rows to versioned per-weapon progression state (v4).
+-- Convert legacy player rows to versioned per-weapon progression state (v5).
 UPDATE player_state
 SET state = jsonb_build_object(
-        'version', 4,
+        'version', 5,
         'equipped_weapon_id', COALESCE((state->>'equipped_weapon_id')::INT, 0),
         'weapons', COALESCE(
             (
@@ -26,7 +26,11 @@ SET state = jsonb_build_object(
                     key,
                     jsonb_build_object(
                         'fragments', COALESCE((value->>'fragments')::BIGINT, 0),
-                        'level', COALESCE((value->>'level')::BIGINT, 0),
+                        'damage_level', COALESCE(
+                            (value->>'damage_level')::BIGINT,
+                            (value->>'level')::BIGINT,
+                            0
+                        ),
                         'attack_speed_level', COALESCE((value->>'attack_speed_level')::BIGINT, 0),
                         'pierce_level', COALESCE((value->>'pierce_level')::BIGINT, 0),
                         'crit_level', COALESCE((value->>'crit_level')::BIGINT, 0)
@@ -38,7 +42,7 @@ SET state = jsonb_build_object(
         )
     ),
     updated_at = now()
-WHERE COALESCE(state->>'version', '1') <> '4'
+WHERE COALESCE(state->>'version', '1') <> '5'
    OR NOT (state ? 'weapons')
    OR NOT (state ? 'equipped_weapon_id');
 
@@ -53,7 +57,7 @@ AS $$
     SELECT encode(
         digest(
             convert_to(
-                'v4|'
+                'v5|'
                     || p_username
                     || '|equipped='
                     || COALESCE(p_state->>'equipped_weapon_id', '0')
@@ -64,8 +68,8 @@ AS $$
                                 key
                                     || ':{fragments='
                                     || COALESCE(value->>'fragments', '0')
-                                    || ',level='
-                                    || COALESCE(value->>'level', '0')
+                                    || ',damage_level='
+                                    || COALESCE(value->>'damage_level', value->>'level', '0')
                                     || ',attack_speed_level='
                                     || COALESCE(value->>'attack_speed_level', '0')
                                     || ',pierce_level='
@@ -107,7 +111,7 @@ BEGIN
     END IF;
 
     current_state := jsonb_build_object(
-        'version', 4,
+        'version', 5,
         'equipped_weapon_id', 0,
         'weapons', '{}'::JSONB
     );
@@ -127,12 +131,13 @@ $$;
 DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT);
 DROP FUNCTION IF EXISTS apply_player_change(TEXT, BIGINT);
 DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT, BOOLEAN);
+DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN);
 
 CREATE OR REPLACE FUNCTION apply_player_change(
     p_username TEXT,
     p_weapon_id INT,
     p_fragment_delta BIGINT,
-    p_level_delta BIGINT,
+    p_damage_level_delta BIGINT,
     p_attack_speed_level_delta BIGINT,
     p_pierce_level_delta BIGINT,
     p_crit_level_delta BIGINT,
@@ -148,12 +153,12 @@ DECLARE
     weapon_key TEXT;
     weapon_state JSONB;
     current_fragments BIGINT;
-    current_level BIGINT;
+    current_damage_level BIGINT;
     current_attack_speed_level BIGINT;
     current_pierce_level BIGINT;
     current_crit_level BIGINT;
     next_fragments BIGINT;
-    next_level BIGINT;
+    next_damage_level BIGINT;
     next_attack_speed_level BIGINT;
     next_pierce_level BIGINT;
     next_crit_level BIGINT;
@@ -170,7 +175,7 @@ BEGIN
     END IF;
 
     IF p_fragment_delta IS NULL
-        OR p_level_delta IS NULL
+        OR p_damage_level_delta IS NULL
         OR p_attack_speed_level_delta IS NULL
         OR p_pierce_level_delta IS NULL
         OR p_crit_level_delta IS NULL
@@ -180,7 +185,7 @@ BEGIN
     END IF;
 
     IF p_fragment_delta = 0
-        AND p_level_delta = 0
+        AND p_damage_level_delta = 0
         AND p_attack_speed_level_delta = 0
         AND p_pierce_level_delta = 0
         AND p_crit_level_delta = 0
@@ -190,7 +195,7 @@ BEGIN
     END IF;
 
     IF p_fragment_delta <> 0
-        OR p_level_delta <> 0
+        OR p_damage_level_delta <> 0
         OR p_attack_speed_level_delta <> 0
         OR p_pierce_level_delta <> 0
         OR p_crit_level_delta <> 0
@@ -198,10 +203,14 @@ BEGIN
         weapon_key := p_weapon_id::TEXT;
         weapon_state := COALESCE(
             current_state->'weapons'->weapon_key,
-            '{"fragments":0,"level":0,"attack_speed_level":0,"pierce_level":0,"crit_level":0}'::JSONB
+            '{"fragments":0,"damage_level":0,"attack_speed_level":0,"pierce_level":0,"crit_level":0}'::JSONB
         );
         current_fragments := COALESCE((weapon_state->>'fragments')::BIGINT, 0);
-        current_level := COALESCE((weapon_state->>'level')::BIGINT, 0);
+        current_damage_level := COALESCE(
+            (weapon_state->>'damage_level')::BIGINT,
+            (weapon_state->>'level')::BIGINT,
+            0
+        );
         current_attack_speed_level := COALESCE((weapon_state->>'attack_speed_level')::BIGINT, 0);
         current_pierce_level := COALESCE((weapon_state->>'pierce_level')::BIGINT, 0);
         current_crit_level := COALESCE((weapon_state->>'crit_level')::BIGINT, 0);
@@ -214,12 +223,12 @@ BEGIN
             RAISE EXCEPTION 'fragment balance overflow: %', next_fragments;
         END IF;
 
-        next_level := current_level + p_level_delta;
-        IF next_level < 0 THEN
-            RAISE EXCEPTION 'level cannot go negative: % + %', current_level, p_level_delta;
+        next_damage_level := current_damage_level + p_damage_level_delta;
+        IF next_damage_level < 0 THEN
+            RAISE EXCEPTION 'damage_level cannot go negative: % + %', current_damage_level, p_damage_level_delta;
         END IF;
-        IF next_level > 4294967295 THEN
-            RAISE EXCEPTION 'level overflow: %', next_level;
+        IF next_damage_level > 4294967295 THEN
+            RAISE EXCEPTION 'damage_level overflow: %', next_damage_level;
         END IF;
 
         next_attack_speed_level := current_attack_speed_level + p_attack_speed_level_delta;
@@ -248,14 +257,14 @@ BEGIN
 
         weapon_state := jsonb_build_object(
             'fragments', next_fragments,
-            'level', next_level,
+            'damage_level', next_damage_level,
             'attack_speed_level', next_attack_speed_level,
             'pierce_level', next_pierce_level,
             'crit_level', next_crit_level
         );
 
         current_state := jsonb_set(
-            COALESCE(current_state, '{"version":4,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
+            COALESCE(current_state, '{"version":5,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
             ARRAY['weapons', weapon_key],
             weapon_state,
             true
@@ -264,14 +273,14 @@ BEGIN
 
     IF p_set_equipped THEN
         current_state := jsonb_set(
-            COALESCE(current_state, '{"version":4,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
+            COALESCE(current_state, '{"version":5,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
             '{equipped_weapon_id}',
             to_jsonb(p_weapon_id),
             true
         );
     END IF;
 
-    current_state := jsonb_set(current_state, '{version}', '4'::JSONB, true);
+    current_state := jsonb_set(current_state, '{version}', '5'::JSONB, true);
 
     UPDATE player_state
     SET state = current_state,
@@ -307,7 +316,11 @@ BEGIN
             change->>'username',
             (change->>'weapon_id')::INT,
             COALESCE((change->>'fragment_delta')::BIGINT, 0),
-            COALESCE((change->>'level_delta')::BIGINT, 0),
+            COALESCE(
+                (change->>'damage_level_delta')::BIGINT,
+                (change->>'level_delta')::BIGINT,
+                0
+            ),
             COALESCE((change->>'attack_speed_level_delta')::BIGINT, 0),
             COALESCE((change->>'pierce_level_delta')::BIGINT, 0),
             COALESCE((change->>'crit_level_delta')::BIGINT, 0),

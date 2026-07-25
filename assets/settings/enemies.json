@@ -1,0 +1,104 @@
+{
+  "enemy": {
+    "size": 16.0,
+    "collision_radius": 8.0,
+    "despawn_distance_from_players": 320.0,
+    "wander_radius": 144.0,
+    "detection_radius": 160.0,
+    "leash_radius": 240.0,
+    "standoff_distance": 96.0,
+    "strafe_radius": 56.0,
+    "engage_retarget_seconds": 0.55,
+    "ranged_chance": 0.8,
+    "attacks_per_second": 0.35,
+    "projectile_speed": 120.0,
+    "projectile_radius": 2.0,
+    "projectile_range": 220.0,
+    "projectile": {
+      "path": "enemy/spr_vfx_projectile_enemy.png",
+      "cell": [16, 16],
+      "frames": 1,
+      "frame_seconds": 0.1
+    },
+    "impact": {
+      "path": "enemy/spr_vfx_impact_generic.png",
+      "cell": [16, 16],
+      "frames": 6,
+      "frame_seconds": 0.05
+    }
+  },
+  "spawner": {
+    "count": 256,
+    "activation_radius": 256.0,
+    "max_owned": 12,
+    "spawn_radius": 48.0,
+    "spawn_rate_per_second": 2.0,
+    "placement_candidate_count": 48,
+    "spawn_min_distance_from_player": 56.0,
+    "spawn_candidate_count": 16,
+    "tiers": [
+      {
+        "max_distance_from_center": 1600.0,
+        "spawn_rate_multiplier": 2.5,
+        "max_owned_multiplier": 2.0,
+        "health": 800,
+        "contact_damage": 18,
+        "ranged_damage": 40,
+        "move_speed": 28.0,
+        "fragment_multiplier": 5.0,
+        "ranged_chance": 0.9
+      },
+      {
+        "max_distance_from_center": 3200.0,
+        "spawn_rate_multiplier": 1.5,
+        "max_owned_multiplier": 1.5,
+        "health": 300,
+        "contact_damage": 14,
+        "ranged_damage": 22,
+        "move_speed": 26.0,
+        "fragment_multiplier": 2.5,
+        "ranged_chance": 0.8
+      },
+      {
+        "max_distance_from_center": 10000.0,
+        "spawn_rate_multiplier": 1.0,
+        "max_owned_multiplier": 1.0,
+        "health": 100,
+        "contact_damage": 12,
+        "ranged_damage": 10,
+        "move_speed": 24.0,
+        "fragment_multiplier": 1.0,
+        "ranged_chance": 0.7
+      }
+    ]
+  },
+  "fragment": {
+    "pool_min_radius": 8.0,
+    "pool_max_radius": 32.0,
+    "radius": 4.0,
+    "lifetime_ticks": 600,
+    "player_collection_radius": 32.0,
+    "pull_speed": 16.0,
+    "pull_acceleration": 32.0,
+    "swirl": 1.0,
+    "base_drop_count": 8,
+    "bonus_drops_per_aristeia": 2,
+    "maximum_drop_count": 40,
+    "drop_entity_count": 3
+  },
+  "global_aristeia": {
+    "threshold": 1000,
+    "contribution_per_kill": 5,
+    "drain_interval_ticks": 120,
+    "drain_amount": 1,
+    "grand_champion_health": 5000,
+    "grand_champion_move_speed": 16.0,
+    "grand_champion_detection_radius": 800.0,
+    "grand_champion_leash_radius": 1600.0,
+    "grand_champion_contact_damage": 40,
+    "grand_champion_ranged_damage": 60,
+    "grand_champion_attacks_per_second": 0.6,
+    "grand_champion_fragment_multiplier": 20.0,
+    "grand_champion_ranged": true
+  }
+}
