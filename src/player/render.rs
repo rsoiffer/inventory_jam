@@ -2,11 +2,10 @@ use crate::app::{ClientState, game_is_active};
 use crate::persistence::CachedPersistentState;
 use crate::player::PlayerUsername;
 use crate::player::protocol::{
-    LocalAimInput, PlayerAimDirection, PlayerAristeia, PlayerHealth, PlayerPosition, PlayerVisual,
+    LocalAimInput, PlayerAimDirection, PlayerHealth, PlayerPosition, PlayerVisual,
     SmoothedAimDirection,
 };
 use crate::settings::GameSettings;
-use crate::world::GlobalAristeia;
 
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetServer, Assets, Handle};
@@ -16,11 +15,10 @@ use bevy::ecs::query::Without;
 use bevy::image::Image;
 use bevy::math::{StableInterpolate, UVec2, Vec2, Vec3};
 use bevy::prelude::{
-    AlignItems, BackgroundColor, Commands, Component, Entity, FlexDirection, FontSize,
-    GlobalTransform, IntoScheduleConfigs, JustifyContent, Node, OnEnter, OnExit, PositionType,
-    Query, Res, ResMut, Resource, Single, Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas,
-    TextureAtlasLayout, Time, Timer, TimerMode, Transform, UiRect, Val, Window, With, default,
-    in_state,
+    AlignItems, BackgroundColor, Commands, Component, Entity, FontSize, GlobalTransform,
+    IntoScheduleConfigs, JustifyContent, Node, OnExit, PositionType, Query, Res, ResMut, Resource,
+    Single, Sprite, Text, Text2d, TextColor, TextFont, TextureAtlas, TextureAtlasLayout, Time,
+    Timer, TimerMode, Transform, Val, Window, With, default, in_state,
 };
 use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
@@ -38,12 +36,8 @@ pub struct PlayerRenderPlugin;
 impl Plugin for PlayerRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_player_visual_assets);
-        app.add_systems(OnEnter(ClientState::Playing), spawn_aristeia_ui);
 
-        app.add_systems(
-            OnExit(ClientState::Playing),
-            (despawn_aristeia_ui, despawn_death_overlay),
-        );
+        app.add_systems(OnExit(ClientState::Playing), despawn_death_overlay);
 
         app.add_systems(
             Update,
@@ -61,7 +55,7 @@ impl Plugin for PlayerRenderPlugin {
 
         app.add_systems(
             Update,
-            (update_aristeia_ui, sync_death_overlay).run_if(in_state(ClientState::Playing)),
+            sync_death_overlay.run_if(in_state(ClientState::Playing)),
         );
 
         app.add_systems(
@@ -112,21 +106,6 @@ const PLAYER_HEALTH_BAR_Z: f32 = 11.0;
 struct UsernameLabel {
     player: Entity,
 }
-
-#[derive(Component)]
-struct AristeiaUiRoot;
-
-#[derive(Component)]
-struct AristeiaValueText;
-
-#[derive(Component)]
-struct AristeiaBarFill;
-
-#[derive(Component)]
-struct GlobalAristeiaValueText;
-
-#[derive(Component)]
-struct GlobalAristeiaBarFill;
 
 #[derive(Component)]
 struct DeathOverlayRoot;
@@ -448,173 +427,6 @@ fn smooth_local_aim_visual(
             .0
             .lerp(target_direction, interpolation)
             .normalize_or_zero();
-    }
-}
-
-fn spawn_aristeia_ui(
-    mut commands: Commands,
-    settings: Res<GameSettings>,
-    existing_ui: Query<Entity, With<AristeiaUiRoot>>,
-) {
-    // Prevent duplicate UI roots if the state is entered more than once
-    // without a complete cleanup.
-    if !existing_ui.is_empty() {
-        return;
-    }
-
-    commands
-        .spawn((
-            AristeiaUiRoot,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(24.0),
-                top: Val::Px(24.0),
-                width: Val::Px(settings.player.aristeia_bar_width),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                padding: UiRect::all(Val::Px(10.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.03, 0.03, 0.04, 0.82)),
-        ))
-        .with_children(|root| {
-            root.spawn((
-                AristeiaValueText,
-                Text::new("ARISTEIA 0"),
-                TextFont {
-                    font_size: FontSize::Px(24.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
-
-            root.spawn((
-                Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(settings.player.aristeia_bar_height),
-                    padding: UiRect::all(Val::Px(2.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.12, 0.12, 0.14)),
-            ))
-            .with_children(|bar_background| {
-                bar_background.spawn((
-                    AristeiaBarFill,
-                    Node {
-                        width: Val::Percent(0.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.95, 0.64, 0.12)),
-                ));
-            });
-        });
-
-    commands
-        .spawn((
-            AristeiaUiRoot,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(24.0),
-                top: Val::Px(110.0),
-                width: Val::Px(settings.player.aristeia_bar_width),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                padding: UiRect::all(Val::Px(10.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.03, 0.03, 0.04, 0.82)),
-        ))
-        .with_children(|root| {
-            root.spawn((
-                GlobalAristeiaValueText,
-                Text::new("GLOBAL ARISTEIA 0 / 0"),
-                TextFont {
-                    font_size: FontSize::Px(20.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
-            root.spawn((
-                Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(settings.player.aristeia_bar_height),
-                    padding: UiRect::all(Val::Px(2.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.12, 0.12, 0.14)),
-            ))
-            .with_children(|bar| {
-                bar.spawn((
-                    GlobalAristeiaBarFill,
-                    Node {
-                        width: Val::Percent(0.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.75, 0.2, 0.95)),
-                ));
-            });
-        });
-}
-
-fn despawn_aristeia_ui(mut commands: Commands, roots: Query<Entity, With<AristeiaUiRoot>>) {
-    for root in &roots {
-        commands.entity(root).despawn();
-    }
-}
-
-fn update_aristeia_ui(
-    local_player: Query<&PlayerAristeia, With<Predicted>>,
-    global_aristeia: Query<&GlobalAristeia>,
-
-    mut personal_text_query: Query<
-        &mut Text,
-        (With<AristeiaValueText>, Without<GlobalAristeiaValueText>),
-    >,
-
-    mut global_text_query: Query<
-        &mut Text,
-        (With<GlobalAristeiaValueText>, Without<AristeiaValueText>),
-    >,
-
-    mut personal_bar_query: Query<
-        &mut Node,
-        (With<AristeiaBarFill>, Without<GlobalAristeiaBarFill>),
-    >,
-
-    mut global_bar_query: Query<&mut Node, (With<GlobalAristeiaBarFill>, Without<AristeiaBarFill>)>,
-) {
-    let Ok(mut personal_text) = personal_text_query.single_mut() else {
-        return;
-    };
-
-    let Ok(mut global_text) = global_text_query.single_mut() else {
-        return;
-    };
-
-    let Ok(mut personal_bar) = personal_bar_query.single_mut() else {
-        return;
-    };
-
-    let Ok(mut global_bar) = global_bar_query.single_mut() else {
-        return;
-    };
-
-    if let Ok(aristeia) = local_player.single() {
-        personal_text.0 = format!("ARISTEIA {}", aristeia.current);
-        personal_bar.width = Val::Percent(aristeia.remaining_fraction() * 100.0);
-    } else {
-        personal_text.0 = "ARISTEIA 0".to_string();
-        personal_bar.width = Val::Percent(0.0);
-    }
-
-    if let Ok(global) = global_aristeia.single() {
-        global_text.0 = format!("GLOBAL ARISTEIA {} / {}", global.current, global.maximum,);
-        global_bar.width = Val::Percent(global.fraction() * 100.0);
-    } else {
-        global_text.0 = "GLOBAL ARISTEIA 0 / 0".to_string();
-        global_bar.width = Val::Percent(0.0);
     }
 }
 

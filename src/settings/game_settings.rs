@@ -96,10 +96,15 @@ pub struct FragmentSettings {
     pub pull_speed: f32,
     pub pull_acceleration: f32,
     pub swirl: f32,
+    pub collecting_impact_ticks: u16,
     pub base_drop_count: u16,
     pub bonus_drops_per_aristeia: u16,
     pub maximum_drop_count: u16,
     pub drop_entity_count: u16,
+    pub on_ground: WeaponSpriteSheetSettings,
+    pub starting_pull: WeaponSpriteSheetSettings,
+    pub moving: WeaponSpriteSheetSettings,
+    pub collecting_impact: WeaponSpriteSheetSettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -123,8 +128,11 @@ pub struct PlayerSettings {
     pub held_weapon_offset: f32,
     pub arena_health_regen_fraction_per_second: f32,
     pub aristeia_duration_ticks: u16,
-    pub aristeia_bar_width: f32,
-    pub aristeia_bar_height: f32,
+    pub hud_width: f32,
+    pub hud_bar_height: f32,
+    pub hud_inset: f32,
+    pub hud_row_gap: f32,
+    pub hud_padding: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -570,11 +578,16 @@ impl GameSettings {
         }
         if self.fragment.base_drop_count > self.fragment.maximum_drop_count
             || self.fragment.drop_entity_count == 0
+            || self.fragment.collecting_impact_ticks == 0
+            || !self.fragment.on_ground.is_valid()
+            || !self.fragment.starting_pull.is_valid()
+            || !self.fragment.moving.is_valid()
+            || !self.fragment.collecting_impact.is_valid()
             || self.global_aristeia.threshold == 0
             || self.global_aristeia.drain_interval_ticks == 0
         {
             return Err(GameSettingsLoadError::Invalid(
-                "fragment drop or global Aristeia settings are invalid".into(),
+                "fragment drop, visual, or global Aristeia settings are invalid".into(),
             ));
         }
         if self.progression.damage_bonus_per_level < 0.0
@@ -642,9 +655,14 @@ impl GameSettings {
             || self.player.held_weapon_offset < 0.0
             || self.player.enemy_contact_damage_interval_seconds <= 0.0
             || self.player.arena_health_regen_fraction_per_second < 0.0
+            || self.player.hud_width <= 0.0
+            || self.player.hud_bar_height <= 0.0
+            || self.player.hud_inset < 0.0
+            || self.player.hud_row_gap < 0.0
+            || self.player.hud_padding < 0.0
         {
             return Err(GameSettingsLoadError::Invalid(
-                "player camera_scale, maximum_health, death_screen_duration_seconds, held_weapon_offset, enemy_contact_damage_interval_seconds, and arena_health_regen_fraction_per_second are invalid".into(),
+                "player camera_scale, maximum_health, death_screen_duration_seconds, held_weapon_offset, enemy_contact_damage_interval_seconds, arena_health_regen_fraction_per_second, and hud layout settings are invalid".into(),
             ));
         }
         if self.portal.trigger_radius <= 0.0

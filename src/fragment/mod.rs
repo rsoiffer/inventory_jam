@@ -11,6 +11,8 @@ mod shared;
 
 use bevy::app::{App, Plugin};
 
+pub use protocol::Fragment;
+
 pub struct FragmentPlugin;
 
 impl Plugin for FragmentPlugin {

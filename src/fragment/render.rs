@@ -1,23 +1,13 @@
-use crate::app::{ClientState, game_is_active};
-use crate::fragment::shared::FragmentPosition;
-use crate::persistence::CachedPersistentState;
+use crate::app::game_is_active;
+use crate::fragment::protocol::{Fragment, FragmentPhase};
+use crate::settings::{GameSettings, WeaponSpriteSheetSettings};
 use bevy::prelude::*;
-use lightyear::prelude::Controlled;
 
 pub struct FragmentRenderPlugin;
 
 impl Plugin for FragmentRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, load_fragment_visual_assets);
-        app.add_systems(OnEnter(ClientState::Playing), setup_fragment_balance);
-        app.add_systems(
-            OnExit(ClientState::Playing),
-            |mut commands: Commands, texts: Query<Entity, With<FragmentBalanceText>>| {
-                for entity in &texts {
-                    commands.entity(entity).despawn();
-                }
-            },
-        );
+        app.add_systems(Startup, load_fragment_sprite_assets);
         app.add_systems(
             Update,
             (
@@ -28,110 +18,155 @@ impl Plugin for FragmentRenderPlugin {
                 .chain()
                 .run_if(game_is_active),
         );
-        app.add_systems(
-            Update,
-            update_fragment_balance.run_if(in_state(ClientState::Playing)),
-        );
     }
 }
 
-#[derive(Resource)]
-struct FragmentVisualAssets {
+#[derive(Clone)]
+struct SpriteSheet {
     image: Handle<Image>,
     layout: Handle<TextureAtlasLayout>,
+    frame_count: usize,
+    frame_seconds: f32,
+}
+
+#[derive(Resource)]
+struct FragmentSpriteAssets {
+    on_ground: SpriteSheet,
+    starting_pull: SpriteSheet,
+    moving: SpriteSheet,
+    collecting_impact: SpriteSheet,
+}
+
+impl FragmentSpriteAssets {
+    fn get(&self, phase: FragmentPhase) -> Option<&SpriteSheet> {
+        match phase {
+            FragmentPhase::OnGround => Some(&self.on_ground),
+            FragmentPhase::StartingPull { .. } => Some(&self.starting_pull),
+            FragmentPhase::Moving { .. } => Some(&self.moving),
+            FragmentPhase::CollectingImpact { .. } => Some(&self.collecting_impact),
+            FragmentPhase::Gone => None,
+        }
+    }
 }
 
 #[derive(Component)]
-struct FragmentAnimation(Timer);
+struct FragmentAnimation {
+    timer: Timer,
+    frame_count: usize,
+}
 
-#[derive(Component)]
-pub(crate) struct FragmentBalanceText;
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+struct FragmentSpritePhase(FragmentPhase);
 
-fn load_fragment_visual_assets(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut layouts: ResMut<Assets<TextureAtlasLayout>>,
-) {
-    commands.insert_resource(FragmentVisualAssets {
-        image: asset_server.load("fragments/spr_vfx_part_pull.png"),
+fn load_sheet(
+    asset_server: &AssetServer,
+    layouts: &mut Assets<TextureAtlasLayout>,
+    sheet: &WeaponSpriteSheetSettings,
+) -> SpriteSheet {
+    SpriteSheet {
+        image: asset_server.load(sheet.path.clone()),
         layout: layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::splat(16),
-            8,
+            sheet.cell,
+            sheet.frames,
             1,
             None,
             None,
         )),
+        frame_count: sheet.frames as usize,
+        frame_seconds: sheet.frame_seconds,
+    }
+}
+
+fn load_fragment_sprite_assets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut layouts: ResMut<Assets<TextureAtlasLayout>>,
+    settings: Res<GameSettings>,
+) {
+    let f = &settings.fragment;
+    commands.insert_resource(FragmentSpriteAssets {
+        on_ground: load_sheet(&asset_server, &mut layouts, &f.on_ground),
+        starting_pull: load_sheet(&asset_server, &mut layouts, &f.starting_pull),
+        moving: load_sheet(&asset_server, &mut layouts, &f.moving),
+        collecting_impact: load_sheet(&asset_server, &mut layouts, &f.collecting_impact),
     });
 }
 
 fn ensure_fragment_sprites(
     mut commands: Commands,
-    assets: Res<FragmentVisualAssets>,
-    fragments: Query<Entity, (With<FragmentPosition>, Without<Sprite>)>,
+    assets: Res<FragmentSpriteAssets>,
+    fragments: Query<(Entity, &Fragment, Option<&FragmentSpritePhase>)>,
 ) {
-    for entity in &fragments {
+    for (entity, fragment, sprite_phase) in &fragments {
+        let Some(sheet) = assets.get(fragment.phase) else {
+            commands.entity(entity).insert(Visibility::Hidden);
+            if sprite_phase.is_some() {
+                commands
+                    .entity(entity)
+                    .remove::<(Sprite, FragmentAnimation, FragmentSpritePhase)>();
+            }
+            continue;
+        };
+
+        if sprite_phase.is_some_and(|phase| phase.0 == fragment.phase) {
+            continue;
+        }
+
         commands.entity(entity).insert((
             Sprite::from_atlas_image(
-                assets.image.clone(),
+                sheet.image.clone(),
                 TextureAtlas {
-                    layout: assets.layout.clone(),
+                    layout: sheet.layout.clone(),
                     index: 0,
                 },
             ),
-            Transform::default(),
-            FragmentAnimation(Timer::from_seconds(0.08, TimerMode::Repeating)),
+            Visibility::Visible,
+            FragmentSpritePhase(fragment.phase),
+            FragmentAnimation {
+                timer: Timer::from_seconds(sheet.frame_seconds, TimerMode::Repeating),
+                frame_count: sheet.frame_count,
+            },
         ));
     }
 }
 
-fn sync_fragment_sprites(mut fragments: Query<(&FragmentPosition, &mut Transform)>) {
-    for (position, mut transform) in &mut fragments {
-        transform.translation = position.0.extend(7.0);
+fn sync_fragment_sprites(
+    mut fragments: Query<(&Fragment, &mut Transform, Option<&mut Visibility>)>,
+) {
+    for (fragment, mut transform, visibility) in &mut fragments {
+        let hidden = matches!(fragment.phase, FragmentPhase::Gone);
+        if let Some(mut visibility) = visibility {
+            *visibility = if hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Visible
+            };
+        }
+        if hidden {
+            continue;
+        }
+
+        transform.translation = fragment.position.extend(7.0);
+        transform.rotation = if matches!(fragment.phase, FragmentPhase::Moving { .. })
+            && fragment.movement.length_squared() > f32::EPSILON
+        {
+            Quat::from_rotation_z(fragment.movement.y.atan2(fragment.movement.x))
+        } else {
+            Quat::IDENTITY
+        };
     }
 }
 
 fn animate_fragment_sprites(
     time: Res<Time>,
-    mut fragments: Query<(&mut FragmentAnimation, &mut Sprite)>,
+    mut fragments: Query<(&mut FragmentAnimation, &mut Sprite), With<FragmentSpritePhase>>,
 ) {
     for (mut animation, mut sprite) in &mut fragments {
-        animation.0.tick(time.delta());
-        if !animation.0.just_finished() {
-            continue;
+        animation.timer.tick(time.delta());
+        if animation.timer.just_finished()
+            && let Some(atlas) = sprite.texture_atlas.as_mut()
+        {
+            atlas.index = (atlas.index + 1) % animation.frame_count;
         }
-        let Some(atlas) = sprite.texture_atlas.as_mut() else {
-            continue;
-        };
-        atlas.index = (atlas.index + 1) % 8;
     }
-}
-
-pub(crate) fn setup_fragment_balance(mut commands: Commands) {
-    commands.spawn((
-        Name::new("Fragment Balance"),
-        Text::new("Fragments: 0"),
-        FragmentBalanceText,
-        Node {
-            position_type: PositionType::Absolute,
-            top: px(12),
-            left: px(12),
-            ..default()
-        },
-    ));
-}
-
-pub(crate) fn update_fragment_balance(
-    player: Query<&CachedPersistentState, With<Controlled>>,
-    mut text: Query<&mut Text, With<FragmentBalanceText>>,
-) {
-    let Ok(state) = player.single() else {
-        return;
-    };
-    let Ok(mut text) = text.single_mut() else {
-        return;
-    };
-    text.0 = format!(
-        "Fragments: {}",
-        state.weapon(state.equipped_weapon_id).fragments
-    );
 }

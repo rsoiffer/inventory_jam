@@ -115,7 +115,7 @@ fn simulate_player_projectile_buffers(
                         .min(u32::from(settings.fragment.maximum_drop_count));
                     let total_value =
                         ((base as f32) * enemy_stats.fragment_multiplier).round() as u32;
-                    fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1), *room));
+                    fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
                     commands.entity(entity).despawn();
                     aristeia_tracking.write(AddKillsToAristeia::new(owner, 1));
                     global_aristeia.write(AddGlobalAristeia(

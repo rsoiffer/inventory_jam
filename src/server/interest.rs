@@ -4,9 +4,10 @@ use lightyear::prelude::*;
 use crate::{
     app::ServerState,
     enemy::{EnemyPosition, EnemySpawnerPosition},
+    fragment::Fragment,
     player::{PlayerId, PlayerPosition},
     portal::{PortalKind, PortalPosition},
-    protocol::rooms::GameRoom,
+    protocol::rooms::{GameRoom, GameRooms},
     settings::GameSettings,
     shared::FixedGameplaySet,
 };
@@ -31,6 +32,7 @@ fn update_interest_visibility(
     players: Query<(Entity, &PlayerPosition, &GameRoom), With<PlayerId>>,
     enemies: Query<(Entity, &EnemyPosition, &GameRoom)>,
     spawners: Query<(Entity, &EnemySpawnerPosition, &GameRoom)>,
+    fragments: Query<(Entity, &Fragment)>,
     portals: Query<(Entity, &PortalKind, &PortalPosition)>,
 ) {
     let radius_sq = settings.network.interest_radius.powi(2);
@@ -65,6 +67,16 @@ fn update_interest_visibility(
                 sender,
                 room.room == viewer_room.room
                     && viewer_position.0.distance_squared(position.0) <= radius_sq,
+            );
+        }
+
+        for (entity, fragment) in &fragments {
+            set_visibility(
+                &mut commands,
+                entity,
+                sender,
+                viewer_room.room == GameRooms::Arena
+                    && viewer_position.0.distance_squared(fragment.position) <= radius_sq,
             );
         }
 

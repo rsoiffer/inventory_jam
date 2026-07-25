@@ -2,6 +2,9 @@
 mod help_text;
 
 #[cfg(feature = "gui")]
+mod hud;
+
+#[cfg(feature = "gui")]
 mod menu;
 
 #[cfg(feature = "gui")]
@@ -17,6 +20,9 @@ use crate::app::LaunchMode;
 
 #[cfg(feature = "gui")]
 use help_text::HelpTextPlugin;
+
+#[cfg(feature = "gui")]
+use hud::HudPlugin;
 
 #[cfg(feature = "gui")]
 use menu::MenuPlugin;
@@ -36,6 +42,7 @@ impl Plugin for UiPlugin {
             use crate::app;
 
             app.add_plugins(HelpTextPlugin);
+            app.add_plugins(HudPlugin);
             app.add_plugins(MobileControlsPlugin);
 
             let launch_mode = app::config_from_env();

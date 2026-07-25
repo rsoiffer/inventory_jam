@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// Installs network component registration on every peer.
 pub struct FragmentProtocolPlugin;
 
 impl Plugin for FragmentProtocolPlugin {
@@ -11,25 +10,32 @@ impl Plugin for FragmentProtocolPlugin {
     }
 }
 
-/// Authoritative fragment data replicated from the server.
-///
-/// `collector` becomes `Some` as soon as the server awards the fragment.
-/// Clients then animate their local visual toward that player until the server
-/// despawns the fragment.
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-pub struct Fragment {
-    pub origin: Vec2,
-    pub value: u32,
-    pub collector: Option<PeerId>,
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FragmentPhase {
+    OnGround,
+    StartingPull { collector: PeerId, start_tick: Tick },
+    Moving { collector: PeerId, start_tick: Tick },
+    CollectingImpact { collector: PeerId, start_tick: Tick },
+    Gone,
 }
 
-#[cfg(feature = "server")]
-impl Fragment {
-    pub const fn available(origin: Vec2, value: u32) -> Self {
-        Self {
-            origin,
-            value,
-            collector: None,
+impl FragmentPhase {
+    pub fn collector(self) -> Option<PeerId> {
+        match self {
+            Self::OnGround | Self::Gone => None,
+            Self::StartingPull { collector, .. }
+            | Self::Moving { collector, .. }
+            | Self::CollectingImpact { collector, .. } => Some(collector),
         }
     }
+}
+
+/// Server owns collection and lifetime; clients may advance presentation locally.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Fragment {
+    pub value: u32,
+    pub phase: FragmentPhase,
+    pub position: Vec2,
+    pub movement: Vec2,
+    pub remaining_ticks: u16,
 }

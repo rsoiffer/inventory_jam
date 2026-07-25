@@ -83,14 +83,51 @@
     "pool_max_radius": 32.0,
     "radius": 4.0,
     "lifetime_ticks": 600,
-    "player_collection_radius": 32.0,
-    "pull_speed": 16.0,
-    "pull_acceleration": 32.0,
+    "player_collection_radius": 48.0,
+    "pull_speed": 48.0,
+    "pull_acceleration": 96.0,
     "swirl": 1.0,
+    "collecting_impact_ticks": 6,
     "base_drop_count": 8,
     "bonus_drops_per_aristeia": 2,
     "maximum_drop_count": 40,
-    "drop_entity_count": 3
+    "drop_entity_count": 6,
+    "on_ground": {
+      "path": "fragments/spr_fragment.png",
+      "cell": [
+        8,
+        8
+      ],
+      "frames": 4,
+      "frame_seconds": 0.1
+    },
+    "starting_pull": {
+      "path": "fragments/spr_vfx_part_pull.png",
+      "cell": [
+        16,
+        16
+      ],
+      "frames": 8,
+      "frame_seconds": 0.07
+    },
+    "moving": {
+      "path": "fragments/spr_vfx_trail_pickup.png",
+      "cell": [
+        16,
+        8
+      ],
+      "frames": 4,
+      "frame_seconds": 0.01
+    },
+    "collecting_impact": {
+      "path": "fragments/spr_vfx_part_collect.png",
+      "cell": [
+        8,
+        8
+      ],
+      "frames": 4,
+      "frame_seconds": 0.05
+    }
   },
   "global_aristeia": {
     "threshold": 1000,

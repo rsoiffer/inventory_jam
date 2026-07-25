@@ -20,8 +20,11 @@
     "held_weapon_offset": 12.0,
     "arena_health_regen_fraction_per_second": 0.01,
     "aristeia_duration_ticks": 600,
-    "aristeia_bar_width": 240.0,
-    "aristeia_bar_height": 18.0
+    "hud_width": 240.0,
+    "hud_bar_height": 12.0,
+    "hud_inset": 16.0,
+    "hud_row_gap": 8.0,
+    "hud_padding": 10.0
   },
   "projectile": {
     "impact_lifetime_ticks": 12,
