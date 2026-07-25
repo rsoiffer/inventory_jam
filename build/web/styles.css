@@ -29,7 +29,7 @@ canvas, #bevy {
 #inventory-jam-username {
     position: fixed;
     left: 50%;
-    top: 42%;
+    top: 48%;
     transform: translate(-50%, -50%);
     width: min(280px, 80vw);
     height: 40px;
