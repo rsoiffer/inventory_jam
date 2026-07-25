@@ -1,5 +1,5 @@
 use crate::app::ServerState;
-use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition};
+use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats};
 use crate::player::PlayerId;
 use crate::player::api::AddKillsToAristeia;
 use crate::player::protocol::{
@@ -24,8 +24,8 @@ struct EnemyContactDamageCooldown {
 }
 
 #[derive(Component, Clone, Copy, Debug, Default)]
-struct PlayerDeathTimer {
-    remaining_seconds: f32,
+pub(crate) struct PlayerDeathTimer {
+    pub(crate) remaining_seconds: f32,
 }
 
 pub struct PlayerServerPlugin;
@@ -217,7 +217,7 @@ fn apply_enemy_contact_damage(
         ),
         With<ControlledBy>,
     >,
-    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
+    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind, &EnemyStats)>,
     settings: Res<GameSettings>,
 ) {
     for (player_entity, player_position, room, mut health, mut cooldown, mut death_timer) in
@@ -230,29 +230,30 @@ fn apply_enemy_contact_damage(
             continue;
         }
 
-        let touching_enemy = enemies.iter().any(|(enemy_position, enemy_health, kind)| {
-            if enemy_health.current == 0 {
-                return false;
-            }
+        let Some(damage) =
+            enemies
+                .iter()
+                .find_map(|(enemy_position, enemy_health, kind, stats)| {
+                    if enemy_health.current == 0 || stats.contact_damage == 0 {
+                        return None;
+                    }
 
-            let collision_radius = settings.player.collision_radius
-                + kind.collision_radius(settings.enemy.collision_radius);
-            player_position.0.distance_squared(enemy_position.0)
-                <= collision_radius * collision_radius
-        });
-
-        if !touching_enemy {
+                    let collision_radius = settings.player.collision_radius
+                        + kind.collision_radius(settings.enemy.collision_radius);
+                    (player_position.0.distance_squared(enemy_position.0)
+                        <= collision_radius * collision_radius)
+                        .then_some(stats.contact_damage)
+                })
+        else {
             continue;
-        }
+        };
 
-        health.current = health
-            .current
-            .saturating_sub(settings.player.enemy_contact_damage);
+        health.current = health.current.saturating_sub(damage);
         cooldown.remaining_seconds = settings.player.enemy_contact_damage_interval_seconds;
 
         info!(
             ?player_entity,
-            damage = settings.player.enemy_contact_damage,
+            damage,
             current_health = health.current,
             maximum_health = health.maximum,
             "Player took enemy contact damage"

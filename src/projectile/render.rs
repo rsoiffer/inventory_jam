@@ -1,6 +1,6 @@
 use crate::{
     app::game_is_active,
-    projectile::protocol::{ProjectileBuffer, ProjectileSlot, ProjectileState},
+    projectile::protocol::{ProjectileBuffer, ProjectileSlot, ProjectileSource, ProjectileState},
     settings::{GameSettings, WeaponSpriteSheetSettings},
     weapon::protocol::WeaponId,
 };
@@ -33,11 +33,17 @@ struct AnimatedVisualAsset {
 #[derive(Resource)]
 struct ProjectileVisualAssets {
     by_weapon: HashMap<WeaponId, [AnimatedVisualAsset; 2]>,
+    enemy: [AnimatedVisualAsset; 2],
 }
 
 impl ProjectileVisualAssets {
-    fn get(&self, id: WeaponId, impact: bool) -> Option<&AnimatedVisualAsset> {
-        self.by_weapon.get(&id).map(|pair| &pair[impact as usize])
+    fn get(&self, source: ProjectileSource, impact: bool) -> Option<&AnimatedVisualAsset> {
+        match source {
+            ProjectileSource::Weapon(id) => {
+                self.by_weapon.get(&id).map(|pair| &pair[impact as usize])
+            }
+            ProjectileSource::Enemy => Some(&self.enemy[impact as usize]),
+        }
     }
 }
 
@@ -94,7 +100,15 @@ fn load_projectile_visual_assets(
             )
         })
         .collect();
-    commands.insert_resource(ProjectileVisualAssets { by_weapon });
+    let enemy = [
+        load_anim(
+            &asset_server,
+            &mut atlas_layouts,
+            &settings.enemy.projectile,
+        ),
+        load_anim(&asset_server, &mut atlas_layouts, &settings.enemy.impact),
+    ];
+    commands.insert_resource(ProjectileVisualAssets { by_weapon, enemy });
 }
 
 fn sync_buffer_visuals(
@@ -112,10 +126,11 @@ fn sync_buffer_visuals(
         for (slot_index, slot) in buffer.slots.iter().enumerate() {
             let ProjectileSlot::Active {
                 generation,
-                weapon,
+                source,
                 position,
                 velocity,
                 state,
+                ..
             } = slot
             else {
                 continue;
@@ -143,7 +158,7 @@ fn sync_buffer_visuals(
                 continue;
             }
 
-            let Some(visual) = assets.get(*weapon, is_impact) else {
+            let Some(visual) = assets.get(*source, is_impact) else {
                 continue;
             };
             commands.spawn((

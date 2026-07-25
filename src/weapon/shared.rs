@@ -79,11 +79,18 @@ pub(crate) fn fire_equipped_weapons(
                     + settings.projectile.spawn_gap);
 
         buffer.insert(
-            weapon_id,
+            crate::projectile::protocol::ProjectileSource::Weapon(weapon_id),
             position,
             direction * weapon.projectile_speed,
+            settings
+                .progression
+                .pierce_at(cache.weapon(weapon_id).pierce_level),
             local_timeline.tick(),
         );
-        cooldown.restart(&local_timeline, &tick_duration, weapon.attacks_per_second);
+        let attacks_per_second = settings.progression.attacks_per_second_at(
+            weapon.attacks_per_second,
+            cache.weapon(weapon_id).attack_speed_level,
+        );
+        cooldown.restart(&local_timeline, &tick_duration, attacks_per_second);
     }
 }

@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::weapon::protocol::WeaponId;
 
@@ -34,13 +34,34 @@ pub struct NetworkSettings {
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnemySettings {
     pub size: f32,
-    pub max_health: u32,
     pub collision_radius: f32,
     pub despawn_distance_from_players: f32,
-    pub move_speed: f32,
     pub wander_radius: f32,
     pub detection_radius: f32,
     pub leash_radius: f32,
+    pub standoff_distance: f32,
+    pub strafe_radius: f32,
+    pub engage_retarget_seconds: f32,
+    pub ranged_chance: f32,
+    pub attacks_per_second: f32,
+    pub projectile_speed: f32,
+    pub projectile_radius: f32,
+    pub projectile_range: f32,
+    pub projectile: WeaponSpriteSheetSettings,
+    pub impact: WeaponSpriteSheetSettings,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SpawnerTierSettings {
+    pub max_distance_from_center: f32,
+    pub spawn_rate_multiplier: f32,
+    pub max_owned_multiplier: f32,
+    pub health: u32,
+    pub contact_damage: u32,
+    pub ranged_damage: u32,
+    pub move_speed: f32,
+    pub fragment_multiplier: f32,
+    pub ranged_chance: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -53,6 +74,16 @@ pub struct SpawnerSettings {
     pub placement_candidate_count: usize,
     pub spawn_min_distance_from_player: f32,
     pub spawn_candidate_count: usize,
+    pub tiers: Vec<SpawnerTierSettings>,
+}
+
+impl SpawnerSettings {
+    pub fn tier_index_for_distance(&self, distance_from_center: f32) -> u8 {
+        self.tiers
+            .iter()
+            .position(|tier| distance_from_center <= tier.max_distance_from_center)
+            .unwrap_or(self.tiers.len().saturating_sub(1)) as u8
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,6 +117,7 @@ pub struct PlayerSettings {
     #[allow(unused)]
     pub spawn_attempts: usize,
     pub maximum_health: u32,
+    #[allow(unused)]
     pub enemy_contact_damage: u32,
     pub enemy_contact_damage_interval_seconds: f32,
     pub death_screen_duration_seconds: f32,
@@ -223,12 +255,20 @@ impl WeaponSpriteSheetSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpgradeStatKind {
+    Damage,
+    AttackSpeed,
+    Pierce,
+    Crit,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct WeaponStationsSettings {
     pub trigger_radius: f32,
-    #[serde(deserialize_with = "deserialize_vec2")]
-    pub upgrade_station_offset: Vec2,
     pub stations: Vec<WeaponStationSettings>,
+    pub upgrade_stations: Vec<UpgradeStationSettings>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -239,8 +279,19 @@ pub struct WeaponStationSettings {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct UpgradeStationSettings {
+    pub kind: UpgradeStatKind,
+    #[serde(deserialize_with = "deserialize_vec2")]
+    pub offset: Vec2,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ProgressionSettings {
     pub damage_bonus_per_level: f32,
+    pub attack_speed_bonus_per_level: f32,
+    pub pierce_per_level: u16,
+    pub crit_chance_per_level: f32,
+    pub crit_damage_multiplier: f32,
     pub upgrade_cost_base: u32,
     pub upgrade_cost_level_scale: u32,
     pub upgrade_cost_level_power: u32,
@@ -249,6 +300,18 @@ pub struct ProgressionSettings {
 impl ProgressionSettings {
     pub fn damage_at(&self, base_damage: u32, level: u32) -> u32 {
         (base_damage as f32 * (1.0 + self.damage_bonus_per_level * level as f32)).round() as u32
+    }
+
+    pub fn attacks_per_second_at(&self, base_aps: f32, level: u32) -> f32 {
+        base_aps * (1.0 + self.attack_speed_bonus_per_level * level as f32)
+    }
+
+    pub fn pierce_at(&self, level: u32) -> u16 {
+        self.pierce_per_level.saturating_mul(level as u16)
+    }
+
+    pub fn crit_chance_at(&self, level: u32) -> f32 {
+        (self.crit_chance_per_level * level as f32).clamp(0.0, 1.0)
     }
 
     pub fn upgrade_cost(&self, level: u32) -> Result<u32, String> {
@@ -274,6 +337,11 @@ pub struct GlobalAristeiaSettings {
     pub grand_champion_move_speed: f32,
     pub grand_champion_detection_radius: f32,
     pub grand_champion_leash_radius: f32,
+    pub grand_champion_contact_damage: u32,
+    pub grand_champion_ranged_damage: u32,
+    pub grand_champion_attacks_per_second: f32,
+    pub grand_champion_fragment_multiplier: f32,
+    pub grand_champion_ranged: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -332,14 +400,23 @@ impl GameSettings {
                 "enemy size and collision radius must be greater than zero".into(),
             ));
         }
-        if self.enemy.move_speed <= 0.0
-            || self.enemy.detection_radius <= 0.0
+        if self.enemy.detection_radius <= 0.0
             || self.enemy.despawn_distance_from_players <= 0.0
             || self.enemy.leash_radius < self.enemy.detection_radius
             || self.enemy.leash_radius < self.enemy.wander_radius
+            || self.enemy.standoff_distance < 0.0
+            || self.enemy.strafe_radius < 0.0
+            || self.enemy.engage_retarget_seconds <= 0.0
+            || !(0.0..=1.0).contains(&self.enemy.ranged_chance)
+            || self.enemy.attacks_per_second <= 0.0
+            || self.enemy.projectile_speed <= 0.0
+            || self.enemy.projectile_radius < 0.0
+            || self.enemy.projectile_range <= 0.0
+            || !self.enemy.projectile.is_valid()
+            || !self.enemy.impact.is_valid()
         {
             return Err(GameSettingsLoadError::Invalid(
-                "enemy movement settings are invalid".into(),
+                "enemy movement or attack settings are invalid".into(),
             ));
         }
         if self.spawner.count == 0
@@ -352,10 +429,27 @@ impl GameSettings {
             || self.spawner.spawn_min_distance_from_player < 0.0
             || self.enemy.despawn_distance_from_players
                 <= self.spawner.spawn_min_distance_from_player
+            || self.spawner.tiers.is_empty()
         {
             return Err(GameSettingsLoadError::Invalid(
                 "spawner settings are invalid".into(),
             ));
+        }
+        let mut previous_distance = 0.0;
+        for (index, tier) in self.spawner.tiers.iter().enumerate() {
+            if tier.max_distance_from_center < previous_distance
+                || tier.spawn_rate_multiplier <= 0.0
+                || tier.max_owned_multiplier <= 0.0
+                || tier.health == 0
+                || tier.move_speed <= 0.0
+                || tier.fragment_multiplier < 0.0
+                || !(0.0..=1.0).contains(&tier.ranged_chance)
+            {
+                return Err(GameSettingsLoadError::Invalid(format!(
+                    "spawner tier {index} settings are invalid"
+                )));
+            }
+            previous_distance = tier.max_distance_from_center;
         }
         if self.fragment.pool_min_radius > self.fragment.pool_max_radius {
             return Err(GameSettingsLoadError::Invalid(
@@ -376,15 +470,31 @@ impl GameSettings {
                 "fragment drop or global Aristeia settings are invalid".into(),
             ));
         }
-        if self.progression.damage_bonus_per_level < 0.0 {
+        if self.progression.damage_bonus_per_level < 0.0
+            || self.progression.attack_speed_bonus_per_level < 0.0
+            || self.progression.crit_chance_per_level < 0.0
+            || self.progression.crit_damage_multiplier < 1.0
+        {
             return Err(GameSettingsLoadError::Invalid(
-                "progression damage_bonus_per_level cannot be negative".into(),
+                "progression damage/attack-speed/crit settings are invalid".into(),
             ));
         }
         if self.progression.upgrade_cost_base == 0 || self.progression.upgrade_cost_level_scale == 0
         {
             return Err(GameSettingsLoadError::Invalid(
                 "progression upgrade cost coefficients must be greater than zero".into(),
+            ));
+        }
+        if self.global_aristeia.grand_champion_health == 0
+            || self.global_aristeia.grand_champion_move_speed <= 0.0
+            || self.global_aristeia.grand_champion_detection_radius <= 0.0
+            || self.global_aristeia.grand_champion_leash_radius
+                < self.global_aristeia.grand_champion_detection_radius
+            || self.global_aristeia.grand_champion_attacks_per_second <= 0.0
+            || self.global_aristeia.grand_champion_fragment_multiplier < 0.0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "global Aristeia champion settings are invalid".into(),
             ));
         }
         if self.world.tile_pixel_size <= 0.0
@@ -477,6 +587,11 @@ impl GameSettings {
                     station.weapon_id
                 )));
             }
+        }
+        if self.weapon_stations.upgrade_stations.is_empty() {
+            return Err(GameSettingsLoadError::Invalid(
+                "weapon stations must include at least one upgrade station".into(),
+            ));
         }
         Ok(())
     }

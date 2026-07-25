@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "server")]
 use uuid::Uuid;
 
+use crate::settings::UpgradeStatKind;
 use crate::weapon::protocol::WeaponId;
 
 #[cfg(feature = "server")]
@@ -19,6 +20,23 @@ pub struct PersistenceLoading;
 pub struct WeaponProgress {
     pub fragments: u32,
     pub level: u32,
+    #[serde(default)]
+    pub attack_speed_level: u32,
+    #[serde(default)]
+    pub pierce_level: u32,
+    #[serde(default)]
+    pub crit_level: u32,
+}
+
+impl WeaponProgress {
+    pub fn level_for(&self, kind: UpgradeStatKind) -> u32 {
+        match kind {
+            UpgradeStatKind::Damage => self.level,
+            UpgradeStatKind::AttackSpeed => self.attack_speed_level,
+            UpgradeStatKind::Pierce => self.pierce_level,
+            UpgradeStatKind::Crit => self.crit_level,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,7 +50,7 @@ pub struct PersistentState {
 impl Default for PersistentState {
     fn default() -> Self {
         Self {
-            version: 3,
+            version: 4,
             equipped_weapon_id: 0,
             weapons: BTreeMap::new(),
         }
@@ -60,14 +78,18 @@ impl PersistentState {
             .iter()
             .map(|(id, progress)| {
                 format!(
-                    "{id}:{{fragments={},level={}}}",
-                    progress.fragments, progress.level
+                    "{id}:{{fragments={},level={},attack_speed_level={},pierce_level={},crit_level={}}}",
+                    progress.fragments,
+                    progress.level,
+                    progress.attack_speed_level,
+                    progress.pierce_level,
+                    progress.crit_level
                 )
             })
             .collect::<Vec<_>>()
             .join(",");
         let preimage = format!(
-            "v3|{username}|equipped={}|weapons=[{weapons}]",
+            "v4|{username}|equipped={}|weapons=[{weapons}]",
             self.equipped_weapon_id
         );
         hex::encode(Sha256::digest(preimage.as_bytes()))
@@ -92,19 +114,31 @@ pub struct PlayerChange {
     pub fragment_delta: i64,
     pub level_delta: i64,
     #[serde(default)]
+    pub attack_speed_level_delta: i64,
+    #[serde(default)]
+    pub pierce_level_delta: i64,
+    #[serde(default)]
+    pub crit_level_delta: i64,
+    #[serde(default)]
     pub set_equipped: bool,
 }
 
 #[cfg(feature = "server")]
 impl PlayerChange {
+    fn has_progress_delta(&self) -> bool {
+        self.fragment_delta != 0
+            || self.level_delta != 0
+            || self.attack_speed_level_delta != 0
+            || self.pierce_level_delta != 0
+            || self.crit_level_delta != 0
+    }
+
     pub fn apply(&self, state: &mut PersistentState) -> Result<(), String> {
-        if self.fragment_delta == 0 && self.level_delta == 0 && !self.set_equipped {
-            return Err(
-                "fragment_delta and level_delta cannot both be zero unless set_equipped".into(),
-            );
+        if !self.has_progress_delta() && !self.set_equipped {
+            return Err("fragment/stat deltas cannot all be zero unless set_equipped".into());
         }
 
-        if self.fragment_delta != 0 || self.level_delta != 0 {
+        if self.has_progress_delta() {
             let progress = state.weapon_mut(self.weapon_id);
             let next_fragments = (progress.fragments as i64)
                 .checked_add(self.fragment_delta)
@@ -124,23 +158,20 @@ impl PlayerChange {
                 return Err(format!("fragment balance exceeds u32: {next_fragments}"));
             }
 
-            let next_level = (progress.level as i64)
-                .checked_add(self.level_delta)
-                .ok_or_else(|| {
-                    format!("level overflow: {} + {}", progress.level, self.level_delta)
-                })?;
-            if next_level < 0 {
-                return Err(format!(
-                    "level cannot go negative: {} + {}",
-                    progress.level, self.level_delta
-                ));
-            }
-            if next_level > u32::MAX as i64 {
-                return Err(format!("level exceeds u32: {next_level}"));
-            }
-
             progress.fragments = next_fragments as u32;
-            progress.level = next_level as u32;
+            progress.level = apply_level_delta(progress.level, self.level_delta, "level")?;
+            progress.attack_speed_level = apply_level_delta(
+                progress.attack_speed_level,
+                self.attack_speed_level_delta,
+                "attack_speed_level",
+            )?;
+            progress.pierce_level = apply_level_delta(
+                progress.pierce_level,
+                self.pierce_level_delta,
+                "pierce_level",
+            )?;
+            progress.crit_level =
+                apply_level_delta(progress.crit_level, self.crit_level_delta, "crit_level")?;
         }
 
         if self.set_equipped {
@@ -152,12 +183,32 @@ impl PlayerChange {
 }
 
 #[cfg(feature = "server")]
+fn apply_level_delta(current: u32, delta: i64, label: &str) -> Result<u32, String> {
+    if delta == 0 {
+        return Ok(current);
+    }
+    let next = (current as i64)
+        .checked_add(delta)
+        .ok_or_else(|| format!("{label} overflow: {current} + {delta}"))?;
+    if next < 0 {
+        return Err(format!("{label} cannot go negative: {current} + {delta}"));
+    }
+    if next > u32::MAX as i64 {
+        return Err(format!("{label} exceeds u32: {next}"));
+    }
+    Ok(next as u32)
+}
+
+#[cfg(feature = "server")]
 impl Transaction {
     fn change(
         username: impl Into<String>,
         weapon_id: WeaponId,
         fragment_delta: i64,
         level_delta: i64,
+        attack_speed_level_delta: i64,
+        pierce_level_delta: i64,
+        crit_level_delta: i64,
         set_equipped: bool,
     ) -> Self {
         Self {
@@ -167,6 +218,9 @@ impl Transaction {
                 weapon_id,
                 fragment_delta,
                 level_delta,
+                attack_speed_level_delta,
+                pierce_level_delta,
+                crit_level_delta,
                 set_equipped,
             }],
         }
@@ -177,15 +231,35 @@ impl Transaction {
         weapon_id: WeaponId,
         amount: u32,
     ) -> Self {
-        Self::change(username, weapon_id, amount as i64, 0, false)
+        Self::change(username, weapon_id, amount as i64, 0, 0, 0, 0, false)
     }
 
-    pub fn upgrade_weapon(username: impl Into<String>, weapon_id: WeaponId, cost: u32) -> Self {
-        Self::change(username, weapon_id, -(cost as i64), 1, false)
+    pub fn upgrade_weapon_stat(
+        username: impl Into<String>,
+        weapon_id: WeaponId,
+        kind: UpgradeStatKind,
+        cost: u32,
+    ) -> Self {
+        let (level, attack_speed, pierce, crit) = match kind {
+            UpgradeStatKind::Damage => (1, 0, 0, 0),
+            UpgradeStatKind::AttackSpeed => (0, 1, 0, 0),
+            UpgradeStatKind::Pierce => (0, 0, 1, 0),
+            UpgradeStatKind::Crit => (0, 0, 0, 1),
+        };
+        Self::change(
+            username,
+            weapon_id,
+            -(cost as i64),
+            level,
+            attack_speed,
+            pierce,
+            crit,
+            false,
+        )
     }
 
     pub fn equip_weapon(username: impl Into<String>, weapon_id: WeaponId) -> Self {
-        Self::change(username, weapon_id, 0, 0, true)
+        Self::change(username, weapon_id, 0, 0, 0, 0, 0, true)
     }
 
     pub fn touches_username(&self, username: &str) -> bool {

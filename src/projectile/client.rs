@@ -7,7 +7,8 @@ use lightyear::{
 use crate::{
     app::ClientState,
     enemy::{EnemyHealth, EnemyKind, EnemyPosition},
-    projectile::protocol::{self, ProjectileBuffer},
+    player::PlayerId,
+    projectile::protocol::{self, ProjectileBuffer, ProjectileSource},
     protocol::rooms::GameRoom,
     settings::GameSettings,
     shared::FixedGameplaySet,
@@ -27,8 +28,8 @@ impl Plugin for ProjectileClientPlugin {
 }
 
 fn simulate_predicted_projectile_buffers(
-    mut players: Query<(&mut ProjectileBuffer, &GameRoom), With<Predicted>>,
-    enemies: Query<(&EnemyPosition, &EnemyKind, &GameRoom, &EnemyHealth)>,
+    mut players: Query<(&mut ProjectileBuffer, &GameRoom), (With<Predicted>, With<PlayerId>)>,
+    enemies: Query<(Entity, &EnemyPosition, &EnemyKind, &GameRoom, &EnemyHealth)>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
@@ -37,24 +38,28 @@ fn simulate_predicted_projectile_buffers(
     let tick_secs = tick_duration.0.as_secs_f32();
 
     for (mut buffer, room) in &mut players {
-        buffer.simulate(room, tick, tick_secs, &settings, |weapon, pos| {
-            let Some(radius) = settings
+        buffer.simulate(room, tick, tick_secs, &settings, |source, pos, last_hit| {
+            let ProjectileSource::Weapon(weapon) = source else {
+                return None;
+            };
+            let radius = settings
                 .weapons
                 .get(weapon)
-                .map(|stats| stats.projectile_radius)
-            else {
-                return false;
-            };
-            enemies.iter().any(|(enemy, kind, enemy_room, health)| {
-                enemy_room == room
-                    && health.current > 0
-                    && protocol::overlaps(
-                        pos,
-                        enemy.0,
-                        radius,
-                        kind.collision_radius(settings.enemy.collision_radius),
-                    )
-            })
+                .map(|stats| stats.projectile_radius)?;
+            enemies
+                .iter()
+                .find_map(|(entity, enemy, kind, enemy_room, health)| {
+                    (enemy_room == room
+                        && health.current > 0
+                        && entity.to_bits() != last_hit
+                        && protocol::overlaps(
+                            pos,
+                            enemy.0,
+                            radius,
+                            kind.collision_radius(settings.enemy.collision_radius),
+                        ))
+                    .then_some(entity.to_bits())
+                })
         });
     }
 }

@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::settings::UpgradeStatKind;
 use crate::weapon::protocol::WeaponId;
 
 pub struct WeaponStationProtocolPlugin;
@@ -13,7 +14,7 @@ impl Plugin for WeaponStationProtocolPlugin {
             .replicate()
             .add_linear_interpolation();
         app.component::<WeaponStationId>().replicate();
-        app.component::<UpgradeStation>().replicate();
+        app.component::<UpgradeStationKind>().replicate();
     }
 }
 
@@ -31,5 +32,5 @@ impl Ease for StationPosition {
     }
 }
 
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub struct UpgradeStation;
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Deref)]
+pub struct UpgradeStationKind(pub UpgradeStatKind);

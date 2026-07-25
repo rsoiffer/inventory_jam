@@ -1,7 +1,9 @@
 use crate::app::game_is_active;
 use crate::persistence::CachedPersistentState;
 use crate::settings::GameSettings;
-use crate::weapon_station::{StationPosition, UpgradeStation, WeaponStationId};
+use crate::weapon_station::{
+    StationPosition, UpgradeStationKind, WeaponStationId, upgrade_station_label,
+};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use lightyear::prelude::Controlled;
@@ -115,15 +117,11 @@ fn ensure_upgrade_station_sprites(
     settings: Res<GameSettings>,
     assets: Res<UpgradeStationAssets>,
     stations: Query<
-        Entity,
-        (
-            With<UpgradeStation>,
-            With<StationPosition>,
-            Without<UpgradeStationSpriteVisual>,
-        ),
+        (Entity, &UpgradeStationKind),
+        (With<StationPosition>, Without<UpgradeStationSpriteVisual>),
     >,
 ) {
-    for entity in &stations {
+    for (entity, kind) in &stations {
         commands.entity(entity).insert((
             Sprite::from_atlas_image(
                 assets.image.clone(),
@@ -143,9 +141,9 @@ fn ensure_upgrade_station_sprites(
         commands.entity(entity).with_children(|parent| {
             parent.spawn((
                 UpgradeStationLabel,
-                station_label_bundle(format!(
-                    "Upgrade ({})",
-                    settings.progression.upgrade_cost_base
+                station_label_bundle(upgrade_station_label(
+                    kind.0,
+                    settings.progression.upgrade_cost_base,
                 )),
             ));
         });
@@ -170,7 +168,7 @@ fn update_station_labels(
     settings: Res<GameSettings>,
     local_player: Query<&CachedPersistentState, With<Controlled>>,
     weapon_stations: Query<(&WeaponStationId, &Children), With<WeaponStationSpriteVisual>>,
-    upgrade_stations: Query<&Children, With<UpgradeStationSpriteVisual>>,
+    upgrade_stations: Query<(&UpgradeStationKind, &Children), With<UpgradeStationSpriteVisual>>,
     mut weapon_labels: Query<&mut Text2d, (With<WeaponStationLabel>, Without<UpgradeStationLabel>)>,
     mut upgrade_labels: Query<
         &mut Text2d,
@@ -196,16 +194,14 @@ fn update_station_labels(
         }
     }
 
-    let cost = state
-        .and_then(|cache| {
-            settings
-                .progression
-                .upgrade_cost(cache.weapon(cache.equipped_weapon_id).level)
-                .ok()
-        })
-        .unwrap_or(settings.progression.upgrade_cost_base);
-    let upgrade_label = format!("Upgrade ({cost})");
-    for children in &upgrade_stations {
+    for (kind, children) in &upgrade_stations {
+        let cost = state
+            .and_then(|cache| {
+                let level = cache.weapon(cache.equipped_weapon_id).level_for(kind.0);
+                settings.progression.upgrade_cost(level).ok()
+            })
+            .unwrap_or(settings.progression.upgrade_cost_base);
+        let upgrade_label = upgrade_station_label(kind.0, cost);
         for child in children.iter() {
             if let Ok(mut text) = upgrade_labels.get_mut(child)
                 && text.0 != upgrade_label

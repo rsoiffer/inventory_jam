@@ -61,54 +61,70 @@ const PROP_BARREL: Tile = Tile { x: 8, y: 1 };
 const PIT_FLOORS: &[FloorRect] = &[
     FloorRect {
         center: BLUE_FLOOR,
-        x: 4,
-        y: 4,
+        x: 8,
+        y: 8,
         width: 24,
         height: 16,
     },
     FloorRect {
         center: GREY_FLOOR,
-        x: 12,
-        y: 10,
+        x: 16,
+        y: 14,
         width: 8,
         height: 4,
     },
     FloorRect {
         center: BLUE_FLOOR_02,
-        x: 6,
-        y: 14,
+        x: 10,
+        y: 18,
         width: 8,
         height: 6,
     },
     FloorRect {
         center: GREY_FLOOR_02,
-        x: 20,
-        y: 6,
+        x: 24,
+        y: 10,
         width: 6,
         height: 6,
+    },
+    // Weapon stations (bottom row)
+    FloorRect {
+        center: BLUE_FLOOR_02,
+        x: 6,
+        y: 3,
+        width: 28,
+        height: 4,
+    },
+    // Upgrade stations (right column)
+    FloorRect {
+        center: BLUE_FLOOR_02,
+        x: 33,
+        y: 8,
+        width: 4,
+        height: 16,
     },
 ];
 
 const PIT_PROPS: &[PropPlacement] = &[
     PropPlacement {
         tile: PROP_TABLE,
-        x: 16,
-        y: 12,
+        x: 20,
+        y: 16,
     },
     PropPlacement {
         tile: PROP_STOOL,
-        x: 14,
-        y: 10,
+        x: 18,
+        y: 14,
     },
     PropPlacement {
         tile: PROP_ROCK,
-        x: 20,
-        y: 8,
+        x: 24,
+        y: 12,
     },
     PropPlacement {
         tile: PROP_BARREL,
-        x: 12,
-        y: 12,
+        x: 16,
+        y: 16,
     },
 ];
 

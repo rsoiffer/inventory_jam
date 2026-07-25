@@ -9,7 +9,7 @@ use crate::{
     settings::GameSettings,
     shared::WeaponSystemSet,
     weapon::protocol::WeaponCooldown,
-    weapon_station::{StationPosition, UpgradeStation, WeaponStationId},
+    weapon_station::{StationPosition, UpgradeStationKind, WeaponStationId},
 };
 
 #[derive(Component)]
@@ -38,7 +38,7 @@ fn spawn_weapon_stations(
     mut commands: Commands,
     settings: Res<GameSettings>,
     existing_weapons: Query<(), With<WeaponStationId>>,
-    existing_upgrades: Query<(), With<UpgradeStation>>,
+    existing_upgrades: Query<(), With<UpgradeStationKind>>,
 ) {
     let safezone_center = settings.world.safezone_bounds().center();
 
@@ -54,12 +54,14 @@ fn spawn_weapon_stations(
     }
 
     if existing_upgrades.is_empty() {
-        commands.spawn((
-            Name::new("Upgrade Station"),
-            UpgradeStation,
-            StationPosition(safezone_center + settings.weapon_stations.upgrade_station_offset),
-            Replicate::to_clients(NetworkTarget::All),
-        ));
+        for station in &settings.weapon_stations.upgrade_stations {
+            commands.spawn((
+                Name::new(format!("Upgrade Station {:?}", station.kind)),
+                UpgradeStationKind(station.kind),
+                StationPosition(safezone_center + station.offset),
+                Replicate::to_clients(NetworkTarget::All),
+            ));
+        }
     }
 }
 
@@ -129,13 +131,9 @@ fn apply_upgrade_station_overlaps(
         ),
         (With<ControlledBy>, With<PersistenceReady>),
     >,
-    stations: Query<&StationPosition, With<UpgradeStation>>,
+    stations: Query<(&UpgradeStationKind, &StationPosition)>,
     mut transactions: MessageWriter<Transaction>,
 ) {
-    let Some(station_position) = stations.iter().next() else {
-        return;
-    };
-
     let trigger_radius_squared = station_trigger_radius_squared(&settings);
 
     for (position, room, username, mut armed, cache) in &mut players {
@@ -143,27 +141,32 @@ fn apply_upgrade_station_overlaps(
             continue;
         }
 
-        let overlapping = position.0.distance_squared(station_position.0) <= trigger_radius_squared;
-        if !overlapping {
+        let Some(kind) = stations.iter().find_map(|(kind, station_position)| {
+            (position.0.distance_squared(station_position.0) <= trigger_radius_squared)
+                .then_some(kind.0)
+        }) else {
             armed.0 = true;
             continue;
-        }
+        };
+
         if !armed.0 {
             continue;
         }
         armed.0 = false;
 
         let progress = cache.weapon(cache.equipped_weapon_id);
-        let Ok(cost) = settings.progression.upgrade_cost(progress.level) else {
+        let level = progress.level_for(kind);
+        let Ok(cost) = settings.progression.upgrade_cost(level) else {
             continue;
         };
         if progress.fragments < cost {
             continue;
         }
 
-        transactions.write(Transaction::upgrade_weapon(
+        transactions.write(Transaction::upgrade_weapon_stat(
             username.0.clone(),
             cache.equipped_weapon_id,
+            kind,
             cost,
         ));
     }
