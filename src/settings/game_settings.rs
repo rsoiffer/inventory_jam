@@ -121,6 +121,7 @@ pub struct PlayerSettings {
     pub collision_radius: f32,
     pub move_speed: f32,
     pub held_weapon_offset: f32,
+    pub arena_health_regen_fraction_per_second: f32,
     pub aristeia_duration_ticks: u16,
     pub aristeia_bar_width: f32,
     pub aristeia_bar_height: f32,
@@ -308,6 +309,8 @@ pub enum UpgradeStatKind {
     AttackSpeed,
     Pierce,
     Crit,
+    Armor,
+    MaxHealth,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -338,6 +341,8 @@ pub struct ProgressionSettings {
     pub pierce_per_level: u16,
     pub crit_chance_per_level: f32,
     pub crit_damage_multiplier: f32,
+    pub armor_per_level: u32,
+    pub max_health_per_level: u32,
     pub upgrade_cost_base: u32,
     pub upgrade_cost_level_scale: u32,
     pub upgrade_cost_level_power: u32,
@@ -358,6 +363,14 @@ impl ProgressionSettings {
 
     pub fn crit_chance_at(&self, level: u32) -> f32 {
         (self.crit_chance_per_level * level as f32).clamp(0.0, 1.0)
+    }
+
+    pub fn armor_at(&self, level: u32) -> u32 {
+        self.armor_per_level.saturating_mul(level)
+    }
+
+    pub fn max_health_at(&self, base_health: u32, level: u32) -> u32 {
+        base_health.saturating_add(self.max_health_per_level.saturating_mul(level))
     }
 
     pub fn upgrade_cost(&self, level: u32) -> Result<u32, String> {
@@ -628,9 +641,10 @@ impl GameSettings {
             || self.player.death_screen_duration_seconds <= 0.0
             || self.player.held_weapon_offset < 0.0
             || self.player.enemy_contact_damage_interval_seconds <= 0.0
+            || self.player.arena_health_regen_fraction_per_second < 0.0
         {
             return Err(GameSettingsLoadError::Invalid(
-                "player camera_scale, maximum_health, death_screen_duration_seconds, held_weapon_offset, and enemy_contact_damage_interval_seconds are invalid".into(),
+                "player camera_scale, maximum_health, death_screen_duration_seconds, held_weapon_offset, enemy_contact_damage_interval_seconds, and arena_health_regen_fraction_per_second are invalid".into(),
             ));
         }
         if self.portal.trigger_radius <= 0.0

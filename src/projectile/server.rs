@@ -15,6 +15,7 @@ use crate::{
     player::api::AddKillsToAristeia,
     player::protocol::{PlayerAristeia, PlayerHealth},
     player::server::PlayerDeathTimer,
+    player::shared::apply_damage_to_player,
     projectile::protocol::{self, ProjectileBuffer, ProjectileSource},
     protocol::rooms::GameRoom,
     settings::GameSettings,
@@ -136,6 +137,7 @@ fn simulate_enemy_projectile_buffers(
         &GameRoom,
         &mut PlayerHealth,
         &mut PlayerDeathTimer,
+        Option<&CachedPersistentState>,
     )>,
     mut enemies: Query<(&GameRoom, &mut ProjectileBuffer, &EnemyStats), Without<PlayerId>>,
     local_timeline: Res<LocalTimeline>,
@@ -147,7 +149,9 @@ fn simulate_enemy_projectile_buffers(
     let radius = settings.enemy.projectile_radius;
     let player_targets: Vec<(Entity, Vec2, GameRoom, bool)> = players
         .iter()
-        .map(|(entity, position, room, health, _)| (entity, position.0, *room, health.current > 0))
+        .map(|(entity, position, room, health, _, _)| {
+            (entity, position.0, *room, health.current > 0)
+        })
         .collect();
     let mut pending_hits: Vec<(Entity, u32)> = Vec::new();
 
@@ -181,14 +185,22 @@ fn simulate_enemy_projectile_buffers(
         });
     }
 
-    for (player_entity, damage) in pending_hits {
-        let Ok((_, _, _, mut health, mut death_timer)) = players.get_mut(player_entity) else {
+    for (player_entity, raw_damage) in pending_hits {
+        let Ok((_, _, _, mut health, mut death_timer, cache)) = players.get_mut(player_entity)
+        else {
             continue;
         };
         if health.current == 0 {
             continue;
         }
-        health.current = health.current.saturating_sub(damage);
+        let armor = cache
+            .map(|cache| {
+                settings
+                    .progression
+                    .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
+            })
+            .unwrap_or(0);
+        apply_damage_to_player(&mut health, raw_damage, armor);
         if health.current == 0 {
             death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
         }

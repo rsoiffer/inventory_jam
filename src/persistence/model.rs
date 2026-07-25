@@ -27,6 +27,10 @@ pub struct WeaponProgress {
     pub pierce_level: u32,
     #[serde(default)]
     pub crit_level: u32,
+    #[serde(default)]
+    pub armor_level: u32,
+    #[serde(default)]
+    pub max_health_level: u32,
 }
 
 impl WeaponProgress {
@@ -36,6 +40,8 @@ impl WeaponProgress {
             UpgradeStatKind::AttackSpeed => self.attack_speed_level,
             UpgradeStatKind::Pierce => self.pierce_level,
             UpgradeStatKind::Crit => self.crit_level,
+            UpgradeStatKind::Armor => self.armor_level,
+            UpgradeStatKind::MaxHealth => self.max_health_level,
         }
     }
 
@@ -44,6 +50,8 @@ impl WeaponProgress {
             .saturating_add(self.attack_speed_level)
             .saturating_add(self.pierce_level)
             .saturating_add(self.crit_level)
+            .saturating_add(self.armor_level)
+            .saturating_add(self.max_health_level)
     }
 }
 
@@ -58,7 +66,7 @@ pub struct PersistentState {
 impl Default for PersistentState {
     fn default() -> Self {
         Self {
-            version: 5,
+            version: 6,
             equipped_weapon_id: 0,
             weapons: BTreeMap::new(),
         }
@@ -86,18 +94,20 @@ impl PersistentState {
             .iter()
             .map(|(id, progress)| {
                 format!(
-                    "{id}:{{fragments={},damage_level={},attack_speed_level={},pierce_level={},crit_level={}}}",
+                    "{id}:{{fragments={},damage_level={},attack_speed_level={},pierce_level={},crit_level={},armor_level={},max_health_level={}}}",
                     progress.fragments,
                     progress.damage_level,
                     progress.attack_speed_level,
                     progress.pierce_level,
-                    progress.crit_level
+                    progress.crit_level,
+                    progress.armor_level,
+                    progress.max_health_level
                 )
             })
             .collect::<Vec<_>>()
             .join(",");
         let preimage = format!(
-            "v5|{username}|equipped={}|weapons=[{weapons}]",
+            "v6|{username}|equipped={}|weapons=[{weapons}]",
             self.equipped_weapon_id
         );
         hex::encode(Sha256::digest(preimage.as_bytes()))
@@ -129,6 +139,10 @@ pub struct PlayerChange {
     #[serde(default)]
     pub crit_level_delta: i64,
     #[serde(default)]
+    pub armor_level_delta: i64,
+    #[serde(default)]
+    pub max_health_level_delta: i64,
+    #[serde(default)]
     pub set_equipped: bool,
 }
 
@@ -140,6 +154,8 @@ impl PlayerChange {
             || self.attack_speed_level_delta != 0
             || self.pierce_level_delta != 0
             || self.crit_level_delta != 0
+            || self.armor_level_delta != 0
+            || self.max_health_level_delta != 0
     }
 
     pub fn apply(&self, state: &mut PersistentState) -> Result<(), String> {
@@ -185,6 +201,13 @@ impl PlayerChange {
             )?;
             progress.crit_level =
                 apply_level_delta(progress.crit_level, self.crit_level_delta, "crit_level")?;
+            progress.armor_level =
+                apply_level_delta(progress.armor_level, self.armor_level_delta, "armor_level")?;
+            progress.max_health_level = apply_level_delta(
+                progress.max_health_level,
+                self.max_health_level_delta,
+                "max_health_level",
+            )?;
         }
 
         if self.set_equipped {
@@ -213,15 +236,23 @@ fn apply_level_delta(current: u32, delta: i64, label: &str) -> Result<u32, Strin
 }
 
 #[cfg(feature = "server")]
+#[derive(Clone, Copy, Default)]
+struct StatDeltas {
+    damage: i64,
+    attack_speed: i64,
+    pierce: i64,
+    crit: i64,
+    armor: i64,
+    max_health: i64,
+}
+
+#[cfg(feature = "server")]
 impl Transaction {
     fn change(
         username: impl Into<String>,
         weapon_id: WeaponId,
         fragment_delta: i64,
-        damage_level_delta: i64,
-        attack_speed_level_delta: i64,
-        pierce_level_delta: i64,
-        crit_level_delta: i64,
+        stats: StatDeltas,
         set_equipped: bool,
     ) -> Self {
         Self {
@@ -230,10 +261,12 @@ impl Transaction {
                 username: username.into(),
                 weapon_id,
                 fragment_delta,
-                damage_level_delta,
-                attack_speed_level_delta,
-                pierce_level_delta,
-                crit_level_delta,
+                damage_level_delta: stats.damage,
+                attack_speed_level_delta: stats.attack_speed,
+                pierce_level_delta: stats.pierce,
+                crit_level_delta: stats.crit,
+                armor_level_delta: stats.armor,
+                max_health_level_delta: stats.max_health,
                 set_equipped,
             }],
         }
@@ -244,7 +277,13 @@ impl Transaction {
         weapon_id: WeaponId,
         amount: u32,
     ) -> Self {
-        Self::change(username, weapon_id, amount as i64, 0, 0, 0, 0, false)
+        Self::change(
+            username,
+            weapon_id,
+            amount as i64,
+            StatDeltas::default(),
+            false,
+        )
     }
 
     pub fn upgrade_weapon_stat(
@@ -253,26 +292,20 @@ impl Transaction {
         kind: UpgradeStatKind,
         cost: u32,
     ) -> Self {
-        let (damage, attack_speed, pierce, crit) = match kind {
-            UpgradeStatKind::Damage => (1, 0, 0, 0),
-            UpgradeStatKind::AttackSpeed => (0, 1, 0, 0),
-            UpgradeStatKind::Pierce => (0, 0, 1, 0),
-            UpgradeStatKind::Crit => (0, 0, 0, 1),
-        };
-        Self::change(
-            username,
-            weapon_id,
-            -(cost as i64),
-            damage,
-            attack_speed,
-            pierce,
-            crit,
-            false,
-        )
+        let mut stats = StatDeltas::default();
+        match kind {
+            UpgradeStatKind::Damage => stats.damage = 1,
+            UpgradeStatKind::AttackSpeed => stats.attack_speed = 1,
+            UpgradeStatKind::Pierce => stats.pierce = 1,
+            UpgradeStatKind::Crit => stats.crit = 1,
+            UpgradeStatKind::Armor => stats.armor = 1,
+            UpgradeStatKind::MaxHealth => stats.max_health = 1,
+        }
+        Self::change(username, weapon_id, -(cost as i64), stats, false)
     }
 
     pub fn equip_weapon(username: impl Into<String>, weapon_id: WeaponId) -> Self {
-        Self::change(username, weapon_id, 0, 0, 0, 0, 0, true)
+        Self::change(username, weapon_id, 0, StatDeltas::default(), true)
     }
 
     pub fn touches_username(&self, username: &str) -> bool {

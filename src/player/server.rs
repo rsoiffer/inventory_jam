@@ -1,11 +1,12 @@
 use crate::app::ServerState;
 use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats};
+use crate::persistence::{CachedPersistentState, PersistenceReady};
 use crate::player::PlayerId;
 use crate::player::api::AddKillsToAristeia;
 use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerVisual,
 };
-use crate::player::shared::{apply_player_aim, apply_player_movement};
+use crate::player::shared::{apply_damage_to_player, apply_player_aim, apply_player_movement};
 use crate::portal::PortalTeleportCooldown;
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::{GameRoom, GameRooms};
@@ -28,6 +29,11 @@ pub(crate) struct PlayerDeathTimer {
     pub(crate) remaining_seconds: f32,
 }
 
+#[derive(Component, Clone, Copy, Debug, Default)]
+struct ArenaHealthRegenAccumulator {
+    remaining: f32,
+}
+
 pub struct PlayerServerPlugin;
 
 impl Plugin for PlayerServerPlugin {
@@ -40,7 +46,9 @@ impl Plugin for PlayerServerPlugin {
                 authoritative_player_movement,
                 authoritative_player_aim,
                 add_requested_aristeia,
+                sync_equipped_max_health,
                 restore_safezone_health,
+                regenerate_arena_health,
                 apply_enemy_contact_damage,
                 tick_player_death,
                 control_dedicated_server_camera,
@@ -124,6 +132,7 @@ pub(crate) fn handle_connected(
             PlayerVisual,
             EnemyContactDamageCooldown::default(),
             PlayerDeathTimer::default(),
+            ArenaHealthRegenAccumulator::default(),
             PortalTeleportCooldown {
                 remaining_ticks: settings.portal.teleport_cooldown_ticks,
             },
@@ -193,6 +202,31 @@ pub(crate) fn authoritative_player_aim(
     }
 }
 
+fn sync_equipped_max_health(
+    settings: Res<GameSettings>,
+    mut players: Query<
+        (&CachedPersistentState, &mut PlayerHealth),
+        (With<ControlledBy>, With<PersistenceReady>),
+    >,
+) {
+    for (cache, mut health) in &mut players {
+        let progress = cache.weapon(cache.equipped_weapon_id);
+        let maximum = settings
+            .progression
+            .max_health_at(settings.player.maximum_health, progress.max_health_level);
+        if health.maximum == maximum {
+            continue;
+        }
+        let was_full = health.current == health.maximum;
+        health.maximum = maximum;
+        health.current = if was_full {
+            maximum
+        } else {
+            health.current.min(maximum)
+        };
+    }
+}
+
 fn restore_safezone_health(mut players: Query<(&GameRoom, &mut PlayerHealth), With<ControlledBy>>) {
     for (room, mut health) in &mut players {
         if room.room == GameRooms::Safezone
@@ -201,6 +235,40 @@ fn restore_safezone_health(mut players: Query<(&GameRoom, &mut PlayerHealth), Wi
         {
             health.current = health.maximum;
         }
+    }
+}
+
+fn regenerate_arena_health(
+    time: Res<Time>,
+    settings: Res<GameSettings>,
+    mut players: Query<
+        (
+            &GameRoom,
+            &mut PlayerHealth,
+            &mut ArenaHealthRegenAccumulator,
+        ),
+        With<ControlledBy>,
+    >,
+) {
+    let regen_rate = settings.player.arena_health_regen_fraction_per_second;
+    if regen_rate <= 0.0 {
+        return;
+    }
+
+    for (room, mut health, mut accumulator) in &mut players {
+        if room.room != GameRooms::Arena || health.current == 0 || health.current >= health.maximum
+        {
+            accumulator.remaining = 0.0;
+            continue;
+        }
+
+        accumulator.remaining += health.maximum as f32 * regen_rate * time.delta_secs();
+        let heal = accumulator.remaining.floor() as u32;
+        if heal == 0 {
+            continue;
+        }
+        accumulator.remaining -= heal as f32;
+        health.current = (health.current + heal).min(health.maximum);
     }
 }
 
@@ -214,13 +282,14 @@ fn apply_enemy_contact_damage(
             &mut PlayerHealth,
             &mut EnemyContactDamageCooldown,
             &mut PlayerDeathTimer,
+            Option<&CachedPersistentState>,
         ),
         With<ControlledBy>,
     >,
     enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind, &EnemyStats)>,
     settings: Res<GameSettings>,
 ) {
-    for (player_entity, player_position, room, mut health, mut cooldown, mut death_timer) in
+    for (player_entity, player_position, room, mut health, mut cooldown, mut death_timer, cache) in
         &mut players
     {
         cooldown.remaining_seconds = (cooldown.remaining_seconds - time.delta_secs()).max(0.0);
@@ -230,7 +299,7 @@ fn apply_enemy_contact_damage(
             continue;
         }
 
-        let Some(damage) =
+        let Some(raw_damage) =
             enemies
                 .iter()
                 .find_map(|(enemy_position, enemy_health, kind, stats)| {
@@ -248,12 +317,20 @@ fn apply_enemy_contact_damage(
             continue;
         };
 
-        health.current = health.current.saturating_sub(damage);
+        let armor = cache
+            .map(|cache| {
+                settings
+                    .progression
+                    .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
+            })
+            .unwrap_or(0);
+        let damage = apply_damage_to_player(&mut health, raw_damage, armor);
         cooldown.remaining_seconds = settings.player.enemy_contact_damage_interval_seconds;
 
         info!(
             ?player_entity,
             damage,
+            armor,
             current_health = health.current,
             maximum_health = health.maximum,
             "Player took enemy contact damage"

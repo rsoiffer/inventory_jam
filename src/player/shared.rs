@@ -12,6 +12,12 @@ use crate::{
     settings::GameSettings,
 };
 
+pub fn apply_damage_to_player(health: &mut PlayerHealth, raw_damage: u32, armor: u32) -> u32 {
+    let damage = raw_damage.saturating_sub(armor);
+    health.current = health.current.saturating_sub(damage);
+    damage
+}
+
 pub fn apply_player_movement(
     position: &mut PlayerPosition,
     room: &GameRoom,

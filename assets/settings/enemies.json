@@ -16,13 +16,19 @@
     "projectile_range": 220.0,
     "projectile": {
       "path": "enemy/spr_vfx_projectile_enemy.png",
-      "cell": [16, 16],
+      "cell": [
+        16,
+        16
+      ],
       "frames": 1,
       "frame_seconds": 0.1
     },
     "impact": {
       "path": "enemy/spr_vfx_impact_generic.png",
-      "cell": [16, 16],
+      "cell": [
+        16,
+        16
+      ],
       "frames": 6,
       "frame_seconds": 0.05
     }

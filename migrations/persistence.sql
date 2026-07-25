@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS player_transaction (
 CREATE INDEX IF NOT EXISTS player_transaction_applied_at_idx
     ON player_transaction (applied_at);
 
--- Convert legacy player rows to versioned per-weapon progression state (v5).
+-- Convert legacy player rows to versioned per-weapon progression state (v6).
 UPDATE player_state
 SET state = jsonb_build_object(
-        'version', 5,
+        'version', 6,
         'equipped_weapon_id', COALESCE((state->>'equipped_weapon_id')::INT, 0),
         'weapons', COALESCE(
             (
@@ -33,7 +33,9 @@ SET state = jsonb_build_object(
                         ),
                         'attack_speed_level', COALESCE((value->>'attack_speed_level')::BIGINT, 0),
                         'pierce_level', COALESCE((value->>'pierce_level')::BIGINT, 0),
-                        'crit_level', COALESCE((value->>'crit_level')::BIGINT, 0)
+                        'crit_level', COALESCE((value->>'crit_level')::BIGINT, 0),
+                        'armor_level', COALESCE((value->>'armor_level')::BIGINT, 0),
+                        'max_health_level', COALESCE((value->>'max_health_level')::BIGINT, 0)
                     )
                 )
                 FROM jsonb_each(COALESCE(state->'weapons', '{}'::JSONB))
@@ -42,7 +44,7 @@ SET state = jsonb_build_object(
         )
     ),
     updated_at = now()
-WHERE COALESCE(state->>'version', '1') <> '5'
+WHERE COALESCE(state->>'version', '1') <> '6'
    OR NOT (state ? 'weapons')
    OR NOT (state ? 'equipped_weapon_id');
 
@@ -57,7 +59,7 @@ AS $$
     SELECT encode(
         digest(
             convert_to(
-                'v5|'
+                'v6|'
                     || p_username
                     || '|equipped='
                     || COALESCE(p_state->>'equipped_weapon_id', '0')
@@ -76,6 +78,10 @@ AS $$
                                     || COALESCE(value->>'pierce_level', '0')
                                     || ',crit_level='
                                     || COALESCE(value->>'crit_level', '0')
+                                    || ',armor_level='
+                                    || COALESCE(value->>'armor_level', '0')
+                                    || ',max_health_level='
+                                    || COALESCE(value->>'max_health_level', '0')
                                     || '}',
                                 ','
                                 ORDER BY key
@@ -111,7 +117,7 @@ BEGIN
     END IF;
 
     current_state := jsonb_build_object(
-        'version', 5,
+        'version', 6,
         'equipped_weapon_id', 0,
         'weapons', '{}'::JSONB
     );
@@ -132,6 +138,7 @@ DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT);
 DROP FUNCTION IF EXISTS apply_player_change(TEXT, BIGINT);
 DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT, BOOLEAN);
 DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN);
+DROP FUNCTION IF EXISTS apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN);
 
 CREATE OR REPLACE FUNCTION apply_player_change(
     p_username TEXT,
@@ -141,6 +148,8 @@ CREATE OR REPLACE FUNCTION apply_player_change(
     p_attack_speed_level_delta BIGINT,
     p_pierce_level_delta BIGINT,
     p_crit_level_delta BIGINT,
+    p_armor_level_delta BIGINT,
+    p_max_health_level_delta BIGINT,
     p_set_equipped BOOLEAN
 )
 RETURNS VOID
@@ -157,11 +166,15 @@ DECLARE
     current_attack_speed_level BIGINT;
     current_pierce_level BIGINT;
     current_crit_level BIGINT;
+    current_armor_level BIGINT;
+    current_max_health_level BIGINT;
     next_fragments BIGINT;
     next_damage_level BIGINT;
     next_attack_speed_level BIGINT;
     next_pierce_level BIGINT;
     next_crit_level BIGINT;
+    next_armor_level BIGINT;
+    next_max_health_level BIGINT;
 BEGIN
     PERFORM ensure_player(p_username);
 
@@ -179,6 +192,8 @@ BEGIN
         OR p_attack_speed_level_delta IS NULL
         OR p_pierce_level_delta IS NULL
         OR p_crit_level_delta IS NULL
+        OR p_armor_level_delta IS NULL
+        OR p_max_health_level_delta IS NULL
         OR p_set_equipped IS NULL
     THEN
         RAISE EXCEPTION 'fragment/stat deltas and set_equipped are required';
@@ -189,6 +204,8 @@ BEGIN
         AND p_attack_speed_level_delta = 0
         AND p_pierce_level_delta = 0
         AND p_crit_level_delta = 0
+        AND p_armor_level_delta = 0
+        AND p_max_health_level_delta = 0
         AND NOT p_set_equipped
     THEN
         RAISE EXCEPTION 'fragment/stat deltas cannot all be zero unless set_equipped';
@@ -199,11 +216,13 @@ BEGIN
         OR p_attack_speed_level_delta <> 0
         OR p_pierce_level_delta <> 0
         OR p_crit_level_delta <> 0
+        OR p_armor_level_delta <> 0
+        OR p_max_health_level_delta <> 0
     THEN
         weapon_key := p_weapon_id::TEXT;
         weapon_state := COALESCE(
             current_state->'weapons'->weapon_key,
-            '{"fragments":0,"damage_level":0,"attack_speed_level":0,"pierce_level":0,"crit_level":0}'::JSONB
+            '{"fragments":0,"damage_level":0,"attack_speed_level":0,"pierce_level":0,"crit_level":0,"armor_level":0,"max_health_level":0}'::JSONB
         );
         current_fragments := COALESCE((weapon_state->>'fragments')::BIGINT, 0);
         current_damage_level := COALESCE(
@@ -214,6 +233,8 @@ BEGIN
         current_attack_speed_level := COALESCE((weapon_state->>'attack_speed_level')::BIGINT, 0);
         current_pierce_level := COALESCE((weapon_state->>'pierce_level')::BIGINT, 0);
         current_crit_level := COALESCE((weapon_state->>'crit_level')::BIGINT, 0);
+        current_armor_level := COALESCE((weapon_state->>'armor_level')::BIGINT, 0);
+        current_max_health_level := COALESCE((weapon_state->>'max_health_level')::BIGINT, 0);
 
         next_fragments := current_fragments + p_fragment_delta;
         IF next_fragments < 0 THEN
@@ -255,16 +276,34 @@ BEGIN
             RAISE EXCEPTION 'crit_level overflow: %', next_crit_level;
         END IF;
 
+        next_armor_level := current_armor_level + p_armor_level_delta;
+        IF next_armor_level < 0 THEN
+            RAISE EXCEPTION 'armor_level cannot go negative: % + %', current_armor_level, p_armor_level_delta;
+        END IF;
+        IF next_armor_level > 4294967295 THEN
+            RAISE EXCEPTION 'armor_level overflow: %', next_armor_level;
+        END IF;
+
+        next_max_health_level := current_max_health_level + p_max_health_level_delta;
+        IF next_max_health_level < 0 THEN
+            RAISE EXCEPTION 'max_health_level cannot go negative: % + %', current_max_health_level, p_max_health_level_delta;
+        END IF;
+        IF next_max_health_level > 4294967295 THEN
+            RAISE EXCEPTION 'max_health_level overflow: %', next_max_health_level;
+        END IF;
+
         weapon_state := jsonb_build_object(
             'fragments', next_fragments,
             'damage_level', next_damage_level,
             'attack_speed_level', next_attack_speed_level,
             'pierce_level', next_pierce_level,
-            'crit_level', next_crit_level
+            'crit_level', next_crit_level,
+            'armor_level', next_armor_level,
+            'max_health_level', next_max_health_level
         );
 
         current_state := jsonb_set(
-            COALESCE(current_state, '{"version":5,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
+            COALESCE(current_state, '{"version":6,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
             ARRAY['weapons', weapon_key],
             weapon_state,
             true
@@ -273,14 +312,14 @@ BEGIN
 
     IF p_set_equipped THEN
         current_state := jsonb_set(
-            COALESCE(current_state, '{"version":5,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
+            COALESCE(current_state, '{"version":6,"equipped_weapon_id":0,"weapons":{}}'::JSONB),
             '{equipped_weapon_id}',
             to_jsonb(p_weapon_id),
             true
         );
     END IF;
 
-    current_state := jsonb_set(current_state, '{version}', '5'::JSONB, true);
+    current_state := jsonb_set(current_state, '{version}', '6'::JSONB, true);
 
     UPDATE player_state
     SET state = current_state,
@@ -324,6 +363,8 @@ BEGIN
             COALESCE((change->>'attack_speed_level_delta')::BIGINT, 0),
             COALESCE((change->>'pierce_level_delta')::BIGINT, 0),
             COALESCE((change->>'crit_level_delta')::BIGINT, 0),
+            COALESCE((change->>'armor_level_delta')::BIGINT, 0),
+            COALESCE((change->>'max_health_level_delta')::BIGINT, 0),
             COALESCE((change->>'set_equipped')::BOOLEAN, false)
         );
     END LOOP;
@@ -429,14 +470,14 @@ REVOKE ALL ON TABLE player_transaction FROM inventory_jam_server;
 
 REVOKE ALL ON FUNCTION player_state_hash(TEXT, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ensure_player(TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN) FROM PUBLIC;
+REVOKE ALL ON FUNCTION apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN) FROM PUBLIC;
 REVOKE ALL ON FUNCTION apply_persistence_transaction(UUID, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_player_states(TEXT[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION flush_player_transactions(JSONB, TEXT[]) FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION player_state_hash(TEXT, JSONB) FROM inventory_jam_server;
 REVOKE ALL ON FUNCTION ensure_player(TEXT) FROM inventory_jam_server;
-REVOKE ALL ON FUNCTION apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN) FROM inventory_jam_server;
+REVOKE ALL ON FUNCTION apply_player_change(TEXT, INT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BOOLEAN) FROM inventory_jam_server;
 REVOKE ALL ON FUNCTION apply_persistence_transaction(UUID, JSONB) FROM inventory_jam_server;
 
 -- Server may only call the two batch API functions.

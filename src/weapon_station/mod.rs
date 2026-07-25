@@ -30,6 +30,8 @@ pub(crate) fn upgrade_station_label(kind: UpgradeStatKind, level: u32, cost: u32
         UpgradeStatKind::AttackSpeed => "Atk Spd",
         UpgradeStatKind::Pierce => "Pierce",
         UpgradeStatKind::Crit => "Crit",
+        UpgradeStatKind::Armor => "Armor",
+        UpgradeStatKind::MaxHealth => "Max HP",
     };
     format!("{name} Lv{level}\nUpgrade: {cost}")
 }
