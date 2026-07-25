@@ -269,8 +269,9 @@ fn sync_player_health_bars(
 
         sprite.color = Color::srgb(0.15, 0.05, 0.05);
         sprite.custom_size = Some(full_size);
-        transform.translation = (position.0 + Vec2::new(0.0, settings.player_visual.health_bar_offset_y))
-            .extend(PLAYER_HEALTH_BAR_Z);
+        transform.translation = (position.0
+            + Vec2::new(0.0, settings.player_visual.health_bar_offset_y))
+        .extend(PLAYER_HEALTH_BAR_Z);
     }
 
     for (entity, bar, mut sprite, mut transform) in &mut fills {
@@ -325,7 +326,8 @@ fn sync_username_labels(
             .find(|(_, label, _, _)| label.player == player);
 
         if let Some((_, _, mut transform, mut text)) = existing_label {
-            transform.translation = position.0.extend(0.0) + settings.player_visual.username_label_offset;
+            transform.translation =
+                position.0.extend(0.0) + settings.player_visual.username_label_offset;
 
             if text.0 != label_text {
                 text.0 = label_text;
@@ -370,11 +372,9 @@ fn update_camera(
     if camera.translation.truncate().distance_squared(player.0) > 96.0_f32.powi(2) {
         camera.translation = target;
     } else {
-        camera.translation.smooth_nudge(
-            &target,
-            settings.camera.decay_rate,
-            time.delta_secs(),
-        );
+        camera
+            .translation
+            .smooth_nudge(&target, settings.camera.decay_rate, time.delta_secs());
     }
 }
 

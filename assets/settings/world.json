@@ -96,13 +96,18 @@
       ]
     }
   },
-  "portal": {
-    "trigger_radius": 20.0,
-    "arena_portal_count": 64,
+  "gate": {
+    "teleport_radius": 20.0,
+    "nearby_radius": 160.0,
+    "arena_gate_count": 64,
     "arena_edge_inset": 48.0,
     "placement_attempts": 64,
     "teleport_cooldown_ticks": 30,
-    "safezone_portal_offset": [0.0, 120.0]
+    "open_fill_seconds": 10.0,
+    "closed_decay_seconds": 10.0,
+    "open_drain_seconds": 10.0,
+    "nearby_detection_multiplier": 4.0,
+    "safezone_gate_offset": [0.0, 120.0]
   },
   "weapon_stations": {
     "trigger_radius": 16.0,

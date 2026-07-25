@@ -20,7 +20,8 @@ pub(crate) struct GameSettings {
     pub arena_floor: ArenaFloorSettings,
     pub player: PlayerSettings,
     pub world: WorldSettings,
-    pub portal: PortalSettings,
+    pub gate: GateSettings,
+    pub gate_visual: GateVisualSettings,
     pub server_camera: ServerCameraSettings,
     pub projectile: ProjectileSettings,
     pub weapons: WeaponsSettings,
@@ -42,7 +43,7 @@ pub struct PostProcessingSettings {
     #[serde(deserialize_with = "deserialize_color")]
     pub fragment_tint: Color,
     #[serde(deserialize_with = "deserialize_color")]
-    pub portal_tint: Color,
+    pub gate_tint: Color,
     #[serde(deserialize_with = "deserialize_color")]
     pub username_text: Color,
 }
@@ -244,15 +245,30 @@ pub struct SafezoneProp {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct PortalSettings {
-    pub trigger_radius: f32,
-    pub arena_portal_count: usize,
+pub struct GateSettings {
+    /// Radius for walking into an open gate to teleport.
+    pub teleport_radius: f32,
+    /// Radius for charging a closed arena gate / extended enemy aggro.
+    pub nearby_radius: f32,
+    pub arena_gate_count: usize,
     pub arena_edge_inset: f32,
     pub placement_attempts: usize,
     pub teleport_cooldown_ticks: u16,
+    pub open_fill_seconds: f32,
+    pub closed_decay_seconds: f32,
+    pub open_drain_seconds: f32,
+    /// Multiplier applied to enemy detection/leash when a player is within nearby_radius.
+    pub nearby_detection_multiplier: f32,
 
     #[serde(deserialize_with = "deserialize_vec2")]
-    pub safezone_portal_offset: Vec2,
+    pub safezone_gate_offset: Vec2,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GateVisualSettings {
+    pub bar_width: f32,
+    pub bar_height: f32,
+    pub bar_offset_y: f32,
 }
 
 impl WorldSettings {
@@ -363,6 +379,17 @@ pub enum UpgradeStatKind {
     Crit,
     Armor,
     MaxHealth,
+}
+
+impl UpgradeStatKind {
+    pub const ALL: [Self; 6] = [
+        Self::Damage,
+        Self::AttackSpeed,
+        Self::Pierce,
+        Self::Crit,
+        Self::Armor,
+        Self::MaxHealth,
+    ];
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -746,14 +773,24 @@ impl GameSettings {
                 "player gameplay settings are invalid".into(),
             ));
         }
-        if self.portal.trigger_radius <= 0.0
-            || self.portal.arena_portal_count == 0
-            || self.portal.arena_edge_inset < 0.0
-            || self.portal.placement_attempts == 0
-            || self.portal.teleport_cooldown_ticks == 0
+        if self.gate.teleport_radius <= 0.0
+            || self.gate.nearby_radius <= 0.0
+            || self.gate.arena_gate_count == 0
+            || self.gate.arena_edge_inset < 0.0
+            || self.gate.placement_attempts == 0
+            || self.gate.teleport_cooldown_ticks == 0
+            || self.gate.open_fill_seconds <= 0.0
+            || self.gate.closed_decay_seconds <= 0.0
+            || self.gate.open_drain_seconds <= 0.0
+            || self.gate.nearby_detection_multiplier < 1.0
         {
             return Err(GameSettingsLoadError::Invalid(
-                "portal settings are invalid".into(),
+                "gate settings are invalid".into(),
+            ));
+        }
+        if self.gate_visual.bar_width <= 0.0 || self.gate_visual.bar_height <= 0.0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "gate_visual bar dimensions must be greater than zero".into(),
             ));
         }
         if self.server_camera.min_scale <= 0.0

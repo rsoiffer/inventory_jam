@@ -3,6 +3,7 @@ use crate::enemy::api::SpawnEnemy;
 use crate::enemy::protocol::{
     EnemyHealth, EnemyKind, EnemyPosition, EnemySpawnerPosition, EnemyTierIndex,
 };
+use crate::gate::{GateKind, GatePosition};
 use crate::player::protocol::PlayerHealth;
 use crate::player::{PlayerId, PlayerPosition};
 use crate::projectile::protocol::{ProjectileBuffer, ProjectileSource};
@@ -16,6 +17,7 @@ use lightyear::{
     prelude::*,
 };
 use rand::Rng;
+use std::collections::HashSet;
 
 pub struct EnemyServerPlugin;
 
@@ -435,17 +437,38 @@ fn simulate_enemy_ai(
         &EnemyStats,
     )>,
     players: Query<(&PlayerId, &PlayerPosition, &PlayerHealth, &GameRoom)>,
+    gates: Query<(&GateKind, &GatePosition)>,
 ) {
     let mut rng = rand::rng();
     let arena = settings.world.arena_bounds();
     let dt = time.delta_secs();
+    let gate_nearby_sq = (settings.gate.nearby_radius + settings.player.collision_radius).powi(2);
+    let players_near_gate: HashSet<PeerId> = players
+        .iter()
+        .filter(|(_, _, health, room)| health.current > 0 && room.room == GameRooms::Arena)
+        .filter(|(_, position, _, _)| {
+            gates.iter().any(|(kind, gate)| {
+                *kind == GateKind::ToSafezone
+                    && position.0.distance_squared(gate.0) <= gate_nearby_sq
+            })
+        })
+        .map(|(id, _, _, _)| id.0)
+        .collect();
+    let gate_aggro = settings.gate.nearby_detection_multiplier;
+    let aggro_scale = |id: PeerId| {
+        if players_near_gate.contains(&id) {
+            gate_aggro
+        } else {
+            1.0
+        }
+    };
 
     for (mut position, home, mut wander_target, mut behavior, mut retarget, kind, stats) in
         &mut enemies
     {
         let collision_radius = kind.collision_radius(settings.enemy.collision_radius);
         let arena = arena.inflate(-collision_radius);
-        let (detection, leash, wander_radius) = match kind {
+        let (base_detection, base_leash, wander_radius) = match kind {
             EnemyKind::Regular => (
                 settings.enemy.detection_radius,
                 settings.enemy.leash_radius,
@@ -462,9 +485,13 @@ fn simulate_enemy_ai(
         let nearest = players
             .iter()
             .filter(|(_, _, health, room)| health.current > 0 && room.room == GameRooms::Arena)
-            .map(|(id, pos, _, _)| (id.0, pos.0, position.0.distance_squared(pos.0)))
-            .filter(|(_, _, d)| *d <= detection * detection)
-            .min_by(|a, b| a.2.total_cmp(&b.2));
+            .map(|(id, pos, _, _)| {
+                let detection = base_detection * aggro_scale(id.0);
+                (id.0, pos.0, position.0.distance_squared(pos.0), detection)
+            })
+            .filter(|(_, _, d, detection)| *d <= *detection * *detection)
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+            .map(|(id, pos, d, _)| (id, pos, d));
 
         match *behavior {
             EnemyBehavior::Wandering => {
@@ -488,6 +515,7 @@ fn simulate_enemy_ai(
                         id.0 == target_id && health.current > 0 && room.room == GameRooms::Arena
                     })
                     .map(|(_, p, _, _)| p.0);
+                let leash = base_leash * aggro_scale(target_id);
                 if position.0.distance_squared(home.0) > leash * leash || target.is_none() {
                     *behavior = EnemyBehavior::Returning;
                 } else if let Some(target) = target {

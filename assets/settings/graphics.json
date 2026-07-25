@@ -5,8 +5,13 @@
     "bloom_low_frequency_boost": 0.7,
     "projectile_tint": [2.0, 2.0, 2.0],
     "fragment_tint": [2.0, 2.0, 2.0],
-    "portal_tint": [2.0, 2.0, 2.0],
+    "gate_tint": [2.0, 2.0, 2.0],
     "username_text": [1.5, 1.5, 2.4]
+  },
+  "gate_visual": {
+    "bar_width": 40.0,
+    "bar_height": 4.0,
+    "bar_offset_y": -18.0
   },
   "arena_floor": {
     "bands": [

@@ -1,7 +1,7 @@
 use bevy::math::{Rect, Vec2};
 use rand::Rng;
 
-use crate::settings::{PortalSettings, WorldSettings};
+use crate::settings::{GateSettings, WorldSettings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ArenaEdge {
@@ -94,20 +94,20 @@ impl ArenaEdge {
     }
 }
 
-pub fn place_arena_portals(
+pub fn place_arena_gates(
     world: &WorldSettings,
-    portal: &PortalSettings,
+    gate: &GateSettings,
     player_half_size: f32,
     rng: &mut impl Rng,
 ) -> Vec<Vec2> {
     let bounds = world.arena_bounds().inflate(-player_half_size);
-    let mut positions = Vec::with_capacity(portal.arena_portal_count);
+    let mut positions = Vec::with_capacity(gate.arena_gate_count);
 
-    for _ in 0..portal.arena_portal_count {
+    for _ in 0..gate.arena_gate_count {
         let mut best = bounds.center();
         let mut best_clearance = -1.0_f32;
 
-        for _ in 0..portal.placement_attempts {
+        for _ in 0..gate.placement_attempts {
             let candidate = Vec2::new(
                 rng.random_range(bounds.min.x..=bounds.max.x),
                 rng.random_range(bounds.min.y..=bounds.max.y),

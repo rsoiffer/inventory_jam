@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 #[cfg(feature = "server")]
 use uuid::Uuid;
 
+#[cfg(feature = "server")]
+use crate::settings::ProgressionSettings;
 use crate::settings::UpgradeStatKind;
 use crate::weapon::protocol::WeaponId;
 
@@ -42,6 +44,17 @@ impl WeaponProgress {
             UpgradeStatKind::Crit => self.crit_level,
             UpgradeStatKind::Armor => self.armor_level,
             UpgradeStatKind::MaxHealth => self.max_health_level,
+        }
+    }
+
+    pub fn set_level_for(&mut self, kind: UpgradeStatKind, level: u32) {
+        match kind {
+            UpgradeStatKind::Damage => self.damage_level = level,
+            UpgradeStatKind::AttackSpeed => self.attack_speed_level = level,
+            UpgradeStatKind::Pierce => self.pierce_level = level,
+            UpgradeStatKind::Crit => self.crit_level = level,
+            UpgradeStatKind::Armor => self.armor_level = level,
+            UpgradeStatKind::MaxHealth => self.max_health_level = level,
         }
     }
 
@@ -247,6 +260,20 @@ struct StatDeltas {
 }
 
 #[cfg(feature = "server")]
+impl StatDeltas {
+    fn add(&mut self, kind: UpgradeStatKind, delta: i64) {
+        match kind {
+            UpgradeStatKind::Damage => self.damage += delta,
+            UpgradeStatKind::AttackSpeed => self.attack_speed += delta,
+            UpgradeStatKind::Pierce => self.pierce += delta,
+            UpgradeStatKind::Crit => self.crit += delta,
+            UpgradeStatKind::Armor => self.armor += delta,
+            UpgradeStatKind::MaxHealth => self.max_health += delta,
+        }
+    }
+}
+
+#[cfg(feature = "server")]
 impl Transaction {
     fn change(
         username: impl Into<String>,
@@ -293,15 +320,52 @@ impl Transaction {
         cost: u32,
     ) -> Self {
         let mut stats = StatDeltas::default();
-        match kind {
-            UpgradeStatKind::Damage => stats.damage = 1,
-            UpgradeStatKind::AttackSpeed => stats.attack_speed = 1,
-            UpgradeStatKind::Pierce => stats.pierce = 1,
-            UpgradeStatKind::Crit => stats.crit = 1,
-            UpgradeStatKind::Armor => stats.armor = 1,
-            UpgradeStatKind::MaxHealth => stats.max_health = 1,
-        }
+        stats.add(kind, 1);
         Self::change(username, weapon_id, -(cost as i64), stats, false)
+    }
+
+    pub fn death_penalty(
+        username: impl Into<String>,
+        weapon_id: WeaponId,
+        progress: &WeaponProgress,
+        progression: &ProgressionSettings,
+        rng: &mut impl rand::Rng,
+    ) -> Option<Self> {
+        if progress.fragments == 0 {
+            return None;
+        }
+
+        let mut levels = progress.clone();
+        let mut budget = progress.fragments;
+        let mut stats = StatDeltas::default();
+        loop {
+            let candidates: Vec<(UpgradeStatKind, u32)> = UpgradeStatKind::ALL
+                .into_iter()
+                .filter_map(|kind| {
+                    let level = levels.level_for(kind);
+                    if level == 0 {
+                        return None;
+                    }
+                    let cost = progression.upgrade_cost(level - 1).ok()?;
+                    (cost <= budget).then_some((kind, cost))
+                })
+                .collect();
+            if candidates.is_empty() {
+                break;
+            }
+            let (kind, cost) = candidates[rng.random_range(0..candidates.len())];
+            levels.set_level_for(kind, levels.level_for(kind) - 1);
+            budget -= cost;
+            stats.add(kind, -1);
+        }
+
+        Some(Self::change(
+            username,
+            weapon_id,
+            -(progress.fragments as i64),
+            stats,
+            false,
+        ))
     }
 
     pub fn equip_weapon(username: impl Into<String>, weapon_id: WeaponId) -> Self {

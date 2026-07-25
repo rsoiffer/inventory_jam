@@ -5,8 +5,8 @@ use crate::{
     app::ServerState,
     enemy::{EnemyPosition, EnemySpawnerPosition},
     fragment::Fragment,
+    gate::{GateKind, GatePosition},
     player::{PlayerId, PlayerPosition},
-    portal::{PortalKind, PortalPosition},
     protocol::rooms::{GameRoom, GameRooms},
     settings::GameSettings,
     shared::FixedGameplaySet,
@@ -33,7 +33,7 @@ fn update_interest_visibility(
     enemies: Query<(Entity, &EnemyPosition, &GameRoom)>,
     spawners: Query<(Entity, &EnemySpawnerPosition, &GameRoom)>,
     fragments: Query<(Entity, &Fragment)>,
-    portals: Query<(Entity, &PortalKind, &PortalPosition)>,
+    gates: Query<(Entity, &GateKind, &GatePosition)>,
 ) {
     let radius_sq = settings.network.interest_radius.powi(2);
 
@@ -80,7 +80,7 @@ fn update_interest_visibility(
             );
         }
 
-        for (entity, kind, position) in &portals {
+        for (entity, kind, position) in &gates {
             set_visibility(
                 &mut commands,
                 entity,

@@ -9,12 +9,13 @@ use crate::{
     app::ServerState,
     enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats},
     fragment::api::SpawnFragmentPool,
-    persistence::CachedPersistentState,
+    persistence::{CachedPersistentState, PersistenceReady, Transaction},
     player::PlayerId,
     player::PlayerPosition,
+    player::PlayerUsername,
     player::api::AddKillsToAristeia,
     player::protocol::{PlayerAristeia, PlayerHealth},
-    player::server::PlayerDeathTimer,
+    player::server::{PlayerDeathTimer, apply_death_penalty},
     player::shared::apply_damage_to_player,
     projectile::protocol::{self, ProjectileBuffer, ProjectileSource},
     protocol::rooms::GameRoom,
@@ -138,18 +139,21 @@ fn simulate_enemy_projectile_buffers(
         &mut PlayerHealth,
         &mut PlayerDeathTimer,
         Option<&CachedPersistentState>,
+        Option<&PlayerUsername>,
+        Has<PersistenceReady>,
     )>,
     mut enemies: Query<(&GameRoom, &mut ProjectileBuffer, &EnemyStats), Without<PlayerId>>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
+    mut transactions: MessageWriter<Transaction>,
 ) {
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
     let radius = settings.enemy.projectile_radius;
     let player_targets: Vec<(Entity, Vec2, GameRoom, bool)> = players
         .iter()
-        .map(|(entity, position, room, health, _, _)| {
+        .map(|(entity, position, room, health, _, _, _, _)| {
             (entity, position.0, *room, health.current > 0)
         })
         .collect();
@@ -185,8 +189,10 @@ fn simulate_enemy_projectile_buffers(
         });
     }
 
+    let mut rng = rand::rng();
     for (player_entity, raw_damage) in pending_hits {
-        let Ok((_, _, _, mut health, mut death_timer, cache)) = players.get_mut(player_entity)
+        let Ok((_, _, _, mut health, mut death_timer, cache, username, persistence_ready)) =
+            players.get_mut(player_entity)
         else {
             continue;
         };
@@ -203,6 +209,14 @@ fn simulate_enemy_projectile_buffers(
         apply_damage_to_player(&mut health, raw_damage, armor);
         if health.current == 0 {
             death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
+            apply_death_penalty(
+                &mut transactions,
+                &settings,
+                cache,
+                username,
+                persistence_ready,
+                &mut rng,
+            );
         }
     }
 }

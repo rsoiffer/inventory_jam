@@ -1,13 +1,14 @@
 use crate::app::ServerState;
 use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats};
-use crate::persistence::{CachedPersistentState, PersistenceReady};
+use crate::gate::GateTeleportCooldown;
+use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
 use crate::player::PlayerId;
 use crate::player::api::AddKillsToAristeia;
 use crate::player::protocol::{
-    PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerVisual,
+    PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerUsername,
+    PlayerVisual,
 };
 use crate::player::shared::{apply_damage_to_player, apply_player_aim, apply_player_movement};
-use crate::portal::PortalTeleportCooldown;
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::settings::GameSettings;
@@ -19,6 +20,7 @@ use leafwing_input_manager::prelude::*;
 use lightyear::connection::client::Connected;
 use lightyear::connection::client_of::ClientOf;
 use lightyear::prelude::*;
+use rand::Rng;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 struct EnemyContactDamageCooldown {
@@ -141,8 +143,8 @@ pub(crate) fn handle_connected(
             EnemyContactDamageCooldown::default(),
             PlayerDeathTimer::default(),
             ArenaHealthRegenAccumulator::default(),
-            PortalTeleportCooldown {
-                remaining_ticks: settings.portal.teleport_cooldown_ticks,
+            GateTeleportCooldown {
+                remaining_ticks: settings.gate.teleport_cooldown_ticks,
             },
             ActionState::<PlayerAction>::default(),
             Replicate::to_clients(NetworkTarget::All),
@@ -291,14 +293,27 @@ fn apply_enemy_contact_damage(
             &mut EnemyContactDamageCooldown,
             &mut PlayerDeathTimer,
             Option<&CachedPersistentState>,
+            Option<&PlayerUsername>,
+            Has<PersistenceReady>,
         ),
         With<ControlledBy>,
     >,
     enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind, &EnemyStats)>,
     settings: Res<GameSettings>,
+    mut transactions: MessageWriter<Transaction>,
 ) {
-    for (player_entity, player_position, room, mut health, mut cooldown, mut death_timer, cache) in
-        &mut players
+    let mut rng = rand::rng();
+    for (
+        player_entity,
+        player_position,
+        room,
+        mut health,
+        mut cooldown,
+        mut death_timer,
+        cache,
+        username,
+        persistence_ready,
+    ) in &mut players
     {
         cooldown.remaining_seconds = (cooldown.remaining_seconds - time.delta_secs()).max(0.0);
 
@@ -346,8 +361,45 @@ fn apply_enemy_contact_damage(
 
         if health.current == 0 {
             death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
+            apply_death_penalty(
+                &mut transactions,
+                &settings,
+                cache,
+                username,
+                persistence_ready,
+                &mut rng,
+            );
             info!(?player_entity, "Player died");
         }
+    }
+}
+
+pub(crate) fn apply_death_penalty(
+    transactions: &mut MessageWriter<Transaction>,
+    settings: &GameSettings,
+    cache: Option<&CachedPersistentState>,
+    username: Option<&PlayerUsername>,
+    persistence_ready: bool,
+    rng: &mut impl Rng,
+) {
+    if !persistence_ready {
+        return;
+    }
+    let Some(cache) = cache else {
+        return;
+    };
+    let Some(username) = username else {
+        return;
+    };
+    let progress = cache.weapon(cache.equipped_weapon_id);
+    if let Some(transaction) = Transaction::death_penalty(
+        username.0.clone(),
+        cache.equipped_weapon_id,
+        &progress,
+        &settings.progression,
+        rng,
+    ) {
+        transactions.write(transaction);
     }
 }
 
@@ -361,14 +413,14 @@ fn tick_player_death(
             &mut GameRoom,
             &mut PlayerHealth,
             &mut PlayerDeathTimer,
-            &mut PortalTeleportCooldown,
+            &mut GateTeleportCooldown,
         ),
         With<ControlledBy>,
     >,
 ) {
     let safezone_center = settings.world.safezone_bounds().center();
 
-    for (player_entity, mut position, mut room, mut health, mut death_timer, mut portal_cooldown) in
+    for (player_entity, mut position, mut room, mut health, mut death_timer, mut gate_cooldown) in
         &mut players
     {
         if health.current > 0 || death_timer.remaining_seconds <= 0.0 {
@@ -384,7 +436,7 @@ fn tick_player_death(
         health.current = health.maximum;
         room.room = GameRooms::Safezone;
         position.0 = safezone_center;
-        portal_cooldown.remaining_ticks = settings.portal.teleport_cooldown_ticks;
+        gate_cooldown.remaining_ticks = settings.gate.teleport_cooldown_ticks;
         info!(?player_entity, "Player respawned in the pit");
     }
 }

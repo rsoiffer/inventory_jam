@@ -1,10 +1,10 @@
 mod app;
 mod enemy;
 mod fragment;
+mod gate;
 mod networking;
 mod persistence;
 mod player;
-mod portal;
 mod projectile;
 mod protocol;
 #[cfg(feature = "server")]
@@ -26,9 +26,9 @@ use bevy::window::PresentMode;
 use bevy::winit::WinitSettings;
 use enemy::EnemyPlugin;
 use fragment::FragmentPlugin;
+use gate::GatePlugin;
 use persistence::PersistencePlugin;
 use player::PlayerPlugin;
-use portal::PortalPlugin;
 use projectile::ProjectilePlugin;
 #[cfg(feature = "server")]
 use server::ExampleServerPlugin;
@@ -83,7 +83,7 @@ fn run() -> Result<(), GameSettingsLoadError> {
 
     app.add_plugins((
         WorldPlugin,
-        PortalPlugin,
+        GatePlugin,
         WeaponStationPlugin,
         UiPlugin,
         LaunchPlugin,

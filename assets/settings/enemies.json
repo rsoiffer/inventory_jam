@@ -2,7 +2,7 @@
   "enemy": {
     "size": 16.0,
     "collision_radius": 8.0,
-    "despawn_distance_from_players": 320.0,
+    "despawn_distance_from_players": 960.0,
     "wander_radius": 144.0,
     "detection_radius": 160.0,
     "leash_radius": 240.0,
@@ -29,7 +29,7 @@
   },
   "spawner": {
     "count": 256,
-    "activation_radius": 256.0,
+    "activation_radius": 720.0,
     "max_owned": 12,
     "spawn_radius": 48.0,
     "spawn_rate_per_second": 2.0,

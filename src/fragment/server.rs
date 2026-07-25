@@ -161,14 +161,9 @@ fn simulate_server_fragments(
                 .min_by(|a, b| a.2.total_cmp(&b.2));
 
             if let Some((player, collector, _)) = nearest {
-                let Ok((username, cache)) = ready_players.get(player) else {
+                if ready_players.get(player).is_err() {
                     continue;
-                };
-                transactions.write(Transaction::add_weapon_fragments(
-                    username.0.clone(),
-                    cache.equipped_weapon_id,
-                    fragment.value,
-                ));
+                }
                 fragment.phase = FragmentPhase::StartingPull {
                     collector,
                     start_tick: tick,
@@ -182,6 +177,7 @@ fn simulate_server_fragments(
             continue;
         }
 
+        let previous_phase = fragment.phase;
         let target = fragment.phase.collector().and_then(|collector| {
             fragment_shared::collector_position(
                 collector,
@@ -199,6 +195,20 @@ fn simulate_server_fragments(
         }
 
         fragment_shared::tick_fragment(&mut fragment, target, tick, tick_secs, &settings.fragment);
+
+        if matches!(previous_phase, FragmentPhase::Moving { .. })
+            && let FragmentPhase::CollectingImpact { collector, .. } = fragment.phase
+            && let Some(player) = players.iter().find_map(|(player, id, _, _, predicted)| {
+                (id.0 == collector && !(is_host_server && predicted)).then_some(player)
+            })
+            && let Ok((username, cache)) = ready_players.get(player)
+        {
+            transactions.write(Transaction::add_weapon_fragments(
+                username.0.clone(),
+                cache.equipped_weapon_id,
+                fragment.value,
+            ));
+        }
 
         if matches!(fragment.phase, FragmentPhase::Gone) {
             commands.entity(entity).despawn();
