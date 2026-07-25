@@ -17,6 +17,7 @@ pub(crate) struct GameSettings {
     pub camera: CameraSettings,
     pub hud: HudSettings,
     pub player_visual: PlayerVisualSettings,
+    pub arena_floor: ArenaFloorSettings,
     pub player: PlayerSettings,
     pub world: WorldSettings,
     pub portal: PortalSettings,
@@ -44,6 +45,19 @@ pub struct PostProcessingSettings {
     pub portal_tint: Color,
     #[serde(deserialize_with = "deserialize_color")]
     pub username_text: Color,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ArenaFloorSettings {
+    pub bands: Vec<ArenaFloorBandSettings>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ArenaFloorBandSettings {
+    #[serde(deserialize_with = "deserialize_color")]
+    pub inner_tint: Color,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub outer_tint: Color,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -692,6 +706,13 @@ impl GameSettings {
             return Err(GameSettingsLoadError::Invalid(
                 "camera scale must be greater than zero and decay_rate cannot be negative".into(),
             ));
+        }
+        if self.arena_floor.bands.len() != self.spawner.tiers.len() {
+            return Err(GameSettingsLoadError::Invalid(format!(
+                "arena_floor bands ({}) must match spawner tiers ({})",
+                self.arena_floor.bands.len(),
+                self.spawner.tiers.len()
+            )));
         }
         if self.hud.width <= 0.0
             || self.hud.bar_height <= 0.0

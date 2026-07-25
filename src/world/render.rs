@@ -178,16 +178,18 @@ fn spawn_world_tile(
     settings: &GameSettings,
 ) -> Entity {
     let index = arena_floor_index(key.x, key.y, &settings.world.arena_floor_tiles);
+    let mut sprite = Sprite::from_atlas_image(
+        assets.arena_image.clone(),
+        TextureAtlas {
+            layout: assets.arena_layout.clone(),
+            index,
+        },
+    );
+    sprite.color = arena_floor_tint(world_position, settings);
     commands
         .spawn((
             WorldTile,
-            Sprite::from_atlas_image(
-                assets.arena_image.clone(),
-                TextureAtlas {
-                    layout: assets.arena_layout.clone(),
-                    index,
-                },
-            ),
+            sprite,
             Transform {
                 translation: world_position.extend(0.0),
                 ..default()
@@ -195,6 +197,28 @@ fn spawn_world_tile(
             Name::new("Arena Floor Tile"),
         ))
         .id()
+}
+
+fn arena_floor_tint(world_position: Vec2, settings: &GameSettings) -> Color {
+    let distance = world_position.length();
+    let tier_index = settings.spawner.tier_index_for_distance(distance) as usize;
+    let band = &settings.arena_floor.bands[tier_index];
+    let inner_radius = if tier_index == 0 {
+        0.0
+    } else {
+        settings.spawner.tiers[tier_index - 1].max_distance_from_center
+    };
+    let outer_radius = settings.spawner.tiers[tier_index].max_distance_from_center;
+    let span = (outer_radius - inner_radius).max(1.0);
+    let t = ((distance - inner_radius) / span).clamp(0.0, 1.0);
+    let inner = band.inner_tint.to_linear();
+    let outer = band.outer_tint.to_linear();
+    Color::LinearRgba(LinearRgba {
+        red: inner.red.lerp(outer.red, t),
+        green: inner.green.lerp(outer.green, t),
+        blue: inner.blue.lerp(outer.blue, t),
+        alpha: inner.alpha.lerp(outer.alpha, t),
+    })
 }
 
 fn arena_floor_index(x: i32, y: i32, arena_floor_tiles: &[usize]) -> usize {

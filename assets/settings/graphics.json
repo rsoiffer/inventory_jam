@@ -8,6 +8,22 @@
     "portal_tint": [2.0, 2.0, 2.0],
     "username_text": [1.5, 1.5, 2.4]
   },
+  "arena_floor": {
+    "bands": [
+      {
+        "inner_tint": [0.3, 0.3, 1.0],
+        "outer_tint": [0.5, 0.5, 1.0]
+      },
+      {
+        "inner_tint": [0.6, 0.7, 0.6],
+        "outer_tint": [0.6, 1.0, 1.0]
+      },
+      {
+        "inner_tint": [1.0, 0.6, 0.8],
+        "outer_tint": [1.0, 1.2, 1.5]
+      }
+    ]
+  },
   "camera": {
     "decay_rate": 5.0,
     "scale": 0.48
