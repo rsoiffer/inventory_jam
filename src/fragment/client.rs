@@ -37,9 +37,11 @@ fn simulate_client_fragments(
         let target = fragment.phase.collector().and_then(|collector| {
             fragment_shared::collector_position(
                 collector,
-                players.iter().filter_map(|(id, position, room, predicted)| {
-                    (room.room == GameRooms::Arena).then_some((id.0, position.0, predicted))
-                }),
+                players
+                    .iter()
+                    .filter_map(|(id, position, room, predicted)| {
+                        (room.room == GameRooms::Arena).then_some((id.0, position.0, predicted))
+                    }),
             )
         });
 

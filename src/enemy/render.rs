@@ -198,7 +198,7 @@ fn enemy_health_bar_layout(
     position: Vec2,
 ) -> (Vec2, f32) {
     let width = kind.display_size(settings.enemy.size);
-    let height = settings.player.health_bar_height;
+    let height = settings.player_visual.health_bar_height;
     (Vec2::new(width, height), position.y + width + height)
 }
 

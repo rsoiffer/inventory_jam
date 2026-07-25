@@ -1,4 +1,7 @@
 use crate::settings::GameSettings;
+use bevy::camera::ClearColorConfig;
+use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
+use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
@@ -6,9 +9,9 @@ use bevy::window::PrimaryWindow;
 use crate::app::ServerState;
 
 #[derive(Clone)]
-pub struct HelpTextPlugin;
+pub struct CameraPlugin;
 
-impl Plugin for HelpTextPlugin {
+impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, init);
         app.add_systems(Update, sync_camera_scale.run_if(not_hosting));
@@ -16,17 +19,29 @@ impl Plugin for HelpTextPlugin {
 }
 
 fn init(mut commands: Commands, settings: Res<GameSettings>) {
+    let post = &settings.post_processing;
     commands.spawn((
         Camera2d,
+        Camera {
+            clear_color: ClearColorConfig::Custom(post.clear_color),
+            ..default()
+        },
         Projection::Orthographic(OrthographicProjection {
-            scale: settings.player.camera_scale,
+            scale: settings.camera.scale,
             ..OrthographicProjection::default_2d()
         }),
+        Tonemapping::TonyMcMapface,
+        Bloom {
+            intensity: post.bloom_intensity,
+            low_frequency_boost: post.bloom_low_frequency_boost,
+            ..Bloom::OLD_SCHOOL
+        },
+        DebandDither::Enabled,
     ));
 }
 
 /// Keeps the visible world diagonal constant across resolutions, matching the
-/// default 1024x768 window at `player.camera_scale`.
+/// default 1024x768 window at `camera.scale`.
 fn sync_camera_scale(
     window: Single<&Window, With<PrimaryWindow>>,
     mut camera: Single<&mut Projection, With<Camera2d>>,
@@ -38,7 +53,7 @@ fn sync_camera_scale(
 
     const REFERENCE_DIAGONAL: f32 = 1280.0; // hypot(1024, 768)
     let diagonal = window.width().hypot(window.height()).max(1.0);
-    orthographic.scale = settings.player.camera_scale * REFERENCE_DIAGONAL / diagonal;
+    orthographic.scale = settings.camera.scale * REFERENCE_DIAGONAL / diagonal;
 }
 
 #[cfg(feature = "server")]

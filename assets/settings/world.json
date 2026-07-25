@@ -11,102 +11,61 @@
     "safezone_gap_in_tiles": 128,
     "stream_half_width": 28,
     "stream_half_height": 20,
-    "arena_floor_tiles": [
-      35,
-      36,
-      37,
-      43,
-      44,
-      45,
-      51,
-      52,
-      53
-    ],
+    "arena_floor_tiles": [35, 36, 37, 43, 44, 45, 51, 52, 53],
     "arena_tileset": {
       "path": "world_tiles/spr_tileset_arena_main.png",
-      "cell": [
-        16,
-        16
-      ],
+      "cell": [16, 16],
       "columns": 8,
       "rows": 11
     },
     "safezone": {
-      "background_color": [
-        0.08,
-        0.1,
-        0.14
-      ],
+      "background_color": [0.08, 0.1, 0.14],
       "wall_ring_thickness": 3,
-      "wall_tile": [
-        6,
-        0
-      ],
+      "wall_tile": [6, 0],
       "tileset": {
         "path": "world_tiles/spr_tileset_safezone.png",
-        "cell": [
-          16,
-          16
-        ],
+        "cell": [16, 16],
         "columns": 9,
         "rows": 9
       },
       "floors": [
         {
-          "center_tile": [
-            1,
-            1
-          ],
+          "center_tile": [1, 1],
           "x": 8,
           "y": 8,
           "width": 24,
           "height": 16
         },
         {
-          "center_tile": [
-            1,
-            4
-          ],
+          "center_tile": [1, 4],
           "x": 16,
           "y": 14,
           "width": 8,
           "height": 4
         },
         {
-          "center_tile": [
-            4,
-            1
-          ],
+          "center_tile": [4, 1],
           "x": 10,
           "y": 18,
           "width": 8,
           "height": 6
         },
         {
-          "center_tile": [
-            4,
-            4
-          ],
+          "center_tile": [4, 4],
           "x": 24,
           "y": 10,
           "width": 6,
           "height": 6
         },
         {
-          "center_tile": [
-            4,
-            1
-          ],
+          "center_tile": [4, 1],
           "x": 6,
           "y": 1,
           "width": 28,
           "height": 4
         },
         {
-          "center_tile": [
-            4,
-            1
-          ],
+          "center_tile": [4, 1],
           "x": 35,
           "y": 5,
           "width": 4,
@@ -115,34 +74,22 @@
       ],
       "props": [
         {
-          "tile": [
-            8,
-            0
-          ],
+          "tile": [8, 0],
           "x": 20,
           "y": 16
         },
         {
-          "tile": [
-            7,
-            0
-          ],
+          "tile": [7, 0],
           "x": 18,
           "y": 14
         },
         {
-          "tile": [
-            6,
-            1
-          ],
+          "tile": [6, 1],
           "x": 24,
           "y": 12
         },
         {
-          "tile": [
-            8,
-            1
-          ],
+          "tile": [8, 1],
           "x": 16,
           "y": 16
         }
@@ -155,105 +102,60 @@
     "arena_edge_inset": 48.0,
     "placement_attempts": 64,
     "teleport_cooldown_ticks": 30,
-    "safezone_portal_offset": [
-      0.0,
-      120.0
-    ]
-  },
-  "server_camera": {
-    "zoom_speed": 1.8,
-    "min_scale": 0.05,
-    "max_scale": 100.0,
-    "pan_speed_in_screen_heights": 0.8
+    "safezone_portal_offset": [0.0, 120.0]
   },
   "weapon_stations": {
     "trigger_radius": 16.0,
     "stations": [
       {
         "weapon_id": 0,
-        "offset": [
-          -200.0,
-          -216.0
-        ]
+        "offset": [-200.0, -216.0]
       },
       {
         "weapon_id": 1,
-        "offset": [
-          -120.0,
-          -216.0
-        ]
+        "offset": [-120.0, -216.0]
       },
       {
         "weapon_id": 2,
-        "offset": [
-          -40.0,
-          -216.0
-        ]
+        "offset": [-40.0, -216.0]
       },
       {
         "weapon_id": 3,
-        "offset": [
-          40.0,
-          -216.0
-        ]
+        "offset": [40.0, -216.0]
       },
       {
         "weapon_id": 4,
-        "offset": [
-          120.0,
-          -216.0
-        ]
+        "offset": [120.0, -216.0]
       },
       {
         "weapon_id": 5,
-        "offset": [
-          200.0,
-          -216.0
-        ]
+        "offset": [200.0, -216.0]
       }
     ],
     "upgrade_stations": [
       {
         "kind": "damage",
-        "offset": [
-          272.0,
-          160.0
-        ]
+        "offset": [272.0, 160.0]
       },
       {
         "kind": "attack_speed",
-        "offset": [
-          272.0,
-          96.0
-        ]
+        "offset": [272.0, 96.0]
       },
       {
         "kind": "pierce",
-        "offset": [
-          272.0,
-          32.0
-        ]
+        "offset": [272.0, 32.0]
       },
       {
         "kind": "crit",
-        "offset": [
-          272.0,
-          -32.0
-        ]
+        "offset": [272.0, -32.0]
       },
       {
         "kind": "armor",
-        "offset": [
-          272.0,
-          -96.0
-        ]
+        "offset": [272.0, -96.0]
       },
       {
         "kind": "max_health",
-        "offset": [
-          272.0,
-          -160.0
-        ]
+        "offset": [272.0, -160.0]
       }
     ]
   }

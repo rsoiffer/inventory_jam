@@ -76,7 +76,7 @@ fn sync_weapon_sprites(
             visual.id = cache.equipped_weapon_id;
         }
 
-        let visual_position = position.0 + direction * settings.player.held_weapon_offset;
+        let visual_position = position.0 + direction * settings.player_visual.held_weapon_offset;
         transform.translation = visual_position.extend(10.0);
         transform.rotation = Quat::from_rotation_z(direction.y.atan2(direction.x));
         transform.scale = Vec3::ONE;

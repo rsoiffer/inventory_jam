@@ -88,6 +88,8 @@ bevy = { version = "0.19", default-features = false, features = [
     "bevy_winit",
     "default_font",
     "multi_threaded",
+    "tonemapping_luts",
+    "zstd_rust",
     "webgl2",
     "x11",
     "wayland",

@@ -1,0 +1,41 @@
+{
+  "post_processing": {
+    "clear_color": [0.02, 0.02, 0.05],
+    "bloom_intensity": 0.15,
+    "bloom_low_frequency_boost": 0.7,
+    "projectile_tint": [2.0, 2.0, 2.0],
+    "fragment_tint": [2.0, 2.0, 2.0],
+    "portal_tint": [2.0, 2.0, 2.0],
+    "username_text": [1.5, 1.5, 2.4]
+  },
+  "camera": {
+    "decay_rate": 5.0,
+    "scale": 0.48
+  },
+  "hud": {
+    "width": 240.0,
+    "bar_height": 12.0,
+    "inset": 16.0,
+    "row_gap": 8.0,
+    "padding": 10.0
+  },
+  "player_visual": {
+    "username_label_offset": [0.0, 26.0, 10.0],
+    "aim_smooth_rate": 35.0,
+    "health_bar_width": 32.0,
+    "health_bar_height": 3.2,
+    "health_bar_offset_y": 22.0,
+    "held_weapon_offset": 12.0
+  },
+  "menu": {
+    "normal_button": [0.18, 0.2, 0.24],
+    "hovered_button": [0.28, 0.32, 0.38],
+    "pressed_button": [0.12, 0.55, 0.35]
+  },
+  "server_camera": {
+    "zoom_speed": 1.8,
+    "min_scale": 0.05,
+    "max_scale": 100.0,
+    "pan_speed_in_screen_heights": 0.8
+  }
+}

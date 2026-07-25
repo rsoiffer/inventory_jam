@@ -1,5 +1,5 @@
 #[cfg(feature = "gui")]
-mod help_text;
+mod camera;
 
 #[cfg(feature = "gui")]
 mod hud;
@@ -19,7 +19,7 @@ use bevy::app::{App, Plugin};
 use crate::app::LaunchMode;
 
 #[cfg(feature = "gui")]
-use help_text::HelpTextPlugin;
+use camera::CameraPlugin;
 
 #[cfg(feature = "gui")]
 use hud::HudPlugin;
@@ -41,7 +41,7 @@ impl Plugin for UiPlugin {
         {
             use crate::app;
 
-            app.add_plugins(HelpTextPlugin);
+            app.add_plugins(CameraPlugin);
             app.add_plugins(HudPlugin);
             app.add_plugins(MobileControlsPlugin);
 

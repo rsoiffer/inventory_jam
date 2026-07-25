@@ -44,7 +44,7 @@ fn spawn_hud(
         return;
     }
 
-    let bar_height = settings.player.hud_bar_height;
+    let bar_height = settings.hud.bar_height;
 
     commands
         .spawn((
@@ -52,12 +52,12 @@ fn spawn_hud(
             Name::new("Gameplay HUD"),
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(settings.player.hud_inset),
-                top: Val::Px(settings.player.hud_inset),
-                width: Val::Px(settings.player.hud_width),
+                left: Val::Px(settings.hud.inset),
+                top: Val::Px(settings.hud.inset),
+                width: Val::Px(settings.hud.width),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(settings.player.hud_row_gap),
-                padding: UiRect::all(Val::Px(settings.player.hud_padding)),
+                row_gap: Val::Px(settings.hud.row_gap),
+                padding: UiRect::all(Val::Px(settings.hud.padding)),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.03, 0.03, 0.04, 0.82)),

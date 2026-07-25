@@ -13,6 +13,10 @@ pub(crate) struct GameSettings {
     pub enemy: EnemySettings,
     pub spawner: SpawnerSettings,
     pub fragment: FragmentSettings,
+    pub post_processing: PostProcessingSettings,
+    pub camera: CameraSettings,
+    pub hud: HudSettings,
+    pub player_visual: PlayerVisualSettings,
     pub player: PlayerSettings,
     pub world: WorldSettings,
     pub portal: PortalSettings,
@@ -24,6 +28,22 @@ pub(crate) struct GameSettings {
     pub menu: MenuSettings,
     pub mobile_controls: MobileControlsSettings,
     pub global_aristeia: GlobalAristeiaSettings,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PostProcessingSettings {
+    #[serde(deserialize_with = "deserialize_color")]
+    pub clear_color: Color,
+    pub bloom_intensity: f32,
+    pub bloom_low_frequency_boost: f32,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub projectile_tint: Color,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub fragment_tint: Color,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub portal_tint: Color,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub username_text: Color,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -108,31 +128,41 @@ pub struct FragmentSettings {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct PlayerSettings {
-    pub camera_decay_rate: f32,
-    pub camera_scale: f32,
+pub struct CameraSettings {
+    pub decay_rate: f32,
+    pub scale: f32,
+}
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct HudSettings {
+    pub width: f32,
+    pub bar_height: f32,
+    pub inset: f32,
+    pub row_gap: f32,
+    pub padding: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlayerVisualSettings {
     #[serde(deserialize_with = "deserialize_vec3")]
     pub username_label_offset: Vec3,
-
-    pub aim_visual_smooth_rate: f32,
+    pub aim_smooth_rate: f32,
     pub health_bar_width: f32,
     pub health_bar_height: f32,
     pub health_bar_offset_y: f32,
+    pub held_weapon_offset: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlayerSettings {
     pub maximum_health: u32,
     pub enemy_contact_damage_interval_seconds: f32,
     pub death_screen_duration_seconds: f32,
     pub half_size: f32,
     pub collision_radius: f32,
     pub move_speed: f32,
-    pub held_weapon_offset: f32,
     pub arena_health_regen_fraction_per_second: f32,
     pub aristeia_duration_ticks: u16,
-    pub hud_width: f32,
-    pub hud_bar_height: f32,
-    pub hud_inset: f32,
-    pub hud_row_gap: f32,
-    pub hud_padding: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -432,7 +462,7 @@ pub struct MobileControlsSettings {
 }
 
 impl GameSettings {
-    const SETTINGS_FILES: &[&str] = &["world.json", "player.json", "enemies.json"];
+    const SETTINGS_FILES: &[&str] = &["world.json", "player.json", "enemies.json", "graphics.json"];
 
     pub fn load(path: impl AsRef<Path>) -> Result<Self, GameSettingsLoadError> {
         let directory = path.as_ref();
@@ -485,6 +515,7 @@ impl GameSettings {
                 "world.json" => include_str!("../../assets/settings/world.json"),
                 "player.json" => include_str!("../../assets/settings/player.json"),
                 "enemies.json" => include_str!("../../assets/settings/enemies.json"),
+                "graphics.json" => include_str!("../../assets/settings/graphics.json"),
                 _ => {
                     return Err(GameSettingsLoadError::Invalid(format!(
                         "unknown embedded settings file {file_name}"
@@ -649,20 +680,49 @@ impl GameSettings {
                 )));
             }
         }
-        if self.player.camera_scale <= 0.0
-            || self.player.maximum_health == 0
-            || self.player.death_screen_duration_seconds <= 0.0
-            || self.player.held_weapon_offset < 0.0
-            || self.player.enemy_contact_damage_interval_seconds <= 0.0
-            || self.player.arena_health_regen_fraction_per_second < 0.0
-            || self.player.hud_width <= 0.0
-            || self.player.hud_bar_height <= 0.0
-            || self.player.hud_inset < 0.0
-            || self.player.hud_row_gap < 0.0
-            || self.player.hud_padding < 0.0
+        if self.post_processing.bloom_intensity < 0.0
+            || self.post_processing.bloom_low_frequency_boost < 0.0
         {
             return Err(GameSettingsLoadError::Invalid(
-                "player camera_scale, maximum_health, death_screen_duration_seconds, held_weapon_offset, enemy_contact_damage_interval_seconds, arena_health_regen_fraction_per_second, and hud layout settings are invalid".into(),
+                "post_processing bloom_intensity and bloom_low_frequency_boost cannot be negative"
+                    .into(),
+            ));
+        }
+        if self.camera.scale <= 0.0 || self.camera.decay_rate < 0.0 {
+            return Err(GameSettingsLoadError::Invalid(
+                "camera scale must be greater than zero and decay_rate cannot be negative".into(),
+            ));
+        }
+        if self.hud.width <= 0.0
+            || self.hud.bar_height <= 0.0
+            || self.hud.inset < 0.0
+            || self.hud.row_gap < 0.0
+            || self.hud.padding < 0.0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "hud layout settings are invalid".into(),
+            ));
+        }
+        if self.player_visual.aim_smooth_rate < 0.0
+            || self.player_visual.health_bar_width <= 0.0
+            || self.player_visual.health_bar_height <= 0.0
+            || self.player_visual.held_weapon_offset < 0.0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "player_visual settings are invalid".into(),
+            ));
+        }
+        if self.player.maximum_health == 0
+            || self.player.death_screen_duration_seconds <= 0.0
+            || self.player.enemy_contact_damage_interval_seconds <= 0.0
+            || self.player.arena_health_regen_fraction_per_second < 0.0
+            || self.player.half_size <= 0.0
+            || self.player.collision_radius <= 0.0
+            || self.player.move_speed <= 0.0
+            || self.player.aristeia_duration_ticks == 0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "player gameplay settings are invalid".into(),
             ));
         }
         if self.portal.trigger_radius <= 0.0

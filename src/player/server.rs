@@ -13,6 +13,7 @@ use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::settings::GameSettings;
 use crate::shared::FixedGameplaySet;
 use bevy::prelude::*;
+#[cfg(feature = "gui")]
 use bevy::window::PrimaryWindow;
 use leafwing_input_manager::prelude::*;
 use lightyear::connection::client::Connected;
@@ -51,10 +52,17 @@ impl Plugin for PlayerServerPlugin {
                 regenerate_arena_health,
                 apply_enemy_contact_damage,
                 tick_player_death,
-                control_dedicated_server_camera,
                 tick_player_aristeia,
             )
                 .chain()
+                .in_set(FixedGameplaySet::Player)
+                .run_if(in_state(ServerState::Hosting)),
+        );
+
+        #[cfg(feature = "gui")]
+        app.add_systems(
+            FixedUpdate,
+            control_dedicated_server_camera
                 .in_set(FixedGameplaySet::Player)
                 .run_if(in_state(ServerState::Hosting)),
         );
@@ -381,6 +389,7 @@ fn tick_player_death(
     }
 }
 
+#[cfg(feature = "gui")]
 fn control_dedicated_server_camera(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,

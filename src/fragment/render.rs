@@ -95,6 +95,7 @@ fn load_fragment_sprite_assets(
 fn ensure_fragment_sprites(
     mut commands: Commands,
     assets: Res<FragmentSpriteAssets>,
+    settings: Res<GameSettings>,
     fragments: Query<(Entity, &Fragment, Option<&FragmentSpritePhase>)>,
 ) {
     for (entity, fragment, sprite_phase) in &fragments {
@@ -112,14 +113,16 @@ fn ensure_fragment_sprites(
             continue;
         }
 
+        let mut sprite = Sprite::from_atlas_image(
+            sheet.image.clone(),
+            TextureAtlas {
+                layout: sheet.layout.clone(),
+                index: 0,
+            },
+        );
+        sprite.color = settings.post_processing.fragment_tint;
         commands.entity(entity).insert((
-            Sprite::from_atlas_image(
-                sheet.image.clone(),
-                TextureAtlas {
-                    layout: sheet.layout.clone(),
-                    index: 0,
-                },
-            ),
+            sprite,
             Visibility::Visible,
             FragmentSpritePhase(fragment.phase),
             FragmentAnimation {
@@ -146,7 +149,7 @@ fn sync_fragment_sprites(
             continue;
         }
 
-        transform.translation = fragment.position.extend(7.0);
+        transform.translation = fragment.position.extend(5.0);
         transform.rotation = if matches!(fragment.phase, FragmentPhase::Moving { .. })
             && fragment.movement.length_squared() > f32::EPSILON
         {

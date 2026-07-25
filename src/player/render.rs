@@ -211,8 +211,8 @@ fn ensure_player_health_bars(
     backgrounds: Query<&PlayerHealthBarBackground>,
 ) {
     let bar_size = Vec2::new(
-        settings.player.health_bar_width,
-        settings.player.health_bar_height,
+        settings.player_visual.health_bar_width,
+        settings.player_visual.health_bar_height,
     );
 
     for (player, position) in &players {
@@ -220,7 +220,7 @@ fn ensure_player_health_bars(
             continue;
         }
 
-        let center = position.0 + Vec2::new(0.0, settings.player.health_bar_offset_y);
+        let center = position.0 + Vec2::new(0.0, settings.player_visual.health_bar_offset_y);
 
         commands.spawn((
             PlayerHealthBarBackground { player },
@@ -257,8 +257,8 @@ fn sync_player_health_bars(
     >,
 ) {
     let full_size = Vec2::new(
-        settings.player.health_bar_width,
-        settings.player.health_bar_height,
+        settings.player_visual.health_bar_width,
+        settings.player_visual.health_bar_height,
     );
 
     for (entity, bar, mut sprite, mut transform) in &mut backgrounds {
@@ -269,7 +269,7 @@ fn sync_player_health_bars(
 
         sprite.color = Color::srgb(0.15, 0.05, 0.05);
         sprite.custom_size = Some(full_size);
-        transform.translation = (position.0 + Vec2::new(0.0, settings.player.health_bar_offset_y))
+        transform.translation = (position.0 + Vec2::new(0.0, settings.player_visual.health_bar_offset_y))
             .extend(PLAYER_HEALTH_BAR_Z);
     }
 
@@ -291,7 +291,7 @@ fn sync_player_health_bars(
         transform.translation = (position.0
             + Vec2::new(
                 (fill_size.x - full_size.x) * 0.5,
-                settings.player.health_bar_offset_y,
+                settings.player_visual.health_bar_offset_y,
             ))
         .extend(PLAYER_HEALTH_BAR_Z + 0.1);
     }
@@ -325,7 +325,7 @@ fn sync_username_labels(
             .find(|(_, label, _, _)| label.player == player);
 
         if let Some((_, _, mut transform, mut text)) = existing_label {
-            transform.translation = position.0.extend(0.0) + settings.player.username_label_offset;
+            transform.translation = position.0.extend(0.0) + settings.player_visual.username_label_offset;
 
             if text.0 != label_text {
                 text.0 = label_text;
@@ -341,10 +341,10 @@ fn sync_username_labels(
                 font_size: FontSize::Px(18.0),
                 ..default()
             },
-            TextColor(Color::WHITE),
+            TextColor(settings.post_processing.username_text),
             Anchor::BOTTOM_CENTER,
             Transform::from_translation(
-                position.0.extend(0.0) + settings.player.username_label_offset,
+                position.0.extend(0.0) + settings.player_visual.username_label_offset,
             )
             .with_scale(Vec3::splat(0.48)),
         ));
@@ -372,7 +372,7 @@ fn update_camera(
     } else {
         camera.translation.smooth_nudge(
             &target,
-            settings.player.camera_decay_rate,
+            settings.camera.decay_rate,
             time.delta_secs(),
         );
     }
@@ -414,7 +414,7 @@ fn smooth_local_aim_visual(
     time: Res<Time>,
     mut players: Query<(&PlayerAimDirection, &mut SmoothedAimDirection), With<Predicted>>,
 ) {
-    let interpolation = 1.0 - (-settings.player.aim_visual_smooth_rate * time.delta_secs()).exp();
+    let interpolation = 1.0 - (-settings.player_visual.aim_smooth_rate * time.delta_secs()).exp();
 
     for (target, mut smoothed) in &mut players {
         let target_direction = target.0.normalize_or_zero();

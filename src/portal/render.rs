@@ -1,5 +1,6 @@
 use crate::app::game_is_active;
 use crate::portal::{PortalKind, PortalPosition};
+use crate::settings::GameSettings;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
@@ -62,6 +63,7 @@ fn load_portal_visual_assets(
 fn ensure_portal_sprites(
     mut commands: Commands,
     assets: Res<PortalVisualAssets>,
+    settings: Res<GameSettings>,
     portals: Query<
         Entity,
         (
@@ -72,14 +74,16 @@ fn ensure_portal_sprites(
     >,
 ) {
     for entity in &portals {
+        let mut sprite = Sprite::from_atlas_image(
+            assets.image.clone(),
+            TextureAtlas {
+                layout: assets.layout.clone(),
+                index: 0,
+            },
+        );
+        sprite.color = settings.post_processing.portal_tint;
         commands.entity(entity).insert((
-            Sprite::from_atlas_image(
-                assets.image.clone(),
-                TextureAtlas {
-                    layout: assets.layout.clone(),
-                    index: 0,
-                },
-            ),
+            sprite,
             Anchor::CENTER,
             Transform {
                 translation: Vec3::new(0.0, 0.0, PORTAL_SPRITE_Z),

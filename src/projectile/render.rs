@@ -114,6 +114,7 @@ fn load_projectile_visual_assets(
 fn sync_buffer_visuals(
     mut commands: Commands,
     assets: Res<ProjectileVisualAssets>,
+    settings: Res<GameSettings>,
     buffers: Query<
         (Entity, &ProjectileBuffer),
         Or<(With<Predicted>, With<Interpolated>, With<Replicate>)>,
@@ -121,6 +122,7 @@ fn sync_buffer_visuals(
     mut visuals: Query<(Entity, &ProjectileVisualKey, &mut Transform)>,
 ) {
     let mut live_keys = Vec::new();
+    let tint = settings.post_processing.projectile_tint;
 
     for (owner, buffer) in &buffers {
         for (slot_index, slot) in buffer.slots.iter().enumerate() {
@@ -161,6 +163,14 @@ fn sync_buffer_visuals(
             let Some(visual) = assets.get(*source, is_impact) else {
                 continue;
             };
+            let mut sprite = Sprite::from_atlas_image(
+                visual.image.clone(),
+                TextureAtlas {
+                    layout: visual.layout.clone(),
+                    index: 0,
+                },
+            );
+            sprite.color = tint;
             commands.spawn((
                 key,
                 Name::new(if is_impact {
@@ -168,13 +178,7 @@ fn sync_buffer_visuals(
                 } else {
                     "Projectile Visual"
                 }),
-                Sprite::from_atlas_image(
-                    visual.image.clone(),
-                    TextureAtlas {
-                        layout: visual.layout.clone(),
-                        index: 0,
-                    },
-                ),
+                sprite,
                 SpriteAnimation {
                     last_frame: visual.frame_count.saturating_sub(1),
                     timer: Timer::from_seconds(visual.frame_seconds, TimerMode::Repeating),
