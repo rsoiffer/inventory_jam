@@ -286,7 +286,6 @@ fn apply_enemy_contact_damage(
     time: Res<Time>,
     mut players: Query<
         (
-            Entity,
             &PlayerPosition,
             &GameRoom,
             &mut PlayerHealth,
@@ -304,7 +303,6 @@ fn apply_enemy_contact_damage(
 ) {
     let mut rng = rand::rng();
     for (
-        player_entity,
         player_position,
         room,
         mut health,
@@ -347,17 +345,8 @@ fn apply_enemy_contact_damage(
                     .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
             })
             .unwrap_or(0);
-        let damage = apply_damage_to_player(&mut health, raw_damage, armor);
+        apply_damage_to_player(&mut health, raw_damage, armor);
         cooldown.remaining_seconds = settings.player.enemy_contact_damage_interval_seconds;
-
-        info!(
-            ?player_entity,
-            damage,
-            armor,
-            current_health = health.current,
-            maximum_health = health.maximum,
-            "Player took enemy contact damage"
-        );
 
         if health.current == 0 {
             death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
@@ -369,7 +358,6 @@ fn apply_enemy_contact_damage(
                 persistence_ready,
                 &mut rng,
             );
-            info!(?player_entity, "Player died");
         }
     }
 }
@@ -408,7 +396,6 @@ fn tick_player_death(
     settings: Res<GameSettings>,
     mut players: Query<
         (
-            Entity,
             &mut PlayerPosition,
             &mut GameRoom,
             &mut PlayerHealth,
@@ -420,9 +407,7 @@ fn tick_player_death(
 ) {
     let safezone_center = settings.world.safezone_bounds().center();
 
-    for (player_entity, mut position, mut room, mut health, mut death_timer, mut gate_cooldown) in
-        &mut players
-    {
+    for (mut position, mut room, mut health, mut death_timer, mut gate_cooldown) in &mut players {
         if health.current > 0 || death_timer.remaining_seconds <= 0.0 {
             continue;
         }
@@ -437,7 +422,6 @@ fn tick_player_death(
         room.room = GameRooms::Safezone;
         position.0 = safezone_center;
         gate_cooldown.remaining_ticks = settings.gate.teleport_cooldown_ticks;
-        info!(?player_entity, "Player respawned in the pit");
     }
 }
 
