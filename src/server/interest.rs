@@ -3,7 +3,7 @@ use lightyear::prelude::*;
 
 use crate::{
     app::ServerState,
-    enemy::{EnemyPosition, EnemySpawnerPosition},
+    enemy::{EnemyKind, EnemyPosition, EnemySpawnerPosition},
     fragment::Fragment,
     gate::{GateKind, GatePosition},
     player::{PlayerId, PlayerPosition},
@@ -30,7 +30,7 @@ fn update_interest_visibility(
     settings: Res<GameSettings>,
     viewers: Query<(&PlayerPosition, &GameRoom, &ControlledBy), With<PlayerId>>,
     players: Query<(Entity, &PlayerPosition, &GameRoom), With<PlayerId>>,
-    enemies: Query<(Entity, &EnemyPosition, &GameRoom)>,
+    enemies: Query<(Entity, &EnemyPosition, &EnemyKind, &GameRoom)>,
     spawners: Query<(Entity, &EnemySpawnerPosition, &GameRoom)>,
     fragments: Query<(Entity, &Fragment)>,
     gates: Query<(Entity, &GateKind, &GatePosition)>,
@@ -50,14 +50,11 @@ fn update_interest_visibility(
             );
         }
 
-        for (entity, position, room) in &enemies {
-            set_visibility(
-                &mut commands,
-                entity,
-                sender,
-                room.room == viewer_room.room
-                    && viewer_position.0.distance_squared(position.0) <= radius_sq,
-            );
+        for (entity, position, kind, room) in &enemies {
+            let visible = *kind == EnemyKind::GrandChampion
+                || (room.room == viewer_room.room
+                    && viewer_position.0.distance_squared(position.0) <= radius_sq);
+            set_visibility(&mut commands, entity, sender, visible);
         }
 
         for (entity, position, room) in &spawners {

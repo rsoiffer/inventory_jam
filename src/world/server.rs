@@ -1,9 +1,14 @@
 use bevy::prelude::*;
+#[cfg(feature = "dev")]
+use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
 
+#[cfg(feature = "dev")]
+use crate::protocol::inputs::PlayerAction;
 use crate::{
     app::ServerState,
     enemy::{EnemyKind, api::SpawnEnemy, server::EnemySpawnSet},
+    player::PlayerId,
     player::protocol::{PlayerAristeia, PlayerHealth, PlayerPosition},
     protocol::rooms::{GameRoom, GameRooms},
     settings::GameSettings,
@@ -13,6 +18,9 @@ use crate::{
         api::{AddGlobalAristeia, GrandChampionDefeated},
     },
 };
+
+#[cfg(feature = "dev")]
+const DEBUG_GLOBAL_ARISTEIA_BOOST: u32 = 500;
 
 pub struct WorldServerPlugin;
 
@@ -24,12 +32,32 @@ impl Plugin for WorldServerPlugin {
         app.add_systems(
             FixedUpdate,
             (
+                #[cfg(feature = "dev")]
+                debug_boost_global_aristeia,
                 (apply_global_aristeia, drain_global_aristeia).chain(),
                 spawn_grand_champion_when_ready.in_set(EnemySpawnSet::Request),
                 reset_global_aristeia_on_boss_death.after(FixedGameplaySet::Projectile),
             )
                 .run_if(in_state(ServerState::Hosting)),
         );
+    }
+}
+
+#[cfg(feature = "dev")]
+fn debug_boost_global_aristeia(
+    players: Query<(&ActionState<PlayerAction>, Has<Predicted>), With<PlayerId>>,
+    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    mut global_aristeia: MessageWriter<AddGlobalAristeia>,
+) {
+    let skip_predicted = !host_server.is_empty();
+    for (actions, predicted) in &players {
+        if skip_predicted && predicted {
+            continue;
+        }
+        if actions.just_pressed(&PlayerAction::DebugBoostGlobalAristeia) {
+            global_aristeia.write(AddGlobalAristeia(DEBUG_GLOBAL_ARISTEIA_BOOST));
+            info!("Dev: boosted global Aristeia by {DEBUG_GLOBAL_ARISTEIA_BOOST}");
+        }
     }
 }
 

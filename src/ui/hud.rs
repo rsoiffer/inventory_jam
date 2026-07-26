@@ -1,10 +1,12 @@
 use crate::app::ClientState;
-use crate::enemy::{EnemyHealth, EnemyKind};
+use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition};
 use crate::persistence::CachedPersistentState;
 use crate::player::protocol::PlayerAristeia;
 use crate::settings::GameSettings;
 use crate::world::GlobalAristeia;
+use bevy::camera::{Camera, Camera2d};
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use lightyear::prediction::Predicted;
 use lightyear::prelude::Controlled;
 
@@ -14,7 +16,12 @@ impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(ClientState::Playing), spawn_hud);
         app.add_systems(OnExit(ClientState::Playing), despawn_hud);
-        app.add_systems(Update, update_hud.run_if(in_state(ClientState::Playing)));
+        app.add_systems(
+            Update,
+            (update_hud, update_boss_direction_indicator)
+                .chain()
+                .run_if(in_state(ClientState::Playing)),
+        );
     }
 }
 
@@ -36,8 +43,12 @@ struct GlobalAristeiaText;
 #[derive(Component)]
 struct GlobalAristeiaBarFill;
 
+#[derive(Component)]
+struct BossDirectionIndicator;
+
 fn spawn_hud(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     settings: Res<GameSettings>,
     existing: Query<Entity, With<HudRoot>>,
 ) {
@@ -46,6 +57,7 @@ fn spawn_hud(
     }
 
     let bar_height = settings.hud.bar_height;
+    let indicator_size = settings.hud.boss_indicator_size;
 
     commands
         .spawn((
@@ -150,11 +162,36 @@ fn spawn_hud(
                     });
                 });
         });
+
+    commands.spawn((
+        BossDirectionIndicator,
+        Name::new("Boss Direction Indicator"),
+        ImageNode::new(asset_server.load(settings.hud.boss_indicator_path.clone()))
+            .with_color(settings.hud.boss_indicator_color),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            width: Val::Px(indicator_size),
+            height: Val::Px(indicator_size),
+            ..default()
+        },
+        UiTransform::default(),
+        Visibility::Hidden,
+        ZIndex(20),
+    ));
 }
 
-fn despawn_hud(mut commands: Commands, roots: Query<Entity, With<HudRoot>>) {
+fn despawn_hud(
+    mut commands: Commands,
+    roots: Query<Entity, With<HudRoot>>,
+    indicators: Query<Entity, With<BossDirectionIndicator>>,
+) {
     for root in &roots {
         commands.entity(root).despawn();
+    }
+    for indicator in &indicators {
+        commands.entity(indicator).despawn();
     }
 }
 
@@ -247,4 +284,90 @@ fn update_hud(
             *color = BackgroundColor(Color::srgb(0.75, 0.2, 0.95));
         }
     }
+}
+
+fn update_boss_direction_indicator(
+    settings: Res<GameSettings>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    bosses: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
+    mut indicator: Query<
+        (&mut Node, &mut UiTransform, &mut Visibility),
+        With<BossDirectionIndicator>,
+    >,
+) {
+    let Ok((mut node, mut transform, mut visibility)) = indicator.single_mut() else {
+        return;
+    };
+    let Ok(window) = window.single() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Ok((camera, camera_transform)) = camera.single() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    let Some(boss_position) = bosses.iter().find_map(|(position, health, kind)| {
+        (*kind == EnemyKind::GrandChampion && health.current > 0).then_some(position.0)
+    }) else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    let Ok(screen_pos) = camera.world_to_viewport(camera_transform, boss_position.extend(0.0))
+    else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    let screen_size = Vec2::new(window.width(), window.height());
+    let margin = settings.hud.boss_indicator_margin;
+    let size = settings.hud.boss_indicator_size;
+    let (edge_pos, onscreen) = clamp_to_screen_edge(screen_pos, screen_size, margin);
+    if onscreen {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    let center = screen_size * 0.5;
+    let direction = (screen_pos - center).normalize_or_zero();
+    let angle = if direction == Vec2::ZERO {
+        0.0
+    } else {
+        direction.y.atan2(direction.x)
+    };
+
+    node.left = Val::Px(edge_pos.x - size * 0.5);
+    node.top = Val::Px(edge_pos.y - size * 0.5);
+    transform.rotation = Rot2::radians(angle);
+    *visibility = Visibility::Visible;
+}
+
+fn clamp_to_screen_edge(screen_pos: Vec2, screen_size: Vec2, margin: f32) -> (Vec2, bool) {
+    let inset_min = Vec2::splat(margin);
+    let inset_max = (screen_size - inset_min).max(inset_min);
+    let onscreen = screen_pos.cmpge(inset_min).all() && screen_pos.cmple(inset_max).all();
+    if onscreen {
+        return (screen_pos, true);
+    }
+
+    let center = screen_size * 0.5;
+    let direction = (screen_pos - center).normalize_or_zero();
+    if direction == Vec2::ZERO {
+        return (center, true);
+    }
+
+    let max_offset = (inset_max - center).max(Vec2::splat(1.0));
+    let tx = if direction.x.abs() < f32::EPSILON {
+        f32::INFINITY
+    } else {
+        max_offset.x / direction.x.abs()
+    };
+    let ty = if direction.y.abs() < f32::EPSILON {
+        f32::INFINITY
+    } else {
+        max_offset.y / direction.y.abs()
+    };
+    (center + direction * tx.min(ty), false)
 }

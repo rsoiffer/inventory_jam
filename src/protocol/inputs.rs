@@ -18,6 +18,7 @@ pub enum PlayerAction {
     Fire,
     Interact,
     UseSkill,
+    DebugBoostGlobalAristeia,
 }
 
 impl PlayerAction {
@@ -36,6 +37,7 @@ impl PlayerAction {
         {
             input_map.insert(Self::UseSkill, KeyCode::ShiftLeft);
             input_map.insert(Self::UseSkill, KeyCode::ShiftRight);
+            input_map.insert(Self::DebugBoostGlobalAristeia, KeyCode::KeyG);
         }
 
         input_map

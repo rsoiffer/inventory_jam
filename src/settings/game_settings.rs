@@ -157,6 +157,11 @@ pub struct HudSettings {
     pub inset: f32,
     pub row_gap: f32,
     pub padding: f32,
+    pub boss_indicator_size: f32,
+    pub boss_indicator_margin: f32,
+    pub boss_indicator_path: String,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub boss_indicator_color: Color,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -812,6 +817,9 @@ impl GameSettings {
             || self.hud.inset < 0.0
             || self.hud.row_gap < 0.0
             || self.hud.padding < 0.0
+            || self.hud.boss_indicator_size <= 0.0
+            || self.hud.boss_indicator_margin < 0.0
+            || self.hud.boss_indicator_path.is_empty()
         {
             return Err(GameSettingsLoadError::Invalid(
                 "hud layout settings are invalid".into(),

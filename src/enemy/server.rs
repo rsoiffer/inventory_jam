@@ -190,6 +190,7 @@ fn despawn_distant_enemies(
 
     if active_players.is_empty() {
         for (entity, _, kind) in &enemies {
+            // Grand Champion persists even with no nearby players.
             if *kind == EnemyKind::Regular {
                 commands.entity(entity).despawn();
             }
@@ -199,6 +200,7 @@ fn despawn_distant_enemies(
 
     let retention_sq = settings.enemy.despawn_distance_from_players.powi(2);
     for (entity, position, kind) in &enemies {
+        // Grand Champion is never culled by distance.
         if *kind != EnemyKind::Regular {
             continue;
         }
