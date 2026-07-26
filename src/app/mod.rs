@@ -8,11 +8,5 @@ pub(crate) use appstate::game_is_active;
 pub use appstate::{AppState, LaunchMode, LaunchPlugin, StartGame, config_from_env};
 pub use username::LocalUsername;
 
-#[cfg(feature = "gui")]
-pub(crate) use username::MAX_USERNAME_LEN;
-#[cfg(feature = "client")]
+#[cfg(any(feature = "client", feature = "server"))]
 pub(crate) use username::client_id_from_username;
-#[cfg(feature = "client")]
-pub(crate) use username::machine_local_username;
-#[cfg(feature = "server")]
-pub(crate) use username::{temporary_username, validate_username};

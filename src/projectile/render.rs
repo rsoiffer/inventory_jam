@@ -1,7 +1,6 @@
 use crate::{
     app::game_is_active,
-    projectile::protocol::{PlayerProjectile, ProjectileImpact, ProjectilePosition},
-    weapon::protocol::WeaponKind,
+    projectile::protocol::{PlayerProjectile, ProjectilePosition},
 };
 use bevy::{
     app::FixedUpdate,
@@ -27,9 +26,6 @@ impl Plugin for ProjectileRenderPlugin {
             (
                 ensure_projectile_sprites,
                 sync_projectile_sprites,
-                // cleanup_projectile_sprites,
-                ensure_impact_sprites,
-                sync_impact_sprites,
                 animate_weapon_effect_sprites,
             )
                 .chain()
@@ -42,8 +38,6 @@ impl Plugin for ProjectileRenderPlugin {
 struct ProjectileVisualAssets {
     sword_projectile_image: Handle<Image>,
     sword_projectile_layout: Handle<TextureAtlasLayout>,
-    sword_impact_image: Handle<Image>,
-    sword_impact_layout: Handle<TextureAtlasLayout>,
 }
 
 #[derive(Component)]
@@ -82,19 +76,9 @@ fn load_projectile_visual_assets(
         None,
     ));
 
-    let impact_layout = atlas_layouts.add(TextureAtlasLayout::from_grid(
-        UVec2::new(24, 48),
-        6,
-        1,
-        None,
-        None,
-    ));
-
     commands.insert_resource(ProjectileVisualAssets {
         sword_projectile_image: asset_server.load("weapon/sword/spr_vfx_projectile_sword.png"),
         sword_projectile_layout: projectile_layout,
-        sword_impact_image: asset_server.load("weapon/sword/spr_vfx_impact_sword.png"),
-        sword_impact_layout: impact_layout,
     });
 }
 
@@ -104,10 +88,15 @@ fn ensure_projectile_sprites(
     projectiles: Query<(Entity, &PlayerProjectile, &ProjectilePosition), Without<Sprite>>,
 ) {
     for (entity, projectile, position) in &projectiles {
-        let (image, layout) = projectile_assets(projectile.weapon, &assets);
         let direction = projectile.direction.normalize_or_zero();
         commands.entity(entity).insert((
-            Sprite::from_atlas_image(image, TextureAtlas { layout, index: 0 }),
+            Sprite::from_atlas_image(
+                assets.sword_projectile_image.clone(),
+                TextureAtlas {
+                    layout: assets.sword_projectile_layout.clone(),
+                    index: 0,
+                },
+            ),
             SpriteAnimation {
                 first_frame: 0,
                 last_frame: 3,
@@ -133,44 +122,6 @@ fn sync_projectile_sprites(
     }
 }
 
-// fn cleanup_projectile_sprites(
-//     mut commands: Commands,
-//     projectiles: Query<Entity, (With<ProjectileSprite>,)>,
-// ) {
-//     for entity in &projectiles {
-//         commands
-//             .entity(entity)
-//             .remove::<(ProjectileSprite, SpriteAnimation, Sprite, Transform)>();
-//     }
-// }
-
-fn ensure_impact_sprites(
-    mut commands: Commands,
-    assets: Res<ProjectileVisualAssets>,
-    impacts: Query<(Entity, &ProjectileImpact), Without<Sprite>>,
-) {
-    for (entity, impact) in &impacts {
-        let (image, layout) = impact_assets(impact.weapon, &assets);
-
-        commands.entity(entity).insert((
-            Sprite::from_atlas_image(image, TextureAtlas { layout, index: 0 }),
-            Transform::default(),
-            SpriteAnimation {
-                first_frame: 0,
-                last_frame: 5,
-                timer: Timer::from_seconds(0.06, TimerMode::Repeating),
-            },
-        ));
-    }
-}
-
-fn sync_impact_sprites(mut impacts: Query<(&ProjectileImpact, &mut Transform)>) {
-    for (impact, mut transform) in &mut impacts {
-        transform.translation = impact.position.extend(9.0);
-        transform.scale = Vec3::splat(0.85);
-    }
-}
-
 fn animate_weapon_effect_sprites(
     time: Res<Time>,
     mut sprites: Query<(&mut SpriteAnimation, &mut Sprite)>,
@@ -192,24 +143,4 @@ fn animate_weapon_effect_sprites(
             atlas.index + 1
         };
     }
-}
-
-fn projectile_assets(
-    _kind: WeaponKind,
-    assets: &ProjectileVisualAssets,
-) -> (Handle<Image>, Handle<TextureAtlasLayout>) {
-    (
-        assets.sword_projectile_image.clone(),
-        assets.sword_projectile_layout.clone(),
-    )
-}
-
-fn impact_assets(
-    _kind: WeaponKind,
-    assets: &ProjectileVisualAssets,
-) -> (Handle<Image>, Handle<TextureAtlasLayout>) {
-    (
-        assets.sword_impact_image.clone(),
-        assets.sword_impact_layout.clone(),
-    )
 }

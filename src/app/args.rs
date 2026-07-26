@@ -14,7 +14,7 @@ struct Args {
     #[arg(
         long,
         value_parser = validate_username,
-        required_if_eq_any = [("mode", "edgegap"), ("mode", "local")]
+        required_if_eq("mode", "local")
     )]
     user: Option<String>,
 }
@@ -23,7 +23,6 @@ struct Args {
 enum Mode {
     Server,
     Host,
-    Edgegap,
     Local,
 }
 
@@ -34,7 +33,6 @@ pub fn parse_args() -> LaunchConfig {
         mode: match args.mode {
             Some(Mode::Server) => LaunchMode::DedicatedServer,
             Some(Mode::Host) => LaunchMode::HostLocal,
-            Some(Mode::Edgegap) => LaunchMode::JoinEdgegap,
             Some(Mode::Local) => LaunchMode::JoinLocal,
             None => LaunchMode::Menu,
         },

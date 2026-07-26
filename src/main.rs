@@ -1,16 +1,9 @@
 mod app;
-mod enemy;
-mod fragment;
 mod networking;
-mod persistence;
-mod player;
 mod projectile;
-mod protocol;
 #[cfg(feature = "server")]
 mod server;
 mod shared;
-mod ui;
-mod weapon;
 mod world;
 
 use app::*;
@@ -20,17 +13,11 @@ use bevy::prelude::*;
 use bevy::window::PresentMode;
 #[cfg(feature = "gui")]
 use bevy::winit::WinitSettings;
-use enemy::EnemyPlugin;
-use fragment::FragmentPlugin;
-use persistence::PersistencePlugin;
-use player::PlayerPlugin;
 use projectile::ProjectilePlugin;
 #[cfg(feature = "server")]
 use server::ExampleServerPlugin;
 use shared::SharedPlugin;
 use std::time::Duration;
-use ui::UiPlugin;
-use weapon::WeaponPlugin;
 use world::WorldPlugin;
 
 const TICK_DURATION: Duration =
@@ -57,18 +44,11 @@ fn main() {
 
     app.insert_state(AppState::MainMenu);
 
-    app.add_plugins((
-        WorldPlugin,
-        UiPlugin,
-        LaunchPlugin,
-        SharedPlugin,
-        PlayerPlugin,
-        EnemyPlugin,
-        ProjectilePlugin,
-        WeaponPlugin,
-        FragmentPlugin,
-        PersistencePlugin,
-    ));
+    app.add_plugins((LaunchPlugin, SharedPlugin, ProjectilePlugin, WorldPlugin));
+
+    #[cfg(feature = "gui")]
+    app.add_systems(Startup, spawn_debug_camera);
+
     networking::configure_networking(&mut app);
 
     #[cfg(feature = "server")]
@@ -127,6 +107,11 @@ fn base_app() -> App {
         ));
         app
     }
+}
+
+#[cfg(feature = "gui")]
+fn spawn_debug_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
 }
 
 fn log_plugin() -> LogPlugin {

@@ -18,7 +18,6 @@ pub(crate) fn game_is_active(state: Res<State<AppState>>) -> bool {
 pub enum LaunchMode {
     #[default]
     Menu,
-    JoinEdgegap,
     JoinLocal,
     HostLocal,
     DedicatedServer,
@@ -55,13 +54,6 @@ fn start_configured_game(config: Res<LaunchConfig>, mut starts: MessageWriter<St
 }
 
 pub fn config_from_env() -> LaunchConfig {
-    #[cfg(target_family = "wasm")]
-    let config = LaunchConfig {
-        username: String::new(),
-        mode: LaunchMode::Menu,
-    };
-
-    #[cfg(not(target_family = "wasm"))]
     let config = parse_args();
 
     #[cfg(all(not(feature = "gui"), feature = "server", not(feature = "client")))]

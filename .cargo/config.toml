@@ -8,10 +8,3 @@
 #   rustup component add llvm-tools
 linker = "rust-lld.exe"
 rustdocflags = ["-Clinker=rust-lld.exe"]
-
-[target.wasm32-unknown-unknown]
-rustflags = [
-    "--cfg", "getrandom_backend=\"wasm_js\"",
-    "--cfg", "web_sys_unstable_apis",
-]
-runner = "wasm-server-runner"

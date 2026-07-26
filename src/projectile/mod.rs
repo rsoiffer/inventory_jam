@@ -1,5 +1,7 @@
 #[cfg(feature = "client")]
 mod client;
+#[cfg(any(feature = "client", feature = "server"))]
+mod debug;
 mod protocol;
 #[cfg(feature = "gui")]
 mod render;
@@ -8,10 +10,6 @@ mod server;
 mod shared;
 
 use bevy::app::{App, Plugin};
-
-pub use protocol::{PlayerProjectile, ProjectileLifetime};
-pub use shared::SpawnProjectile;
-pub use shared::projectile_spawn_position;
 
 pub struct ProjectilePlugin;
 

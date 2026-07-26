@@ -1,10 +1,8 @@
 use core::net::{Ipv4Addr, SocketAddr};
 
-use async_compat::Compat;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
-use bevy::tasks::block_on;
 use lightyear::core::time::Instant;
 use lightyear::netcode::NetcodeServer;
 use lightyear::prelude::server::*;
@@ -12,42 +10,11 @@ use lightyear::prelude::*;
 
 use super::shared::SharedSettings;
 
-const WEBTRANSPORT_CERT_PEM: &str = "-----BEGIN CERTIFICATE-----
-MIIBhjCCASygAwIBAgIUIvjHeVQhuf7JK0uU7vVPAlNbhNgwCgYIKoZIzj0EAwIw
-ITEfMB0GA1UEAwwWd3RyYW5zcG9ydCBzZWxmLXNpZ25lZDAeFw0yNjA3MTAwNzUx
-MzRaFw0yNjA3MjQwNzUxMzRaMCExHzAdBgNVBAMMFnd0cmFuc3BvcnQgc2VsZi1z
-aWduZWQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATcqzDTk3JX+idmzSFHrQP1
-q+imEdbeD+HrhcridTYg9F/tdbiOlEOYvqwI1PxPceU64Piu0b4ZYN5RO+Pdp7gi
-o0IwQDA+BgNVHREENzA1gglsb2NhbGhvc3SHBH8AAAGHEAAAAAAAAAAAAAAAAAAA
-AAGCECoucHIuZWRnZWdhcC5uZXQwCgYIKoZIzj0EAwIDSAAwRQIhAPhX9ezu22hr
-pmJ7xWlrc7rJGwc3MsOYUeWRljA6v3iBAiBog2ZDI3Qm0URtAN4N3ocuU+RjXe6G
-z/O+VttUMwf2hg==
------END CERTIFICATE-----
-";
-
-const WEBTRANSPORT_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgHnpxo1YwUsDCEdNy
-whR9l1aI0I+fiGpMGfc7AoxnDcWhRANCAATcqzDTk3JX+idmzSFHrQP1q+imEdbe
-D+HrhcridTYg9F/tdbiOlEOYvqwI1PxPceU64Piu0b4ZYN5RO+Pdp7gi
------END PRIVATE KEY-----
-";
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ServerTransports {
-    #[cfg(feature = "udp")]
-    Udp {
-        local_port: u16,
-    },
-    WebTransport {
-        local_port: u16,
-    },
-}
-
 #[derive(Component, Debug)]
 #[component(on_add = NetworkServer::on_add)]
 pub struct NetworkServer {
     pub conditioner: Option<RecvLinkConditioner>,
-    pub transport: ServerTransports,
+    pub local_port: u16,
     pub shared: SharedSettings,
 }
 
@@ -73,25 +40,9 @@ impl NetworkServer {
                 ..Default::default()
             }));
 
-            match settings.transport {
-                #[cfg(feature = "udp")]
-                ServerTransports::Udp { local_port } => {
-                    let server_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), local_port);
-                    info!("Starting UDP server on {server_addr}");
-                    entity_mut.insert((LocalAddr(server_addr), ServerUdpIo::default()));
-                }
-                ServerTransports::WebTransport { local_port } => {
-                    let server_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), local_port);
-                    info!("Starting WebTransport server on {server_addr}");
-                    let identity = webtransport_identity()?;
-                    entity_mut.insert((
-                        LocalAddr(server_addr),
-                        WebTransportServerIo {
-                            certificate: identity,
-                        },
-                    ));
-                }
-            }
+            let server_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), settings.local_port);
+            info!("Starting UDP server on {server_addr}");
+            entity_mut.insert((LocalAddr(server_addr), ServerUdpIo::default()));
             Ok(())
         });
     }
@@ -120,19 +71,4 @@ pub fn apply_server_link_conditioner(
     for packet in queued_packets {
         link.recv.push(packet, Instant::now());
     }
-}
-
-fn webtransport_identity() -> Result<Identity, String> {
-    let dir = std::env::temp_dir();
-    let cert_path = dir.join("inventory-jam-webtransport-cert.pem");
-    let key_path = dir.join("inventory-jam-webtransport-key.pem");
-    std::fs::write(&cert_path, WEBTRANSPORT_CERT_PEM)
-        .map_err(|e| format!("failed to write WebTransport cert: {e}"))?;
-    std::fs::write(&key_path, WEBTRANSPORT_KEY_PEM)
-        .map_err(|e| format!("failed to write WebTransport key: {e}"))?;
-    let identity = block_on(Compat::new(Identity::load_pemfiles(&cert_path, &key_path)))
-        .map_err(|e| format!("failed to load WebTransport certificate: {e}"))?;
-    let digest = identity.certificate_chain().as_slice()[0].hash();
-    info!("WebTransport certificate digest: {digest}");
-    Ok(identity)
 }
