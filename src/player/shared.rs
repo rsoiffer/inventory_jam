@@ -5,6 +5,7 @@ use bevy::{
 };
 use leafwing_input_manager::action_state::ActionState;
 use lightyear::prediction::Predicted;
+use rand::Rng;
 
 use crate::{
     player::protocol::{PlayerAimDirection, PlayerHealth, PlayerPosition},
@@ -12,8 +13,18 @@ use crate::{
     settings::GameSettings,
 };
 
-pub fn apply_damage_to_player(health: &mut PlayerHealth, raw_damage: u32, armor: u32) -> u32 {
-    let damage = raw_damage.saturating_sub(armor);
+pub fn apply_damage_to_player(
+    health: &mut PlayerHealth,
+    raw_damage: u32,
+    armor: u32,
+    rng: &mut impl Rng,
+) -> u32 {
+    let blocked = if armor == 0 {
+        0
+    } else {
+        rng.random_range(0..=armor)
+    };
+    let damage = raw_damage.saturating_sub(blocked);
     health.current = health.current.saturating_sub(damage);
     damage
 }

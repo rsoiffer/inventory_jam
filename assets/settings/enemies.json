@@ -46,7 +46,9 @@
         "ranged_damage": 40,
         "move_speed": 28.0,
         "fragment_multiplier": 5.0,
-        "ranged_chance": 0.9
+        "ranged_chance": 0.9,
+        "personal_aristeia_reward": 4,
+        "global_aristeia_reward": 4
       },
       {
         "max_distance_from_center": 3200.0,
@@ -57,7 +59,9 @@
         "ranged_damage": 22,
         "move_speed": 26.0,
         "fragment_multiplier": 2.5,
-        "ranged_chance": 0.8
+        "ranged_chance": 0.8,
+        "personal_aristeia_reward": 2,
+        "global_aristeia_reward": 2
       },
       {
         "max_distance_from_center": 10000.0,
@@ -68,7 +72,9 @@
         "ranged_damage": 10,
         "move_speed": 24.0,
         "fragment_multiplier": 1.0,
-        "ranged_chance": 0.7
+        "ranged_chance": 0.7,
+        "personal_aristeia_reward": 1,
+        "global_aristeia_reward": 1
       }
     ]
   },
@@ -113,17 +119,45 @@
   },
   "global_aristeia": {
     "threshold": 1000,
-    "contribution_per_kill": 5,
     "drain_interval_ticks": 120,
     "drain_amount": 1,
-    "grand_champion_health": 5000,
-    "grand_champion_move_speed": 16.0,
+    "personal_level_cost_base": 3.0,
+    "personal_level_cost_scale": 2.0,
+    "personal_level_cost_exponent": 1.5,
+    "personal_duration_base_seconds": 9.375,
+    "personal_duration_decay_per_level": 0.08,
+    "personal_duration_min_seconds": 3.75,
+    "grand_champion_health": 75000,
+    "grand_champion_move_speed": 32.0,
+    "grand_champion_spawn_distance": 160.0,
     "grand_champion_detection_radius": 800.0,
     "grand_champion_leash_radius": 1600.0,
-    "grand_champion_contact_damage": 40,
-    "grand_champion_ranged_damage": 60,
-    "grand_champion_attacks_per_second": 0.6,
+    "grand_champion_contact_damage": 65,
+    "grand_champion_ranged_damage": 36,
     "grand_champion_fragment_multiplier": 20.0,
-    "grand_champion_ranged": true
+    "grand_champion_personal_aristeia_reward": 8,
+    "grand_champion_projectile_speed": 180.0,
+    "grand_champion_projectile_radius": 4.0,
+    "grand_champion_projectile_range": 450.0,
+    "grand_champion_projectile_buffer_capacity": 128,
+    "patterns": {
+      "fan": {
+        "duration_seconds": 6.0,
+        "projectile_count": 5,
+        "spread_degrees": 28.0,
+        "volley_interval_seconds": 0.25
+      },
+      "radial": {
+        "duration_seconds": 6.0,
+        "projectile_count": 14,
+        "volley_interval_seconds": 0.65
+      },
+      "spiral": {
+        "duration_seconds": 6.0,
+        "projectile_count": 3,
+        "rotation_degrees": 17.0,
+        "volley_interval_seconds": 0.12
+      }
+    }
   }
 }

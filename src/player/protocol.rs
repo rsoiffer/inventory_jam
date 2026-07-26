@@ -54,7 +54,6 @@ impl PlayerBundle {
         id: PeerId,
         position: Vec2,
         maximum_health: u32,
-        aristeia_duration_ticks: u16,
         projectile_buffer_capacity: usize,
     ) -> Self {
         let h = (((id.to_bits().wrapping_mul(30)) % 360) as f32) / 360.0;
@@ -70,7 +69,7 @@ impl PlayerBundle {
             },
             username: PlayerUsername(temporary_username(id.to_bits())),
             health: PlayerHealth::new(maximum_health),
-            aristeia: PlayerAristeia::new(aristeia_duration_ticks),
+            aristeia: PlayerAristeia::default(),
             projectile_buffer: crate::projectile::protocol::ProjectileBuffer::new(
                 projectile_buffer_capacity,
             ),
@@ -123,34 +122,21 @@ impl PlayerHealth {
     }
 }
 
-// Used for Killstreak Tracking
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Default)]
 pub(crate) struct PlayerAristeia {
-    /// Current Aristeia kill count or multiplier level.
     pub current: u32,
-
-    /// Remaining lifetime of the current Aristeia level, in fixed ticks.
-    pub remaining_ticks: u16,
-
-    /// Maximum lifetime used to calculate the UI bar fraction.
-    pub maximum_ticks: u16,
+    pub progress: u32,
+    pub remaining_seconds: f32,
+    pub maximum_seconds: f32,
 }
 
 impl PlayerAristeia {
-    pub(crate) const fn new(duration_ticks: u16) -> Self {
-        Self {
-            current: 0,
-            remaining_ticks: 0,
-            maximum_ticks: duration_ticks,
-        }
-    }
-
     pub fn remaining_fraction(&self) -> f32 {
-        if self.maximum_ticks == 0 {
+        if self.maximum_seconds <= 0.0 {
             return 0.0;
         }
 
-        (self.remaining_ticks as f32 / self.maximum_ticks as f32).clamp(0.0, 1.0)
+        (self.remaining_seconds / self.maximum_seconds).clamp(0.0, 1.0)
     }
 }
 

@@ -3,7 +3,7 @@ use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats};
 use crate::gate::GateTeleportCooldown;
 use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
 use crate::player::PlayerId;
-use crate::player::api::AddKillsToAristeia;
+use crate::player::api::AddAristeiaPoints;
 use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerUsername,
     PlayerVisual,
@@ -73,45 +73,73 @@ impl Plugin for PlayerServerPlugin {
 
 pub(crate) fn add_requested_aristeia(
     settings: Res<GameSettings>,
-    mut requests: MessageReader<AddKillsToAristeia>,
+    mut requests: MessageReader<AddAristeiaPoints>,
     mut players: Query<(&PlayerId, &mut PlayerAristeia)>,
 ) {
-    for AddKillsToAristeia(owner_id, number_of_kills) in requests.read() {
+    for AddAristeiaPoints(owner_id, points) in requests.read() {
         let Some(mut aristeia) = players
             .iter_mut()
             .find_map(|(player_id, aristeia)| (player_id.0 == *owner_id).then_some(aristeia))
         else {
-            warn!(
-                ?owner_id,
-                number_of_kills, "No player matched the Aristeia award"
-            );
+            warn!(?owner_id, points, "No player matched the Aristeia award");
             continue;
         };
 
-        aristeia.current = aristeia.current.saturating_add(u32::from(*number_of_kills));
+        aristeia.progress = aristeia.progress.saturating_add(*points);
+        loop {
+            let cost = settings
+                .global_aristeia
+                .personal_level_cost(aristeia.current);
+            if aristeia.progress < cost {
+                break;
+            }
+            aristeia.progress -= cost;
+            aristeia.current = aristeia.current.saturating_add(1);
+        }
 
-        aristeia.maximum_ticks = settings.player.aristeia_duration_ticks;
-
-        aristeia.remaining_ticks = settings.player.aristeia_duration_ticks;
+        let duration = settings
+            .global_aristeia
+            .personal_duration_seconds(aristeia.current);
+        aristeia.maximum_seconds = duration;
+        aristeia.remaining_seconds = duration;
     }
 }
 
-fn tick_player_aristeia(mut players: Query<&mut PlayerAristeia>) {
-    for mut aristeia in &mut players {
-        if aristeia.current == 0 {
-            aristeia.remaining_ticks = 0;
+fn tick_player_aristeia(
+    time: Res<Time>,
+    settings: Res<GameSettings>,
+    mut players: Query<(&GameRoom, &mut PlayerAristeia)>,
+) {
+    let dt = time.delta_secs();
+    for (room, mut aristeia) in &mut players {
+        if room.room == GameRooms::Safezone {
+            *aristeia = PlayerAristeia::default();
             continue;
         }
 
-        if aristeia.remaining_ticks > 0 {
-            aristeia.remaining_ticks -= 1;
+        if aristeia.current == 0 && aristeia.progress == 0 {
+            aristeia.remaining_seconds = 0.0;
             continue;
         }
 
-        aristeia.current = aristeia.current.saturating_sub(1);
+        if aristeia.remaining_seconds > 0.0 {
+            aristeia.remaining_seconds = (aristeia.remaining_seconds - dt).max(0.0);
+            if aristeia.remaining_seconds > 0.0 {
+                continue;
+            }
+        }
 
         if aristeia.current > 0 {
-            aristeia.remaining_ticks = aristeia.maximum_ticks;
+            aristeia.current -= 1;
+            aristeia.progress = 0;
+            let duration = settings
+                .global_aristeia
+                .personal_duration_seconds(aristeia.current);
+            aristeia.maximum_seconds = duration;
+            aristeia.remaining_seconds = if aristeia.current > 0 { duration } else { 0.0 };
+        } else {
+            aristeia.progress = 0;
+            aristeia.remaining_seconds = 0.0;
         }
     }
 }
@@ -136,7 +164,6 @@ pub(crate) fn handle_connected(
                 client_id,
                 spawn_position,
                 settings.player.maximum_health,
-                settings.player.aristeia_duration_ticks,
                 settings.projectile.buffer_capacity,
             ),
             PlayerVisual,
@@ -345,7 +372,7 @@ fn apply_enemy_contact_damage(
                     .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
             })
             .unwrap_or(0);
-        apply_damage_to_player(&mut health, raw_damage, armor);
+        apply_damage_to_player(&mut health, raw_damage, armor, &mut rng);
         cooldown.remaining_seconds = settings.player.enemy_contact_damage_interval_seconds;
 
         if health.current == 0 {

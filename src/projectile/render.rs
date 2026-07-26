@@ -34,6 +34,7 @@ struct AnimatedVisualAsset {
 struct ProjectileVisualAssets {
     by_weapon: HashMap<WeaponId, [AnimatedVisualAsset; 2]>,
     enemy: [AnimatedVisualAsset; 2],
+    grand_champion: [AnimatedVisualAsset; 2],
 }
 
 impl ProjectileVisualAssets {
@@ -43,6 +44,7 @@ impl ProjectileVisualAssets {
                 self.by_weapon.get(&id).map(|pair| &pair[impact as usize])
             }
             ProjectileSource::Enemy => Some(&self.enemy[impact as usize]),
+            ProjectileSource::GrandChampion => Some(&self.grand_champion[impact as usize]),
         }
     }
 }
@@ -108,7 +110,12 @@ fn load_projectile_visual_assets(
         ),
         load_anim(&asset_server, &mut atlas_layouts, &settings.enemy.impact),
     ];
-    commands.insert_resource(ProjectileVisualAssets { by_weapon, enemy });
+    let grand_champion = enemy.clone();
+    commands.insert_resource(ProjectileVisualAssets {
+        by_weapon,
+        enemy,
+        grand_champion,
+    });
 }
 
 fn sync_buffer_visuals(

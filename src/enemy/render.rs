@@ -209,7 +209,7 @@ fn ensure_enemy_health_bars(
     backgrounds: Query<&EnemyHealthBarBackground>,
 ) {
     for (enemy, position, kind) in &enemies {
-        if backgrounds.iter().any(|bar| bar.enemy == enemy) {
+        if *kind == EnemyKind::GrandChampion || backgrounds.iter().any(|bar| bar.enemy == enemy) {
             continue;
         }
 

@@ -1,4 +1,5 @@
 use crate::app::ClientState;
+use crate::enemy::{EnemyHealth, EnemyKind};
 use crate::persistence::CachedPersistentState;
 use crate::player::protocol::PlayerAristeia;
 use crate::settings::GameSettings;
@@ -161,6 +162,7 @@ fn update_hud(
     player_state: Query<&CachedPersistentState, With<Controlled>>,
     local_aristeia: Query<&PlayerAristeia, With<Predicted>>,
     global_aristeia: Query<&GlobalAristeia>,
+    bosses: Query<(&EnemyHealth, &EnemyKind)>,
     mut fragment_text: Query<
         &mut Text,
         (
@@ -193,7 +195,7 @@ fn update_hud(
         ),
     >,
     mut global_bar: Query<
-        &mut Node,
+        (&mut Node, &mut BackgroundColor),
         (
             With<GlobalAristeiaBarFill>,
             Without<PersonalAristeiaBarFill>,
@@ -218,13 +220,31 @@ fn update_hud(
         }
     }
 
-    if let (Ok(mut text), Ok(mut bar)) = (global_text.single_mut(), global_bar.single_mut()) {
-        if let Ok(global) = global_aristeia.single() {
+    if let (Ok(mut text), Ok((mut bar, mut color))) =
+        (global_text.single_mut(), global_bar.single_mut())
+    {
+        if let Some(boss_health) = bosses.iter().find_map(|(health, kind)| {
+            (*kind == EnemyKind::GrandChampion && health.current > 0).then_some(health)
+        }) {
+            let fraction = if boss_health.maximum == 0 {
+                0.0
+            } else {
+                (boss_health.current as f32 / boss_health.maximum as f32).clamp(0.0, 1.0)
+            };
+            text.0 = format!(
+                "Grand Champion {} / {}",
+                boss_health.current, boss_health.maximum
+            );
+            bar.width = Val::Percent(fraction * 100.0);
+            *color = BackgroundColor(Color::srgb(0.9, 0.2, 0.25));
+        } else if let Ok(global) = global_aristeia.single() {
             text.0 = format!("Global {} / {}", global.current, global.maximum);
             bar.width = Val::Percent(global.fraction() * 100.0);
+            *color = BackgroundColor(Color::srgb(0.75, 0.2, 0.95));
         } else {
             text.0 = "Global 0 / 0".to_string();
             bar.width = Val::Percent(0.0);
+            *color = BackgroundColor(Color::srgb(0.75, 0.2, 0.95));
         }
     }
 }

@@ -13,7 +13,10 @@ use crate::shared::FixedGameplaySet;
 use crate::weapon::protocol::WeaponCooldown;
 use bevy::prelude::*;
 use lightyear::{
-    core::{tick::TickDuration, timeline::LocalTimeline},
+    core::{
+        tick::{Tick, TickDuration},
+        timeline::LocalTimeline,
+    },
     prelude::*,
 };
 use rand::Rng;
@@ -75,6 +78,34 @@ pub(crate) struct EnemyStats {
     pub fragment_multiplier: f32,
     pub move_speed: f32,
     pub is_ranged: bool,
+    pub personal_aristeia_reward: u32,
+    pub global_aristeia_reward: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BossPatternKind {
+    Fan,
+    Radial,
+    Spiral,
+}
+
+impl BossPatternKind {
+    fn next(self) -> Self {
+        match self {
+            Self::Fan => Self::Radial,
+            Self::Radial => Self::Spiral,
+            Self::Spiral => Self::Fan,
+        }
+    }
+}
+
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct BossAttackState {
+    pub pattern: BossPatternKind,
+    pub pattern_elapsed_seconds: f32,
+    pub volley_accumulator: f32,
+    pub spiral_angle_radians: f32,
+    pub radial_offset: bool,
 }
 
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -323,9 +354,16 @@ pub(crate) fn spawn_requested_enemy(
             EnemyKind::GrandChampion => settings.global_aristeia.grand_champion_health,
         };
         let tier_index = request.tier_index.unwrap_or(0);
+        let buffer_capacity = match request.kind {
+            EnemyKind::Regular => settings.projectile.buffer_capacity,
+            EnemyKind::GrandChampion => {
+                settings
+                    .global_aristeia
+                    .grand_champion_projectile_buffer_capacity
+            }
+        };
         spawn_enemy(
             &mut commands,
-            &settings,
             request.position,
             home,
             health,
@@ -333,6 +371,7 @@ pub(crate) fn spawn_requested_enemy(
             request.spawner,
             tier_index,
             stats,
+            buffer_capacity,
         );
     }
 }
@@ -357,23 +396,21 @@ fn enemy_stats_for_request(
                 fragment_multiplier: tier.fragment_multiplier,
                 move_speed: tier.move_speed,
                 is_ranged,
+                personal_aristeia_reward: tier.personal_aristeia_reward,
+                global_aristeia_reward: tier.global_aristeia_reward,
             }
         }
         EnemyKind::GrandChampion => EnemyStats {
-            contact_damage: if settings.global_aristeia.grand_champion_ranged {
-                settings.global_aristeia.grand_champion_contact_damage / 2
-            } else {
-                settings.global_aristeia.grand_champion_contact_damage
-            },
-            ranged_damage: if settings.global_aristeia.grand_champion_ranged {
-                settings.global_aristeia.grand_champion_ranged_damage
-            } else {
-                0
-            },
-            attacks_per_second: settings.global_aristeia.grand_champion_attacks_per_second,
+            contact_damage: settings.global_aristeia.grand_champion_contact_damage,
+            ranged_damage: settings.global_aristeia.grand_champion_ranged_damage,
+            attacks_per_second: 1.0,
             fragment_multiplier: settings.global_aristeia.grand_champion_fragment_multiplier,
             move_speed: settings.global_aristeia.grand_champion_move_speed,
-            is_ranged: settings.global_aristeia.grand_champion_ranged,
+            is_ranged: true,
+            personal_aristeia_reward: settings
+                .global_aristeia
+                .grand_champion_personal_aristeia_reward,
+            global_aristeia_reward: 0,
         },
     }
 }
@@ -387,7 +424,6 @@ fn spawner_tier(settings: &GameSettings, tier_index: u8) -> &SpawnerTierSettings
 
 fn spawn_enemy(
     commands: &mut Commands,
-    settings: &GameSettings,
     position: Vec2,
     home: Vec2,
     max_health: u32,
@@ -395,6 +431,7 @@ fn spawn_enemy(
     spawner: Option<Entity>,
     tier_index: u8,
     stats: EnemyStats,
+    buffer_capacity: usize,
 ) -> Entity {
     let mut entity = commands.spawn((
         EnemyPosition(position),
@@ -406,7 +443,7 @@ fn spawn_enemy(
         EnemyStats { ..stats },
         EnemyTierIndex(tier_index),
         kind,
-        ProjectileBuffer::new(settings.projectile.buffer_capacity),
+        ProjectileBuffer::new(buffer_capacity),
         WeaponCooldown::default(),
         GameRoom {
             room: GameRooms::Arena,
@@ -420,6 +457,15 @@ fn spawn_enemy(
     ));
     if let Some(spawner) = spawner {
         entity.insert(EnemySpawnerOwner(spawner));
+    }
+    if kind == EnemyKind::GrandChampion {
+        entity.insert(BossAttackState {
+            pattern: BossPatternKind::Fan,
+            pattern_elapsed_seconds: 0.0,
+            volley_accumulator: 0.0,
+            spiral_angle_radians: 0.0,
+            radial_offset: false,
+        });
     }
     entity.id()
 }
@@ -575,20 +621,33 @@ fn ranged_engage_point(
 }
 
 fn fire_enemy_projectiles(
+    time: Res<Time>,
     settings: Res<GameSettings>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
-    mut enemies: Query<(
+    mut regular_enemies: Query<
+        (
+            &EnemyPosition,
+            &EnemyBehavior,
+            &EnemyStats,
+            &EnemyHealth,
+            &mut ProjectileBuffer,
+            &mut WeaponCooldown,
+        ),
+        (With<EnemyKind>, Without<BossAttackState>),
+    >,
+    mut bosses: Query<(
         &EnemyPosition,
         &EnemyBehavior,
         &EnemyStats,
         &EnemyHealth,
+        &EnemyKind,
         &mut ProjectileBuffer,
-        &mut WeaponCooldown,
+        &mut BossAttackState,
     )>,
     players: Query<(&PlayerId, &PlayerPosition, &PlayerHealth, &GameRoom)>,
 ) {
-    for (position, behavior, stats, health, mut buffer, mut cooldown) in &mut enemies {
+    for (position, behavior, stats, health, mut buffer, mut cooldown) in &mut regular_enemies {
         if !stats.is_ranged || health.current == 0 || stats.ranged_damage == 0 {
             continue;
         }
@@ -628,6 +687,137 @@ fn fire_enemy_projectiles(
         );
         cooldown.restart(&local_timeline, &tick_duration, stats.attacks_per_second);
     }
+
+    let dt = time.delta_secs();
+    for (position, behavior, stats, health, kind, mut buffer, mut attack) in &mut bosses {
+        if *kind != EnemyKind::GrandChampion || health.current == 0 || stats.ranged_damage == 0 {
+            continue;
+        }
+        let EnemyBehavior::Chasing(target_id) = *behavior else {
+            continue;
+        };
+        let Some(target) = players.iter().find_map(|(id, pos, player_health, room)| {
+            (id.0 == target_id && player_health.current > 0 && room.room == GameRooms::Arena)
+                .then_some(pos.0)
+        }) else {
+            continue;
+        };
+
+        let pattern_settings = match attack.pattern {
+            BossPatternKind::Fan => &settings.global_aristeia.patterns.fan,
+            BossPatternKind::Radial => &settings.global_aristeia.patterns.radial,
+            BossPatternKind::Spiral => &settings.global_aristeia.patterns.spiral,
+        };
+
+        attack.pattern_elapsed_seconds += dt;
+        if attack.pattern_elapsed_seconds >= pattern_settings.duration_seconds {
+            attack.pattern = attack.pattern.next();
+            attack.pattern_elapsed_seconds = 0.0;
+            attack.volley_accumulator = 0.0;
+            continue;
+        }
+
+        attack.volley_accumulator += dt;
+        while attack.volley_accumulator >= pattern_settings.volley_interval_seconds {
+            attack.volley_accumulator -= pattern_settings.volley_interval_seconds;
+            fire_boss_volley(
+                &mut buffer,
+                &mut attack,
+                position.0,
+                target,
+                kind.collision_radius(settings.enemy.collision_radius),
+                &settings,
+                local_timeline.tick(),
+            );
+        }
+    }
+}
+
+fn fire_boss_volley(
+    buffer: &mut ProjectileBuffer,
+    attack: &mut BossAttackState,
+    origin: Vec2,
+    target: Vec2,
+    collision_radius: f32,
+    settings: &GameSettings,
+    spawn_tick: Tick,
+) {
+    let speed = settings.global_aristeia.grand_champion_projectile_speed;
+    let radius = settings.global_aristeia.grand_champion_projectile_radius;
+    let spawn_gap = settings.projectile.spawn_gap;
+    let patterns = &settings.global_aristeia.patterns;
+
+    let directions: Vec<Vec2> = match attack.pattern {
+        BossPatternKind::Fan => {
+            let aim = (target - origin).normalize_or_zero();
+            if aim == Vec2::ZERO {
+                return;
+            }
+            let count = patterns.fan.projectile_count.max(1) as usize;
+            let spread = patterns.fan.spread_degrees.to_radians();
+            let start = -spread * 0.5;
+            let step = if count == 1 {
+                0.0
+            } else {
+                spread / (count - 1) as f32
+            };
+            (0..count)
+                .map(|i| rotate_vec2(aim, start + step * i as f32))
+                .collect()
+        }
+        BossPatternKind::Radial => {
+            let count = patterns.radial.projectile_count.max(1) as usize;
+            let step = std::f32::consts::TAU / count as f32;
+            let offset = if attack.radial_offset {
+                step * 0.5
+            } else {
+                0.0
+            };
+            attack.radial_offset = !attack.radial_offset;
+            (0..count)
+                .map(|i| {
+                    let angle = offset + step * i as f32;
+                    Vec2::new(angle.cos(), angle.sin())
+                })
+                .collect()
+        }
+        BossPatternKind::Spiral => {
+            let count = patterns.spiral.projectile_count.max(1) as usize;
+            let step = std::f32::consts::TAU / count as f32;
+            let base = attack.spiral_angle_radians;
+            attack.spiral_angle_radians = (attack.spiral_angle_radians
+                + patterns.spiral.rotation_degrees.to_radians())
+            .rem_euclid(std::f32::consts::TAU);
+            (0..count)
+                .map(|i| {
+                    let angle = base + step * i as f32;
+                    Vec2::new(angle.cos(), angle.sin())
+                })
+                .collect()
+        }
+    };
+
+    for direction in directions {
+        if direction == Vec2::ZERO {
+            continue;
+        }
+        let spawn_position = origin + direction * (collision_radius + radius + spawn_gap);
+        buffer.insert(
+            ProjectileSource::GrandChampion,
+            spawn_position,
+            direction * speed,
+            0,
+            spawn_tick,
+        );
+    }
+}
+
+fn rotate_vec2(direction: Vec2, radians: f32) -> Vec2 {
+    let (sin, cos) = radians.sin_cos();
+    Vec2::new(
+        direction.x * cos - direction.y * sin,
+        direction.x * sin + direction.y * cos,
+    )
 }
 
 fn move_toward(position: &mut Vec2, target: Vec2, speed: f32) {

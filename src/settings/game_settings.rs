@@ -97,6 +97,8 @@ pub struct SpawnerTierSettings {
     pub move_speed: f32,
     pub fragment_multiplier: f32,
     pub ranged_chance: f32,
+    pub personal_aristeia_reward: u32,
+    pub global_aristeia_reward: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -177,7 +179,6 @@ pub struct PlayerSettings {
     pub collision_radius: f32,
     pub move_speed: f32,
     pub arena_health_regen_fraction_per_second: f32,
-    pub aristeia_duration_ticks: u16,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -466,20 +467,64 @@ impl ProgressionSettings {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct BossPatternSettings {
+    pub duration_seconds: f32,
+    pub projectile_count: u16,
+    pub volley_interval_seconds: f32,
+    #[serde(default)]
+    pub spread_degrees: f32,
+    #[serde(default)]
+    pub rotation_degrees: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BossPatternsSettings {
+    pub fan: BossPatternSettings,
+    pub radial: BossPatternSettings,
+    pub spiral: BossPatternSettings,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct GlobalAristeiaSettings {
     pub threshold: u32,
-    pub contribution_per_kill: u32,
     pub drain_interval_ticks: u16,
     pub drain_amount: u32,
+    pub personal_level_cost_base: f32,
+    pub personal_level_cost_scale: f32,
+    pub personal_level_cost_exponent: f32,
+    pub personal_duration_base_seconds: f32,
+    pub personal_duration_decay_per_level: f32,
+    pub personal_duration_min_seconds: f32,
     pub grand_champion_health: u32,
     pub grand_champion_move_speed: f32,
+    pub grand_champion_spawn_distance: f32,
     pub grand_champion_detection_radius: f32,
     pub grand_champion_leash_radius: f32,
     pub grand_champion_contact_damage: u32,
     pub grand_champion_ranged_damage: u32,
-    pub grand_champion_attacks_per_second: f32,
     pub grand_champion_fragment_multiplier: f32,
-    pub grand_champion_ranged: bool,
+    pub grand_champion_personal_aristeia_reward: u32,
+    pub grand_champion_projectile_speed: f32,
+    pub grand_champion_projectile_radius: f32,
+    pub grand_champion_projectile_range: f32,
+    pub grand_champion_projectile_buffer_capacity: usize,
+    pub patterns: BossPatternsSettings,
+}
+
+impl GlobalAristeiaSettings {
+    pub fn personal_level_cost(&self, level: u32) -> u32 {
+        (self.personal_level_cost_base
+            + self.personal_level_cost_scale
+                * (level as f32).powf(self.personal_level_cost_exponent))
+        .ceil()
+        .max(1.0) as u32
+    }
+
+    pub fn personal_duration_seconds(&self, level: u32) -> f32 {
+        let scaled = self.personal_duration_base_seconds
+            / (1.0 + self.personal_duration_decay_per_level * level as f32);
+        scaled.max(self.personal_duration_min_seconds)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -631,6 +676,8 @@ impl GameSettings {
                 || tier.move_speed <= 0.0
                 || tier.fragment_multiplier < 0.0
                 || !(0.0..=1.0).contains(&tier.ranged_chance)
+                || tier.personal_aristeia_reward == 0
+                || tier.global_aristeia_reward == 0
             {
                 return Err(GameSettingsLoadError::Invalid(format!(
                     "spawner tier {index} settings are invalid"
@@ -657,6 +704,14 @@ impl GameSettings {
             || !self.fragment.collecting_impact.is_valid()
             || self.global_aristeia.threshold == 0
             || self.global_aristeia.drain_interval_ticks == 0
+            || self.global_aristeia.personal_level_cost_base <= 0.0
+            || self.global_aristeia.personal_level_cost_scale < 0.0
+            || self.global_aristeia.personal_level_cost_exponent <= 0.0
+            || self.global_aristeia.personal_duration_base_seconds <= 0.0
+            || self.global_aristeia.personal_duration_decay_per_level < 0.0
+            || self.global_aristeia.personal_duration_min_seconds <= 0.0
+            || self.global_aristeia.personal_duration_min_seconds
+                > self.global_aristeia.personal_duration_base_seconds
         {
             return Err(GameSettingsLoadError::Invalid(
                 "fragment drop, visual, or global Aristeia settings are invalid".into(),
@@ -679,11 +734,22 @@ impl GameSettings {
         }
         if self.global_aristeia.grand_champion_health == 0
             || self.global_aristeia.grand_champion_move_speed <= 0.0
+            || self.global_aristeia.grand_champion_spawn_distance <= 0.0
             || self.global_aristeia.grand_champion_detection_radius <= 0.0
             || self.global_aristeia.grand_champion_leash_radius
                 < self.global_aristeia.grand_champion_detection_radius
-            || self.global_aristeia.grand_champion_attacks_per_second <= 0.0
             || self.global_aristeia.grand_champion_fragment_multiplier < 0.0
+            || self.global_aristeia.grand_champion_personal_aristeia_reward == 0
+            || self.global_aristeia.grand_champion_projectile_speed <= 0.0
+            || self.global_aristeia.grand_champion_projectile_radius < 0.0
+            || self.global_aristeia.grand_champion_projectile_range <= 0.0
+            || self
+                .global_aristeia
+                .grand_champion_projectile_buffer_capacity
+                == 0
+            || !boss_pattern_valid(&self.global_aristeia.patterns.fan)
+            || !boss_pattern_valid(&self.global_aristeia.patterns.radial)
+            || !boss_pattern_valid(&self.global_aristeia.patterns.spiral)
         {
             return Err(GameSettingsLoadError::Invalid(
                 "global Aristeia champion settings are invalid".into(),
@@ -767,7 +833,6 @@ impl GameSettings {
             || self.player.half_size <= 0.0
             || self.player.collision_radius <= 0.0
             || self.player.move_speed <= 0.0
-            || self.player.aristeia_duration_ticks == 0
         {
             return Err(GameSettingsLoadError::Invalid(
                 "player gameplay settings are invalid".into(),
@@ -929,4 +994,10 @@ where
 {
     let [red, green, blue] = <[f32; 3]>::deserialize(deserializer)?;
     Ok(Color::srgb(red, green, blue))
+}
+
+fn boss_pattern_valid(pattern: &BossPatternSettings) -> bool {
+    pattern.duration_seconds > 0.0
+        && pattern.projectile_count > 0
+        && pattern.volley_interval_seconds > 0.0
 }

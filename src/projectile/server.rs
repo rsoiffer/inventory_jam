@@ -13,7 +13,7 @@ use crate::{
     player::PlayerId,
     player::PlayerPosition,
     player::PlayerUsername,
-    player::api::AddKillsToAristeia,
+    player::api::AddAristeiaPoints,
     player::protocol::{PlayerAristeia, PlayerHealth},
     player::server::{PlayerDeathTimer, apply_death_penalty},
     player::shared::apply_damage_to_player,
@@ -21,7 +21,7 @@ use crate::{
     protocol::rooms::GameRoom,
     settings::GameSettings,
     shared::FixedGameplaySet,
-    world::api::AddGlobalAristeia,
+    world::api::{AddGlobalAristeia, GrandChampionDefeated},
 };
 
 pub struct ProjectileServerPlugin;
@@ -63,8 +63,9 @@ fn simulate_player_projectile_buffers(
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     mut fragment_drops: MessageWriter<SpawnFragmentPool>,
-    mut aristeia_tracking: MessageWriter<AddKillsToAristeia>,
+    mut aristeia_tracking: MessageWriter<AddAristeiaPoints>,
     mut global_aristeia: MessageWriter<AddGlobalAristeia>,
+    mut boss_defeats: MessageWriter<GrandChampionDefeated>,
     settings: Res<GameSettings>,
 ) {
     let skip_predicted = !host_server.is_empty();
@@ -118,10 +119,16 @@ fn simulate_player_projectile_buffers(
                         ((base as f32) * enemy_stats.fragment_multiplier).round() as u32;
                     fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
                     commands.entity(entity).despawn();
-                    aristeia_tracking.write(AddKillsToAristeia::new(owner, 1));
-                    global_aristeia.write(AddGlobalAristeia(
-                        settings.global_aristeia.contribution_per_kill,
+                    aristeia_tracking.write(AddAristeiaPoints::new(
+                        owner,
+                        enemy_stats.personal_aristeia_reward,
                     ));
+                    if *kind == EnemyKind::GrandChampion {
+                        boss_defeats.write(GrandChampionDefeated);
+                    } else if enemy_stats.global_aristeia_reward > 0 {
+                        global_aristeia
+                            .write(AddGlobalAristeia(enemy_stats.global_aristeia_reward));
+                    }
                 }
                 return Some(entity.to_bits());
             }
@@ -142,7 +149,10 @@ fn simulate_enemy_projectile_buffers(
         Option<&PlayerUsername>,
         Has<PersistenceReady>,
     )>,
-    mut enemies: Query<(&GameRoom, &mut ProjectileBuffer, &EnemyStats), Without<PlayerId>>,
+    mut enemies: Query<
+        (&GameRoom, &mut ProjectileBuffer, &EnemyStats, &EnemyKind),
+        Without<PlayerId>,
+    >,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
@@ -150,7 +160,6 @@ fn simulate_enemy_projectile_buffers(
 ) {
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
-    let radius = settings.enemy.projectile_radius;
     let player_targets: Vec<(Entity, Vec2, GameRoom, bool)> = players
         .iter()
         .map(|(entity, position, room, health, _, _, _, _)| {
@@ -159,14 +168,22 @@ fn simulate_enemy_projectile_buffers(
         .collect();
     let mut pending_hits: Vec<(Entity, u32)> = Vec::new();
 
-    for (room, mut buffer, stats) in &mut enemies {
+    for (room, mut buffer, stats, kind) in &mut enemies {
         let damage = stats.ranged_damage;
+        let radius = match *kind {
+            EnemyKind::Regular => settings.enemy.projectile_radius,
+            EnemyKind::GrandChampion => settings.global_aristeia.grand_champion_projectile_radius,
+        };
         if damage == 0 {
             buffer.simulate(room, tick, tick_secs, &settings, |_, _, _| None);
             continue;
         }
         buffer.simulate(room, tick, tick_secs, &settings, |source, pos, last_hit| {
-            if source != ProjectileSource::Enemy {
+            let is_enemy_shot = matches!(
+                source,
+                ProjectileSource::Enemy | ProjectileSource::GrandChampion
+            );
+            if !is_enemy_shot {
                 return None;
             }
             for (player_entity, player_position, player_room, alive) in &player_targets {
@@ -206,7 +223,7 @@ fn simulate_enemy_projectile_buffers(
                     .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
             })
             .unwrap_or(0);
-        apply_damage_to_player(&mut health, raw_damage, armor);
+        apply_damage_to_player(&mut health, raw_damage, armor, &mut rng);
         if health.current == 0 {
             death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
             apply_death_penalty(

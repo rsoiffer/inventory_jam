@@ -23,6 +23,7 @@ impl Plugin for ProjectileProtocolPlugin {
 pub enum ProjectileSource {
     Weapon(WeaponId),
     Enemy,
+    GrandChampion,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -70,6 +71,11 @@ pub fn projectile_stats(
             settings.enemy.projectile_range,
             settings.enemy.projectile_radius,
             settings.enemy.projectile_speed,
+        )),
+        ProjectileSource::GrandChampion => Some((
+            settings.global_aristeia.grand_champion_projectile_range,
+            settings.global_aristeia.grand_champion_projectile_radius,
+            settings.global_aristeia.grand_champion_projectile_speed,
         )),
     }
 }
