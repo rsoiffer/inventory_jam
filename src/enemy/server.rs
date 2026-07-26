@@ -1,4 +1,5 @@
 use crate::app::ServerState;
+use crate::combat::HitFlash;
 use crate::enemy::api::SpawnEnemy;
 use crate::enemy::protocol::{
     BossAttackState, BossPatternKind, EnemyAi, EnemyHealth, EnemyIdentity, EnemyKind,
@@ -325,6 +326,7 @@ pub(crate) fn spawn_requested_enemy(
                 current: max_health,
                 maximum: max_health,
             },
+            HitFlash::default(),
             identity,
             ProjectileBuffer::new(buffer_capacity),
             WeaponCooldown::default(),

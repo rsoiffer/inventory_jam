@@ -1,4 +1,5 @@
 use crate::app::{ClientState, game_is_active};
+use crate::combat::HitFlash;
 use crate::persistence::CachedPersistentState;
 use crate::player::PlayerUsername;
 use crate::player::protocol::{
@@ -45,6 +46,7 @@ impl Plugin for PlayerRenderPlugin {
                 ensure_player_sprites,
                 sync_player_sprites,
                 animate_player_sprites,
+                sync_player_hit_flashes,
                 ensure_player_health_bars,
                 sync_player_health_bars,
                 sync_username_labels,
@@ -75,6 +77,7 @@ impl Plugin for PlayerRenderPlugin {
 #[derive(Resource)]
 struct PlayerVisualAssets {
     idle_image: Handle<Image>,
+    flash_image: Handle<Image>,
     idle_layout: Handle<TextureAtlasLayout>,
 }
 
@@ -82,6 +85,8 @@ struct PlayerVisualAssets {
 struct PlayerBodySprite {
     player: Entity,
     previous_position: Option<Vec2>,
+    last_flash_sequence: u32,
+    flash_remaining: f32,
 }
 
 #[derive(Component)]
@@ -117,6 +122,7 @@ fn load_player_visual_assets(
 ) {
     commands.insert_resource(PlayerVisualAssets {
         idle_image: asset_server.load("player/spr_gladiator_idle.png"),
+        flash_image: asset_server.load("player/spr_gladiator_idle_flash.png"),
         idle_layout: layouts.add(TextureAtlasLayout::from_grid(
             PLAYER_IDLE_FRAME_SIZE,
             PLAYER_IDLE_FRAME_COUNT as u32,
@@ -142,6 +148,8 @@ fn ensure_player_sprites(
             PlayerBodySprite {
                 player,
                 previous_position: None,
+                last_flash_sequence: 0,
+                flash_remaining: 0.0,
             },
             Sprite::from_atlas_image(
                 assets.idle_image.clone(),
@@ -201,6 +209,35 @@ fn animate_player_sprites(
             continue;
         };
         atlas.index = (atlas.index + 1) % animation.frame_count;
+    }
+}
+
+fn sync_player_hit_flashes(
+    time: Res<Time>,
+    settings: Res<GameSettings>,
+    assets: Res<PlayerVisualAssets>,
+    players: Query<&HitFlash, With<PlayerVisual>>,
+    mut bodies: Query<(&mut PlayerBodySprite, &mut Sprite)>,
+) {
+    let flash_duration = settings.combat_feedback.flash_duration_seconds;
+    let flash_color = settings.combat_feedback.flash_color;
+    for (mut body, mut sprite) in &mut bodies {
+        if let Ok(flash) = players.get(body.player) {
+            let delta = flash.sequence.wrapping_sub(body.last_flash_sequence);
+            if delta > 0 && delta < u32::MAX / 2 {
+                body.last_flash_sequence = flash.sequence;
+                body.flash_remaining = flash_duration;
+            }
+        }
+
+        if body.flash_remaining > 0.0 {
+            body.flash_remaining = (body.flash_remaining - time.delta_secs()).max(0.0);
+            sprite.image = assets.flash_image.clone();
+            sprite.color = flash_color;
+        } else {
+            sprite.image = assets.idle_image.clone();
+            sprite.color = Color::WHITE;
+        }
     }
 }
 

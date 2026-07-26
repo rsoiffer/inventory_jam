@@ -22,4 +22,3 @@ pub(crate) fn handle_new_client(trigger: On<Add, LinkOf>, mut commands: Commands
         .entity(trigger.entity)
         .insert((ReplicationSender, Name::from("Client")));
 }
-

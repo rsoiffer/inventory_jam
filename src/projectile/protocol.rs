@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{protocol::rooms::GameRoom, settings::GameSettings};
 
+pub const MAX_PROJECTILE_HIT_HISTORY: usize = 16;
+
 pub struct ProjectileProtocolPlugin;
 
 impl Plugin for ProjectileProtocolPlugin {
@@ -32,6 +34,27 @@ pub enum ProjectileState {
     Impact { remaining_ticks: u16 },
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct ProjectileHitHistory {
+    ids: [u64; MAX_PROJECTILE_HIT_HISTORY],
+    count: u8,
+}
+
+impl ProjectileHitHistory {
+    pub fn contains(self, id: u64) -> bool {
+        self.ids[..self.count as usize].contains(&id)
+    }
+
+    pub fn push(&mut self, id: u64) -> bool {
+        if self.contains(id) || self.count as usize >= MAX_PROJECTILE_HIT_HISTORY {
+            return false;
+        }
+        self.ids[self.count as usize] = id;
+        self.count += 1;
+        true
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum ProjectileSlot {
     Empty {
@@ -43,7 +66,7 @@ pub enum ProjectileSlot {
         position: Vec2,
         velocity: Vec2,
         pierce_remaining: u16,
-        last_hit: u64,
+        hits: ProjectileHitHistory,
         state: ProjectileState,
     },
 }
@@ -123,7 +146,7 @@ fn interpolate_slot(start: ProjectileSlot, end: ProjectileSlot, t: f32) -> Proje
                 position: end_position,
                 velocity,
                 pierce_remaining,
-                last_hit,
+                hits,
                 state,
             },
         ) if start_generation == end_generation => ProjectileSlot::Active {
@@ -132,7 +155,7 @@ fn interpolate_slot(start: ProjectileSlot, end: ProjectileSlot, t: f32) -> Proje
             position: Vec2::lerp(start_position, end_position, t),
             velocity,
             pierce_remaining,
-            last_hit,
+            hits,
             state,
         },
         (_, end) => end,
@@ -167,21 +190,28 @@ impl ProjectileBuffer {
             position,
             velocity,
             pierce_remaining,
-            last_hit: 0,
+            hits: ProjectileHitHistory::default(),
             state: ProjectileState::Flying { spawn_tick },
         };
         self.next_index = self.next_index.wrapping_add(1);
     }
 
     /// Advance slots one fixed tick.
-    /// `on_hit` returns the hit entity bits when a new target is struck.
+    /// `on_hit` receives source, position, prior hits, slot index, and generation.
+    /// It returns the hit entity bits when a new target is struck.
     pub fn simulate(
         &mut self,
         room: &GameRoom,
         tick: Tick,
         tick_secs: f32,
         settings: &GameSettings,
-        mut on_hit: impl FnMut(ProjectileSource, Vec2, u64) -> Option<u64>,
+        mut on_hit: impl FnMut(
+            ProjectileSource,
+            Vec2,
+            &ProjectileHitHistory,
+            u16,
+            u32,
+        ) -> Option<u64>,
     ) {
         for i in 0..self.slots.len() {
             match &mut self.slots[i] {
@@ -203,7 +233,7 @@ impl ProjectileBuffer {
                     position,
                     velocity,
                     pierce_remaining,
-                    last_hit,
+                    hits,
                     state: ProjectileState::Flying { spawn_tick },
                 } => {
                     *position += *velocity * tick_secs;
@@ -212,7 +242,7 @@ impl ProjectileBuffer {
                     let position = *position;
                     let velocity = *velocity;
                     let mut pierce_remaining = *pierce_remaining;
-                    let mut last_hit = *last_hit;
+                    let mut hits = *hits;
                     let spawn_tick = *spawn_tick;
 
                     let Some((range, _, _)) = projectile_stats(source, settings) else {
@@ -224,18 +254,20 @@ impl ProjectileBuffer {
                         > spawn_tick + Tick((range / speed_per_tick.max(0.001)).ceil() as u32)
                         || !room.bounds(&settings.world).contains(position);
 
-                    let hit = on_hit(source, position, last_hit);
+                    let hit = on_hit(source, position, &hits, i as u16, generation);
                     self.slots[i] = if let Some(hit_id) = hit {
-                        if pierce_remaining > 0 {
+                        hits.push(hit_id);
+                        if pierce_remaining > 0
+                            && (hits.count as usize) < MAX_PROJECTILE_HIT_HISTORY
+                        {
                             pierce_remaining -= 1;
-                            last_hit = hit_id;
                             ProjectileSlot::Active {
                                 generation,
                                 source,
                                 position,
                                 velocity,
                                 pierce_remaining,
-                                last_hit,
+                                hits,
                                 state: ProjectileState::Flying { spawn_tick },
                             }
                         } else {
@@ -245,7 +277,7 @@ impl ProjectileBuffer {
                                 position,
                                 velocity,
                                 pierce_remaining: 0,
-                                last_hit: hit_id,
+                                hits,
                                 state: ProjectileState::Impact {
                                     remaining_ticks: settings.projectile.impact_lifetime_ticks,
                                 },
@@ -260,7 +292,7 @@ impl ProjectileBuffer {
                             position,
                             velocity,
                             pierce_remaining,
-                            last_hit,
+                            hits,
                             state: ProjectileState::Flying { spawn_tick },
                         }
                     };

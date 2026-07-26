@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
 use crate::app::temporary_username;
+#[cfg(feature = "server")]
+use crate::combat::HitFlash;
 
 pub struct PlayerProtocolPlugin;
 
@@ -45,6 +47,7 @@ pub(crate) struct PlayerBundle {
     username: PlayerUsername,
     health: PlayerHealth,
     aristeia: PlayerAristeia,
+    hit_flash: HitFlash,
     projectile_buffer: crate::projectile::protocol::ProjectileBuffer,
 }
 
@@ -70,6 +73,7 @@ impl PlayerBundle {
             username: PlayerUsername(temporary_username(id.to_bits())),
             health: PlayerHealth::new(maximum_health),
             aristeia: PlayerAristeia::default(),
+            hit_flash: HitFlash::default(),
             projectile_buffer: crate::projectile::protocol::ProjectileBuffer::new(
                 projectile_buffer_capacity,
             ),

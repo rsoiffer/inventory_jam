@@ -4,6 +4,7 @@ use rand::Rng;
 
 use crate::{
     app::ServerState,
+    combat::HitFlash,
     enemy::{EnemyHealth, EnemyIdentity, EnemyKind, EnemyPosition},
     fragment::api::SpawnFragmentPool,
     persistence::{CachedPersistentState, PersistenceReady, Transaction},
@@ -53,6 +54,7 @@ fn simulate_player_projectile_buffers(
         &GameRoom,
         &mut EnemyHealth,
         &EnemyIdentity,
+        &mut HitFlash,
     )>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
@@ -72,57 +74,65 @@ fn simulate_player_projectile_buffers(
         let progress = cache.weapon(cache.equipped_weapon_id);
         let damage_level = progress.damage_level;
         let crit_chance = settings.progression.crit_chance_at(progress.crit_level);
-        buffer.simulate(room, tick, tick_secs, &settings, |source, pos, last_hit| {
-            let ProjectileSource::Weapon(weapon) = source else {
-                return None;
-            };
-            let stats = settings.weapons.get(weapon)?;
-            let mut damage = settings.progression.damage_at(stats.damage, damage_level);
-            if rng.random::<f32>() < crit_chance {
-                damage =
-                    (damage as f32 * settings.progression.crit_damage_multiplier).round() as u32;
-            }
-            let radius = stats.projectile_radius;
-
-            for (entity, enemy, enemy_room, mut health, identity) in &mut enemies {
-                if enemy_room != room
-                    || health.current == 0
-                    || entity.to_bits() == last_hit
-                    || !protocol::overlaps(
-                        pos,
-                        enemy.0,
-                        radius,
-                        identity.kind.scale(settings.enemy.collision_radius),
-                    )
-                {
-                    continue;
+        buffer.simulate(
+            room,
+            tick,
+            tick_secs,
+            &settings,
+            |source, pos, hits, _, _| {
+                let ProjectileSource::Weapon(weapon) = source else {
+                    return None;
+                };
+                let stats = settings.weapons.get(weapon)?;
+                let mut damage = settings.progression.damage_at(stats.damage, damage_level);
+                if rng.random::<f32>() < crit_chance {
+                    damage = (damage as f32 * settings.progression.crit_damage_multiplier).round()
+                        as u32;
                 }
-                health.current = health.current.saturating_sub(damage);
-                if health.current == 0 {
-                    let stats = identity.stats(&settings);
-                    let bonus = u32::from(settings.fragment.bonus_drops_per_aristeia)
-                        .saturating_mul(personal_aristeia);
-                    let base = u32::from(settings.fragment.base_drop_count)
-                        .saturating_add(bonus)
-                        .min(u32::from(settings.fragment.maximum_drop_count));
-                    let total_value = ((base as f32) * stats.fragment_multiplier).round() as u32;
-                    fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
-                    commands.entity(entity).despawn();
-                    aristeia_tracking.write(AddAristeiaPoints::new(
-                        owner,
-                        stats.personal_aristeia_reward,
-                    ));
-                    if identity.kind == EnemyKind::GrandChampion {
-                        boss_defeats.write(GrandChampionDefeated);
-                    } else if stats.global_aristeia_reward > 0 {
-                        global_aristeia.write(AddGlobalAristeia(stats.global_aristeia_reward));
+                let radius = stats.projectile_radius;
+
+                for (entity, enemy, enemy_room, mut health, identity, mut flash) in &mut enemies {
+                    if enemy_room != room
+                        || health.current == 0
+                        || hits.contains(entity.to_bits())
+                        || !protocol::overlaps(
+                            pos,
+                            enemy.0,
+                            radius,
+                            identity.kind.scale(settings.enemy.collision_radius),
+                        )
+                    {
+                        continue;
                     }
+                    health.current = health.current.saturating_sub(damage);
+                    flash.trigger();
+                    if health.current == 0 {
+                        let stats = identity.stats(&settings);
+                        let bonus = u32::from(settings.fragment.bonus_drops_per_aristeia)
+                            .saturating_mul(personal_aristeia);
+                        let base = u32::from(settings.fragment.base_drop_count)
+                            .saturating_add(bonus)
+                            .min(u32::from(settings.fragment.maximum_drop_count));
+                        let total_value =
+                            ((base as f32) * stats.fragment_multiplier).round() as u32;
+                        fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
+                        commands.entity(entity).despawn();
+                        aristeia_tracking.write(AddAristeiaPoints::new(
+                            owner,
+                            stats.personal_aristeia_reward,
+                        ));
+                        if identity.kind == EnemyKind::GrandChampion {
+                            boss_defeats.write(GrandChampionDefeated);
+                        } else if stats.global_aristeia_reward > 0 {
+                            global_aristeia.write(AddGlobalAristeia(stats.global_aristeia_reward));
+                        }
+                    }
+                    return Some(entity.to_bits());
                 }
-                return Some(entity.to_bits());
-            }
 
-            None
-        });
+                None
+            },
+        );
     }
 }
 
@@ -132,6 +142,7 @@ fn simulate_enemy_projectile_buffers(
         &PlayerPosition,
         &GameRoom,
         &mut PlayerHealth,
+        &mut HitFlash,
         &mut PlayerDeathTimer,
         Option<&CachedPersistentState>,
         Option<&PlayerUsername>,
@@ -147,7 +158,7 @@ fn simulate_enemy_projectile_buffers(
     let tick_secs = tick_duration.0.as_secs_f32();
     let player_targets: Vec<(Entity, Vec2, GameRoom, bool)> = players
         .iter()
-        .map(|(entity, position, room, health, _, _, _, _)| {
+        .map(|(entity, position, room, health, _, _, _, _, _)| {
             (entity, position.0, *room, health.current > 0)
         })
         .collect();
@@ -157,41 +168,56 @@ fn simulate_enemy_projectile_buffers(
         let damage = identity.stats(&settings).ranged_damage;
         let radius = identity.projectile_radius(&settings);
         if damage == 0 {
-            buffer.simulate(room, tick, tick_secs, &settings, |_, _, _| None);
+            buffer.simulate(room, tick, tick_secs, &settings, |_, _, _, _, _| None);
             continue;
         }
-        buffer.simulate(room, tick, tick_secs, &settings, |source, pos, last_hit| {
-            let is_enemy_shot = matches!(
-                source,
-                ProjectileSource::Enemy | ProjectileSource::GrandChampion
-            );
-            if !is_enemy_shot {
-                return None;
-            }
-            for (player_entity, player_position, player_room, alive) in &player_targets {
-                if player_room != room
-                    || !*alive
-                    || player_entity.to_bits() == last_hit
-                    || !protocol::overlaps(
-                        pos,
-                        *player_position,
-                        radius,
-                        settings.player.collision_radius,
-                    )
-                {
-                    continue;
+        buffer.simulate(
+            room,
+            tick,
+            tick_secs,
+            &settings,
+            |source, pos, hits, _, _| {
+                let is_enemy_shot = matches!(
+                    source,
+                    ProjectileSource::Enemy | ProjectileSource::GrandChampion
+                );
+                if !is_enemy_shot {
+                    return None;
                 }
-                pending_hits.push((*player_entity, damage));
-                return Some(player_entity.to_bits());
-            }
-            None
-        });
+                for (player_entity, player_position, player_room, alive) in &player_targets {
+                    if player_room != room
+                        || !*alive
+                        || hits.contains(player_entity.to_bits())
+                        || !protocol::overlaps(
+                            pos,
+                            *player_position,
+                            radius,
+                            settings.player.collision_radius,
+                        )
+                    {
+                        continue;
+                    }
+                    pending_hits.push((*player_entity, damage));
+                    return Some(player_entity.to_bits());
+                }
+                None
+            },
+        );
     }
 
     let mut rng = rand::rng();
     for (player_entity, raw_damage) in pending_hits {
-        let Ok((_, _, _, mut health, mut death_timer, cache, username, persistence_ready)) =
-            players.get_mut(player_entity)
+        let Ok((
+            _,
+            _,
+            _,
+            mut health,
+            mut flash,
+            mut death_timer,
+            cache,
+            username,
+            persistence_ready,
+        )) = players.get_mut(player_entity)
         else {
             continue;
         };
@@ -205,7 +231,9 @@ fn simulate_enemy_projectile_buffers(
                     .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
             })
             .unwrap_or(0);
-        apply_damage_to_player(&mut health, raw_damage, armor, &mut rng);
+        if apply_damage_to_player(&mut health, raw_damage, armor, &mut rng) > 0 {
+            flash.trigger();
+        }
         if health.current == 0 {
             death_timer.remaining_seconds = settings.player.death_screen_duration_seconds;
             apply_death_penalty(

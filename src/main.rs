@@ -1,4 +1,5 @@
 mod app;
+mod combat;
 mod enemy;
 mod fragment;
 mod gate;
@@ -24,6 +25,7 @@ use bevy::prelude::*;
 use bevy::window::PresentMode;
 #[cfg(feature = "gui")]
 use bevy::winit::WinitSettings;
+use combat::CombatPlugin;
 use enemy::EnemyPlugin;
 use fragment::FragmentPlugin;
 use gate::GatePlugin;
@@ -88,6 +90,7 @@ fn run() -> Result<(), GameSettingsLoadError> {
         UiPlugin,
         LaunchPlugin,
         SharedPlugin,
+        CombatPlugin,
         PlayerPlugin,
         EnemyPlugin,
         ProjectilePlugin,

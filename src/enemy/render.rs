@@ -1,4 +1,5 @@
 use crate::app::game_is_active;
+use crate::combat::HitFlash;
 use crate::enemy::protocol::{
     EnemyHealth, EnemyIdentity, EnemyKind, EnemyPosition, EnemySpawnerPosition,
 };
@@ -24,6 +25,7 @@ impl Plugin for EnemyRenderPlugin {
                 ensure_enemy_sprites,
                 sync_enemy_sprites,
                 animate_enemy_sprites,
+                sync_enemy_hit_flashes,
                 ensure_enemy_health_bars,
                 sync_enemy_health_bars,
                 ensure_spawner_sprites,
@@ -46,14 +48,18 @@ struct IdleSheet {
 #[derive(Resource)]
 struct EnemyVisualAssets {
     regular: IdleSheet,
+    regular_flash: IdleSheet,
     champion: IdleSheet,
     spawner: IdleSheet,
 }
 
 #[derive(Component)]
 struct EnemySpriteVisual {
+    kind: EnemyKind,
     previous_position: Option<Vec2>,
     frame_count: usize,
+    last_flash_sequence: u32,
+    flash_remaining: f32,
 }
 
 #[derive(Component)]
@@ -82,16 +88,22 @@ fn load_enemy_visual_assets(
     asset_server: Res<AssetServer>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
+    let regular_layout = layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::splat(16),
+        4,
+        1,
+        None,
+        None,
+    ));
     commands.insert_resource(EnemyVisualAssets {
         regular: IdleSheet {
             image: asset_server.load("enemy/spr_enemy_placeholder_idle.png"),
-            layout: layouts.add(TextureAtlasLayout::from_grid(
-                UVec2::splat(16),
-                4,
-                1,
-                None,
-                None,
-            )),
+            layout: regular_layout.clone(),
+            frame_count: 4,
+        },
+        regular_flash: IdleSheet {
+            image: asset_server.load("enemy/spr_enemy_placeholder_idle_flash.png"),
+            layout: regular_layout,
             frame_count: 4,
         },
         champion: IdleSheet {
@@ -144,8 +156,11 @@ fn ensure_enemy_sprites(
                 ..default()
             },
             EnemySpriteVisual {
+                kind: identity.kind,
                 previous_position: None,
                 frame_count: sheet.frame_count,
+                last_flash_sequence: 0,
+                flash_remaining: 0.0,
             },
             EnemySpriteAnimation(Timer::from_seconds(
                 IDLE_FRAME_SECONDS,
@@ -191,6 +206,40 @@ fn animate_enemy_sprites(
             continue;
         };
         atlas.index = (atlas.index + 1) % visual.frame_count;
+    }
+}
+
+fn sync_enemy_hit_flashes(
+    time: Res<Time>,
+    settings: Res<GameSettings>,
+    assets: Res<EnemyVisualAssets>,
+    mut enemies: Query<(&HitFlash, &mut EnemySpriteVisual, &mut Sprite)>,
+) {
+    let flash_duration = settings.combat_feedback.flash_duration_seconds;
+    let flash_color = settings.combat_feedback.flash_color;
+    for (flash, mut visual, mut sprite) in &mut enemies {
+        let delta = flash.sequence.wrapping_sub(visual.last_flash_sequence);
+        if delta > 0 && delta < u32::MAX / 2 {
+            visual.last_flash_sequence = flash.sequence;
+            visual.flash_remaining = flash_duration;
+        }
+
+        if visual.flash_remaining > 0.0 {
+            visual.flash_remaining = (visual.flash_remaining - time.delta_secs()).max(0.0);
+        }
+
+        let flashing = visual.flash_remaining > 0.0;
+        let sheet = match (visual.kind, flashing) {
+            (EnemyKind::Regular, true) => &assets.regular_flash,
+            (EnemyKind::Regular, false) => &assets.regular,
+            (EnemyKind::GrandChampion, _) => &assets.champion,
+        };
+        sprite.image = sheet.image.clone();
+        sprite.color = if flashing {
+            flash_color
+        } else {
+            Color::WHITE
+        };
     }
 }
 

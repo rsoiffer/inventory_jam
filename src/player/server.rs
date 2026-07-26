@@ -1,4 +1,5 @@
 use crate::app::ServerState;
+use crate::combat::HitFlash;
 use crate::enemy::{EnemyHealth, EnemyIdentity, EnemyPosition};
 use crate::gate::GateTeleportCooldown;
 use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
@@ -294,6 +295,7 @@ fn apply_enemy_contact_damage(
             &PlayerPosition,
             &GameRoom,
             &mut PlayerHealth,
+            &mut HitFlash,
             &mut EnemyContactDamageCooldown,
             &mut PlayerDeathTimer,
             Option<&CachedPersistentState>,
@@ -311,6 +313,7 @@ fn apply_enemy_contact_damage(
         player_position,
         room,
         mut health,
+        mut flash,
         mut cooldown,
         mut death_timer,
         cache,
@@ -351,7 +354,9 @@ fn apply_enemy_contact_damage(
                     .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
             })
             .unwrap_or(0);
-        apply_damage_to_player(&mut health, raw_damage, armor, &mut rng);
+        if apply_damage_to_player(&mut health, raw_damage, armor, &mut rng) > 0 {
+            flash.trigger();
+        }
         cooldown.remaining_seconds = settings.player.enemy_contact_damage_interval_seconds;
 
         if health.current == 0 {

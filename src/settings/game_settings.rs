@@ -17,6 +17,7 @@ pub(crate) struct GameSettings {
     pub camera: CameraSettings,
     pub hud: HudSettings,
     pub player_visual: PlayerVisualSettings,
+    pub combat_feedback: CombatFeedbackSettings,
     pub arena_floor: ArenaFloorSettings,
     pub player: PlayerSettings,
     pub world: WorldSettings,
@@ -179,6 +180,23 @@ pub struct PlayerVisualSettings {
     pub health_bar_height: f32,
     pub health_bar_offset_y: f32,
     pub held_weapon_offset: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CombatFeedbackSettings {
+    pub flash_duration_seconds: f32,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub flash_color: Color,
+    pub popup_duration_seconds: f32,
+    pub popup_rise_speed: f32,
+    pub popup_offset_y: f32,
+    pub popup_font_size: f32,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub outgoing_color: Color,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub incoming_color: Color,
+    #[serde(deserialize_with = "deserialize_color")]
+    pub crit_color: Color,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -838,6 +856,15 @@ impl GameSettings {
         {
             return Err(GameSettingsLoadError::Invalid(
                 "player_visual settings are invalid".into(),
+            ));
+        }
+        if self.combat_feedback.flash_duration_seconds <= 0.0
+            || self.combat_feedback.popup_duration_seconds <= 0.0
+            || self.combat_feedback.popup_rise_speed < 0.0
+            || self.combat_feedback.popup_font_size <= 0.0
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "combat_feedback settings are invalid".into(),
             ));
         }
         if self.player.maximum_health == 0
