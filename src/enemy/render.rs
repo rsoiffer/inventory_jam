@@ -218,10 +218,8 @@ fn sync_enemy_hit_flashes(
     let flash_duration = settings.combat_feedback.flash_duration_seconds;
     let flash_color = settings.combat_feedback.flash_color;
     for (flash, mut visual, mut sprite) in &mut enemies {
-        let delta = flash.sequence.wrapping_sub(visual.last_flash_sequence);
-        if delta > 0 && delta < u32::MAX / 2 {
-            visual.last_flash_sequence = flash.sequence;
-            visual.flash_remaining = flash_duration;
+        if let Some(duration) = flash.observe(&mut visual.last_flash_sequence, flash_duration) {
+            visual.flash_remaining = duration;
         }
 
         if visual.flash_remaining > 0.0 {
@@ -235,11 +233,7 @@ fn sync_enemy_hit_flashes(
             (EnemyKind::GrandChampion, _) => &assets.champion,
         };
         sprite.image = sheet.image.clone();
-        sprite.color = if flashing {
-            flash_color
-        } else {
-            Color::WHITE
-        };
+        sprite.color = if flashing { flash_color } else { Color::WHITE };
     }
 }
 

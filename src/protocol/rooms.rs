@@ -4,7 +4,7 @@ use bevy::prelude::{Component, Deref, DerefMut};
 use bevy::reflect::Reflect;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Reflect)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 pub enum GameRooms {
     Arena,
     Safezone,

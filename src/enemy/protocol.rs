@@ -115,13 +115,6 @@ impl EnemyIdentity {
             }
         }
     }
-
-    pub fn projectile_radius(self, settings: &GameSettings) -> f32 {
-        match self.kind {
-            EnemyKind::Regular => settings.enemy.projectile_radius,
-            EnemyKind::GrandChampion => settings.global_aristeia.grand_champion_projectile_radius,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

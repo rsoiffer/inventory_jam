@@ -9,7 +9,9 @@ use crate::player::protocol::{
     PlayerAimDirection, PlayerAristeia, PlayerBundle, PlayerHealth, PlayerPosition, PlayerUsername,
     PlayerVisual,
 };
-use crate::player::shared::{apply_damage_to_player, apply_player_aim, apply_player_movement};
+use crate::player::shared::{
+    apply_damage_to_player, apply_player_aim, apply_player_movement, armor_from_cache,
+};
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::settings::GameSettings;
@@ -347,13 +349,7 @@ fn apply_enemy_contact_damage(
             continue;
         };
 
-        let armor = cache
-            .map(|cache| {
-                settings
-                    .progression
-                    .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
-            })
-            .unwrap_or(0);
+        let armor = armor_from_cache(&settings, cache);
         if apply_damage_to_player(&mut health, raw_damage, armor, &mut rng) > 0 {
             flash.trigger();
         }

@@ -6,7 +6,7 @@ use lightyear::prelude::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{protocol::rooms::GameRoom, settings::GameSettings};
+use crate::{projectile::spatial::SpatialHash, protocol::rooms::GameRoom, settings::GameSettings};
 
 pub const MAX_PROJECTILE_HIT_HISTORY: usize = 16;
 
@@ -45,8 +45,16 @@ impl ProjectileHitHistory {
         self.ids[..self.count as usize].contains(&id)
     }
 
+    pub fn len(self) -> usize {
+        self.count as usize
+    }
+
+    pub fn is_full(self) -> bool {
+        self.len() >= MAX_PROJECTILE_HIT_HISTORY
+    }
+
     pub fn push(&mut self, id: u64) -> bool {
-        if self.contains(id) || self.count as usize >= MAX_PROJECTILE_HIT_HISTORY {
+        if self.contains(id) || self.is_full() {
             return false;
         }
         self.ids[self.count as usize] = id;
@@ -197,21 +205,15 @@ impl ProjectileBuffer {
     }
 
     /// Advance slots one fixed tick.
-    /// `on_hit` receives source, position, prior hits, slot index, and generation.
-    /// It returns the hit entity bits when a new target is struck.
+    /// `on_hit` applies effects when `targets` reports an overlapping entry.
     pub fn simulate(
         &mut self,
         room: &GameRoom,
         tick: Tick,
         tick_secs: f32,
         settings: &GameSettings,
-        mut on_hit: impl FnMut(
-            ProjectileSource,
-            Vec2,
-            &ProjectileHitHistory,
-            u16,
-            u32,
-        ) -> Option<u64>,
+        targets: &SpatialHash,
+        mut on_hit: impl FnMut(ProjectileSource, Vec2, u64, u16, u32, u16),
     ) {
         for i in 0..self.slots.len() {
             match &mut self.slots[i] {
@@ -245,7 +247,8 @@ impl ProjectileBuffer {
                     let mut hits = *hits;
                     let spawn_tick = *spawn_tick;
 
-                    let Some((range, _, _)) = projectile_stats(source, settings) else {
+                    let Some((range, projectile_radius, _)) = projectile_stats(source, settings)
+                    else {
                         self.slots[i] = ProjectileSlot::Empty { generation };
                         continue;
                     };
@@ -254,12 +257,18 @@ impl ProjectileBuffer {
                         > spawn_tick + Tick((range / speed_per_tick.max(0.001)).ceil() as u32)
                         || !room.bounds(&settings.world).contains(position);
 
-                    let hit = on_hit(source, position, &hits, i as u16, generation);
+                    let hit = targets.find_hit(room, position, projectile_radius, &hits);
                     self.slots[i] = if let Some(hit_id) = hit {
                         hits.push(hit_id);
-                        if pierce_remaining > 0
-                            && (hits.count as usize) < MAX_PROJECTILE_HIT_HISTORY
-                        {
+                        on_hit(
+                            source,
+                            position,
+                            hit_id,
+                            i as u16,
+                            generation,
+                            pierce_remaining,
+                        );
+                        if pierce_remaining > 0 && !hits.is_full() {
                             pierce_remaining -= 1;
                             ProjectileSlot::Active {
                                 generation,

@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
-use lightyear::prelude::Tick;
 
 use crate::app::{ClientState, game_is_active};
 use crate::settings::GameSettings;
@@ -26,13 +25,13 @@ impl Plugin for DamagePopupPlugin {
     }
 }
 
+/// Uniquely identifies a projectile hit for popup dedupe across prediction rollback.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DamageHitId {
     pub owner: Entity,
     pub slot: u16,
     pub generation: u32,
     pub target: Entity,
-    pub tick: Tick,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,19 +54,6 @@ struct RecentDamageHits {
     hits: VecDeque<DamageHitId>,
 }
 
-impl RecentDamageHits {
-    fn insert_if_new(&mut self, hit: DamageHitId) -> bool {
-        if self.hits.contains(&hit) {
-            return false;
-        }
-        if self.hits.len() >= RECENT_HIT_CAPACITY {
-            self.hits.pop_front();
-        }
-        self.hits.push_back(hit);
-        true
-    }
-}
-
 #[derive(Component)]
 struct DamagePopup {
     remaining: Timer,
@@ -82,9 +68,13 @@ fn spawn_damage_popups(
 ) {
     let feedback = &settings.combat_feedback;
     for request in requests.read() {
-        if request.amount == 0 || !recent.insert_if_new(request.hit) {
+        if request.amount == 0 || recent.hits.contains(&request.hit) {
             continue;
         }
+        if recent.hits.len() >= RECENT_HIT_CAPACITY {
+            recent.hits.pop_front();
+        }
+        recent.hits.push_back(request.hit);
 
         let color = if request.is_crit {
             feedback.crit_color
@@ -123,10 +113,7 @@ fn animate_damage_popups(
     for (entity, mut popup, mut transform, mut color) in &mut popups {
         popup.remaining.tick(time.delta());
         transform.translation += (popup.velocity * time.delta_secs()).extend(0.0);
-
-        let alpha = 1.0 - popup.remaining.fraction();
-        color.0.set_alpha(alpha);
-
+        color.0.set_alpha(1.0 - popup.remaining.fraction());
         if popup.remaining.is_finished() {
             commands.entity(entity).despawn();
         }

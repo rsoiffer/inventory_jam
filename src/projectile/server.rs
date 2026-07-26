@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use lightyear::core::{tick::TickDuration, timeline::LocalTimeline};
-use rand::Rng;
 
 use crate::{
     app::ServerState,
@@ -14,8 +13,10 @@ use crate::{
     player::api::AddAristeiaPoints,
     player::protocol::{PlayerAristeia, PlayerHealth},
     player::server::{PlayerDeathTimer, apply_death_penalty},
-    player::shared::apply_damage_to_player,
-    projectile::protocol::{self, ProjectileBuffer, ProjectileSource},
+    player::shared::{apply_damage_to_player, armor_from_cache},
+    projectile::protocol::{ProjectileBuffer, ProjectileSource},
+    projectile::shared::roll_weapon_damage,
+    projectile::spatial::build_combat_spatial_hash,
     protocol::rooms::GameRoom,
     settings::GameSettings,
     shared::FixedGameplaySet,
@@ -66,7 +67,19 @@ fn simulate_player_projectile_buffers(
 ) {
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
-    let mut rng = rand::rng();
+    let targets = build_combat_spatial_hash(
+        enemies
+            .iter()
+            .filter(|(_, _, _, health, _, _)| health.current > 0)
+            .map(|(entity, position, room, _, identity, _)| {
+                (
+                    entity,
+                    position.0,
+                    *room,
+                    identity.kind.scale(settings.enemy.collision_radius),
+                )
+            }),
+    );
 
     for (owner_id, room, mut buffer, aristeia, cache) in &mut players {
         let owner = owner_id.0;
@@ -79,58 +92,53 @@ fn simulate_player_projectile_buffers(
             tick,
             tick_secs,
             &settings,
-            |source, pos, hits, _, _| {
+            &targets,
+            |source, pos, hit_id, _, generation, pierce_remaining| {
                 let ProjectileSource::Weapon(weapon) = source else {
-                    return None;
+                    return;
                 };
-                let stats = settings.weapons.get(weapon)?;
-                let mut damage = settings.progression.damage_at(stats.damage, damage_level);
-                if rng.random::<f32>() < crit_chance {
-                    damage = (damage as f32 * settings.progression.crit_damage_multiplier).round()
-                        as u32;
+                let Some(weapon_stats) = settings.weapons.get(weapon) else {
+                    return;
+                };
+                let (damage, _) = roll_weapon_damage(
+                    &settings,
+                    weapon_stats.damage,
+                    damage_level,
+                    crit_chance,
+                    generation,
+                    pierce_remaining,
+                );
+                let Ok((entity, _, _, mut health, identity, mut flash)) =
+                    enemies.get_mut(Entity::from_bits(hit_id))
+                else {
+                    return;
+                };
+                if health.current == 0 {
+                    return;
                 }
-                let radius = stats.projectile_radius;
-
-                for (entity, enemy, enemy_room, mut health, identity, mut flash) in &mut enemies {
-                    if enemy_room != room
-                        || health.current == 0
-                        || hits.contains(entity.to_bits())
-                        || !protocol::overlaps(
-                            pos,
-                            enemy.0,
-                            radius,
-                            identity.kind.scale(settings.enemy.collision_radius),
-                        )
-                    {
-                        continue;
-                    }
-                    health.current = health.current.saturating_sub(damage);
-                    flash.trigger();
-                    if health.current == 0 {
-                        let stats = identity.stats(&settings);
-                        let bonus = u32::from(settings.fragment.bonus_drops_per_aristeia)
-                            .saturating_mul(personal_aristeia);
-                        let base = u32::from(settings.fragment.base_drop_count)
-                            .saturating_add(bonus)
-                            .min(u32::from(settings.fragment.maximum_drop_count));
-                        let total_value =
-                            ((base as f32) * stats.fragment_multiplier).round() as u32;
-                        fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
-                        commands.entity(entity).despawn();
-                        aristeia_tracking.write(AddAristeiaPoints::new(
-                            owner,
-                            stats.personal_aristeia_reward,
-                        ));
-                        if identity.kind == EnemyKind::GrandChampion {
-                            boss_defeats.write(GrandChampionDefeated);
-                        } else if stats.global_aristeia_reward > 0 {
-                            global_aristeia.write(AddGlobalAristeia(stats.global_aristeia_reward));
-                        }
-                    }
-                    return Some(entity.to_bits());
+                health.current = health.current.saturating_sub(damage);
+                flash.trigger();
+                if health.current > 0 {
+                    return;
                 }
-
-                None
+                let stats = identity.stats(&settings);
+                let bonus = u32::from(settings.fragment.bonus_drops_per_aristeia)
+                    .saturating_mul(personal_aristeia);
+                let base = u32::from(settings.fragment.base_drop_count)
+                    .saturating_add(bonus)
+                    .min(u32::from(settings.fragment.maximum_drop_count));
+                let total_value = ((base as f32) * stats.fragment_multiplier).round() as u32;
+                fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
+                commands.entity(entity).despawn();
+                aristeia_tracking.write(AddAristeiaPoints::new(
+                    owner,
+                    stats.personal_aristeia_reward,
+                ));
+                if identity.kind == EnemyKind::GrandChampion {
+                    boss_defeats.write(GrandChampionDefeated);
+                } else if stats.global_aristeia_reward > 0 {
+                    global_aristeia.write(AddGlobalAristeia(stats.global_aristeia_reward));
+                }
             },
         );
     }
@@ -156,19 +164,20 @@ fn simulate_enemy_projectile_buffers(
 ) {
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
-    let player_targets: Vec<(Entity, Vec2, GameRoom, bool)> = players
-        .iter()
-        .map(|(entity, position, room, health, _, _, _, _, _)| {
-            (entity, position.0, *room, health.current > 0)
-        })
-        .collect();
+    let player_radius = settings.player.collision_radius;
+    let targets = build_combat_spatial_hash(
+        players
+            .iter()
+            .filter(|(_, _, _, health, _, _, _, _, _)| health.current > 0)
+            .map(|(entity, position, room, _, _, _, _, _, _)| {
+                (entity, position.0, *room, player_radius)
+            }),
+    );
     let mut pending_hits: Vec<(Entity, u32)> = Vec::new();
 
     for (room, mut buffer, identity) in &mut enemies {
         let damage = identity.stats(&settings).ranged_damage;
-        let radius = identity.projectile_radius(&settings);
         if damage == 0 {
-            buffer.simulate(room, tick, tick_secs, &settings, |_, _, _, _, _| None);
             continue;
         }
         buffer.simulate(
@@ -176,31 +185,9 @@ fn simulate_enemy_projectile_buffers(
             tick,
             tick_secs,
             &settings,
-            |source, pos, hits, _, _| {
-                let is_enemy_shot = matches!(
-                    source,
-                    ProjectileSource::Enemy | ProjectileSource::GrandChampion
-                );
-                if !is_enemy_shot {
-                    return None;
-                }
-                for (player_entity, player_position, player_room, alive) in &player_targets {
-                    if player_room != room
-                        || !*alive
-                        || hits.contains(player_entity.to_bits())
-                        || !protocol::overlaps(
-                            pos,
-                            *player_position,
-                            radius,
-                            settings.player.collision_radius,
-                        )
-                    {
-                        continue;
-                    }
-                    pending_hits.push((*player_entity, damage));
-                    return Some(player_entity.to_bits());
-                }
-                None
+            &targets,
+            |_, _, hit_id, _, _, _| {
+                pending_hits.push((Entity::from_bits(hit_id), damage));
             },
         );
     }
@@ -224,14 +211,13 @@ fn simulate_enemy_projectile_buffers(
         if health.current == 0 {
             continue;
         }
-        let armor = cache
-            .map(|cache| {
-                settings
-                    .progression
-                    .armor_at(cache.weapon(cache.equipped_weapon_id).armor_level)
-            })
-            .unwrap_or(0);
-        if apply_damage_to_player(&mut health, raw_damage, armor, &mut rng) > 0 {
+        if apply_damage_to_player(
+            &mut health,
+            raw_damage,
+            armor_from_cache(&settings, cache),
+            &mut rng,
+        ) > 0
+        {
             flash.trigger();
         }
         if health.current == 0 {

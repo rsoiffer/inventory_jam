@@ -222,12 +222,10 @@ fn sync_player_hit_flashes(
     let flash_duration = settings.combat_feedback.flash_duration_seconds;
     let flash_color = settings.combat_feedback.flash_color;
     for (mut body, mut sprite) in &mut bodies {
-        if let Ok(flash) = players.get(body.player) {
-            let delta = flash.sequence.wrapping_sub(body.last_flash_sequence);
-            if delta > 0 && delta < u32::MAX / 2 {
-                body.last_flash_sequence = flash.sequence;
-                body.flash_remaining = flash_duration;
-            }
+        if let Ok(flash) = players.get(body.player)
+            && let Some(duration) = flash.observe(&mut body.last_flash_sequence, flash_duration)
+        {
+            body.flash_remaining = duration;
         }
 
         if body.flash_remaining > 0.0 {

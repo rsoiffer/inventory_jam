@@ -19,4 +19,14 @@ impl HitFlash {
     pub fn trigger(&mut self) {
         self.sequence = self.sequence.wrapping_add(1);
     }
+
+    pub fn observe(self, high_water: &mut u32, duration: f32) -> Option<f32> {
+        let delta = self.sequence.wrapping_sub(*high_water);
+        if delta > 0 && delta < u32::MAX / 2 {
+            *high_water = self.sequence;
+            Some(duration)
+        } else {
+            None
+        }
+    }
 }

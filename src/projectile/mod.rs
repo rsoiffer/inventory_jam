@@ -5,6 +5,8 @@ pub(crate) mod protocol;
 mod render;
 #[cfg(feature = "server")]
 mod server;
+pub(crate) mod shared;
+pub(crate) mod spatial;
 
 use bevy::app::{App, Plugin};
 
