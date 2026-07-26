@@ -31,7 +31,7 @@
   },
   "camera": {
     "decay_rate": 5.0,
-    "scale": 0.48
+    "scale": 0.7
   },
   "hud": {
     "width": 240.0,
