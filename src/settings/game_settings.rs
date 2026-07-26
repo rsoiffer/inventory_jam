@@ -121,6 +121,12 @@ impl SpawnerSettings {
             .position(|tier| distance_from_center <= tier.max_distance_from_center)
             .unwrap_or(self.tiers.len().saturating_sub(1)) as u8
     }
+
+    pub fn tier(&self, index: u8) -> &SpawnerTierSettings {
+        self.tiers
+            .get(index as usize)
+            .unwrap_or_else(|| &self.tiers[self.tiers.len() - 1])
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -7,7 +7,7 @@ use lightyear::prelude::*;
 use crate::protocol::inputs::PlayerAction;
 use crate::{
     app::ServerState,
-    enemy::{EnemyKind, api::SpawnEnemy, server::EnemySpawnSet},
+    enemy::{EnemyIdentity, EnemyKind, api::SpawnEnemy, server::EnemySpawnSet},
     player::PlayerId,
     player::protocol::{PlayerAristeia, PlayerHealth, PlayerPosition},
     protocol::rooms::{GameRoom, GameRooms},
@@ -45,15 +45,10 @@ impl Plugin for WorldServerPlugin {
 
 #[cfg(feature = "dev")]
 fn debug_boost_global_aristeia(
-    players: Query<(&ActionState<PlayerAction>, Has<Predicted>), With<PlayerId>>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    players: Query<&ActionState<PlayerAction>, With<PlayerId>>,
     mut global_aristeia: MessageWriter<AddGlobalAristeia>,
 ) {
-    let skip_predicted = !host_server.is_empty();
-    for (actions, predicted) in &players {
-        if skip_predicted && predicted {
-            continue;
-        }
+    for actions in &players {
         if actions.just_pressed(&PlayerAction::DebugBoostGlobalAristeia) {
             global_aristeia.write(AddGlobalAristeia(DEBUG_GLOBAL_ARISTEIA_BOOST));
             info!("Dev: boosted global Aristeia by {DEBUG_GLOBAL_ARISTEIA_BOOST}");
@@ -115,16 +110,16 @@ fn drain_global_aristeia(
 fn spawn_grand_champion_when_ready(
     settings: Res<GameSettings>,
     mut global: Query<&mut GlobalAristeia>,
-    enemy_kinds: Query<&EnemyKind>,
+    enemy_identities: Query<&EnemyIdentity>,
     players: Query<(&PlayerPosition, &PlayerAristeia, &PlayerHealth, &GameRoom)>,
     mut spawns: MessageWriter<SpawnEnemy>,
 ) {
     let Ok(mut global) = global.single_mut() else {
         return;
     };
-    let champion_exists = enemy_kinds
+    let champion_exists = enemy_identities
         .iter()
-        .any(|kind| *kind == EnemyKind::GrandChampion);
+        .any(|identity| identity.kind == EnemyKind::GrandChampion);
     if champion_exists {
         global.boss_active = true;
         return;

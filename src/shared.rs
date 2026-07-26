@@ -6,6 +6,7 @@ pub const GAME_NAME: &str = "Arena of Champions";
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedGameplaySet {
     Player,
+    Enemy,
     Weapon,
     Projectile,
     Persistence,
@@ -26,6 +27,7 @@ impl Plugin for SharedPlugin {
             FixedUpdate,
             (
                 FixedGameplaySet::Player,
+                FixedGameplaySet::Enemy,
                 FixedGameplaySet::Weapon,
                 FixedGameplaySet::Projectile,
                 FixedGameplaySet::Persistence,

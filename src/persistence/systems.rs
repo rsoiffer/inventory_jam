@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use lightyear::connection::client_of::ClientOf;
-use lightyear::connection::host::HostServer;
 use lightyear::prelude::*;
 use uuid::Uuid;
 
@@ -83,13 +82,9 @@ pub(crate) fn apply_username_messages(
         &mut PlayerUsername,
         Option<&PersistenceLoading>,
         Option<&PersistenceReady>,
-        Has<Predicted>,
     )>,
     channels: Res<PersistenceChannels>,
-    host_server: Query<(), With<HostServer>>,
 ) {
-    let is_host_server = !host_server.is_empty();
-
     for (link_entity, mut receiver) in &mut receivers {
         for message in receiver.receive() {
             let Ok(name) = validate_username(&message.name) else {
@@ -102,10 +97,8 @@ pub(crate) fn apply_username_messages(
 
             let Some((player_entity, is_initialized)) = players
                 .iter()
-                .find(|(_, controlled_by, _, _, _, predicted)| {
-                    controlled_by.owner == link_entity && !(is_host_server && *predicted)
-                })
-                .map(|(entity, _, _, loading, ready, _)| {
+                .find(|(_, controlled_by, _, _, _)| controlled_by.owner == link_entity)
+                .map(|(entity, _, _, loading, ready)| {
                     (entity, loading.is_some() || ready.is_some())
                 })
             else {
@@ -120,14 +113,11 @@ pub(crate) fn apply_username_messages(
                 continue;
             }
 
-            if players
-                .iter()
-                .any(|(entity, _, username, loading, ready, _)| {
-                    entity != player_entity
-                        && (loading.is_some() || ready.is_some())
-                        && username.0 == name
-                })
-            {
+            if players.iter().any(|(entity, _, username, loading, ready)| {
+                entity != player_entity
+                    && (loading.is_some() || ready.is_some())
+                    && username.0 == name
+            }) {
                 warn!("rejected duplicate username `{name}` for {player_entity:?}");
                 continue;
             }
@@ -137,7 +127,7 @@ pub(crate) fn apply_username_messages(
                 continue;
             }
 
-            let Ok((_, _, mut username, _, _, _)) = players.get_mut(player_entity) else {
+            let Ok((_, _, mut username, _, _)) = players.get_mut(player_entity) else {
                 warn!("player {player_entity:?} disappeared before persistence load");
                 continue;
             };

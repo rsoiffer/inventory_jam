@@ -4,10 +4,7 @@ use crate::player::{PlayerId, PlayerPosition};
 use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::{app::ClientState, settings::GameSettings};
 use bevy::prelude::*;
-use lightyear::{
-    connection::host::HostServer, core::tick::TickDuration, prediction::Predicted,
-    prelude::LocalTimeline,
-};
+use lightyear::{core::tick::TickDuration, prediction::Predicted, prelude::LocalTimeline};
 
 pub struct FragmentClientPlugin;
 
@@ -15,9 +12,7 @@ impl Plugin for FragmentClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            simulate_client_fragments
-                .run_if(in_state(ClientState::Playing))
-                .run_if(|host: Query<(), With<HostServer>>| host.is_empty()),
+            simulate_client_fragments.run_if(in_state(ClientState::Playing)),
         );
     }
 }

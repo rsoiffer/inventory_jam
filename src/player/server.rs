@@ -1,5 +1,5 @@
 use crate::app::ServerState;
-use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats};
+use crate::enemy::{EnemyHealth, EnemyIdentity, EnemyPosition};
 use crate::gate::GateTeleportCooldown;
 use crate::persistence::{CachedPersistentState, PersistenceReady, Transaction};
 use crate::player::PlayerId;
@@ -196,7 +196,6 @@ pub(crate) fn authoritative_player_movement(
     settings: Res<GameSettings>,
     mut players: Query<
         (
-            Has<Predicted>,
             &mut PlayerPosition,
             &GameRoom,
             &PlayerHealth,
@@ -204,37 +203,16 @@ pub(crate) fn authoritative_player_movement(
         ),
         With<PlayerId>,
     >,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
 ) {
-    let skip_predicted = !host_server.is_empty();
-
-    for (predicted, mut position, room, health, actions) in &mut players {
-        if skip_predicted && predicted {
-            continue;
-        }
-
+    for (mut position, room, health, actions) in &mut players {
         apply_player_movement(&mut position, room, health, actions, &settings);
     }
 }
 
 pub(crate) fn authoritative_player_aim(
-    mut players: Query<
-        (
-            Has<Predicted>,
-            &ActionState<PlayerAction>,
-            &mut PlayerAimDirection,
-        ),
-        With<PlayerId>,
-    >,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    mut players: Query<(&ActionState<PlayerAction>, &mut PlayerAimDirection), With<PlayerId>>,
 ) {
-    let skip_predicted = !host_server.is_empty();
-
-    for (predicted, actions, mut aim_direction) in &mut players {
-        if skip_predicted && predicted {
-            continue;
-        }
-
+    for (actions, mut aim_direction) in &mut players {
         apply_player_aim(&mut aim_direction, actions);
     }
 }
@@ -324,7 +302,7 @@ fn apply_enemy_contact_damage(
         ),
         With<ControlledBy>,
     >,
-    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind, &EnemyStats)>,
+    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyIdentity)>,
     settings: Res<GameSettings>,
     mut transactions: MessageWriter<Transaction>,
 ) {
@@ -350,16 +328,17 @@ fn apply_enemy_contact_damage(
         let Some(raw_damage) =
             enemies
                 .iter()
-                .find_map(|(enemy_position, enemy_health, kind, stats)| {
-                    if enemy_health.current == 0 || stats.contact_damage == 0 {
+                .find_map(|(enemy_position, enemy_health, identity)| {
+                    let contact_damage = identity.stats(&settings).contact_damage;
+                    if enemy_health.current == 0 || contact_damage == 0 {
                         return None;
                     }
 
                     let collision_radius = settings.player.collision_radius
-                        + kind.collision_radius(settings.enemy.collision_radius);
+                        + identity.kind.scale(settings.enemy.collision_radius);
                     (player_position.0.distance_squared(enemy_position.0)
                         <= collision_radius * collision_radius)
-                        .then_some(stats.contact_damage)
+                        .then_some(contact_damage)
                 })
         else {
             continue;

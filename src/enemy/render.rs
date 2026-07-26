@@ -1,5 +1,7 @@
 use crate::app::game_is_active;
-use crate::enemy::protocol::{EnemyHealth, EnemyKind, EnemyPosition, EnemySpawnerPosition};
+use crate::enemy::protocol::{
+    EnemyHealth, EnemyIdentity, EnemyKind, EnemyPosition, EnemySpawnerPosition,
+};
 use crate::settings::GameSettings;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
@@ -120,10 +122,10 @@ fn load_enemy_visual_assets(
 fn ensure_enemy_sprites(
     mut commands: Commands,
     assets: Res<EnemyVisualAssets>,
-    enemies: Query<(Entity, &EnemyKind), (With<EnemyPosition>, Without<EnemySpriteVisual>)>,
+    enemies: Query<(Entity, &EnemyIdentity), (With<EnemyPosition>, Without<EnemySpriteVisual>)>,
 ) {
-    for (entity, kind) in &enemies {
-        let sheet = match kind {
+    for (entity, identity) in &enemies {
+        let sheet = match identity.kind {
             EnemyKind::Regular => &assets.regular,
             EnemyKind::GrandChampion => &assets.champion,
         };
@@ -197,7 +199,7 @@ fn enemy_health_bar_layout(
     kind: EnemyKind,
     position: Vec2,
 ) -> (Vec2, f32) {
-    let width = kind.display_size(settings.enemy.size);
+    let width = kind.scale(settings.enemy.size);
     let height = settings.player_visual.health_bar_height;
     (Vec2::new(width, height), position.y + width + height)
 }
@@ -205,15 +207,17 @@ fn enemy_health_bar_layout(
 fn ensure_enemy_health_bars(
     mut commands: Commands,
     settings: Res<GameSettings>,
-    enemies: Query<(Entity, &EnemyPosition, &EnemyKind)>,
+    enemies: Query<(Entity, &EnemyPosition, &EnemyIdentity)>,
     backgrounds: Query<&EnemyHealthBarBackground>,
 ) {
-    for (enemy, position, kind) in &enemies {
-        if *kind == EnemyKind::GrandChampion || backgrounds.iter().any(|bar| bar.enemy == enemy) {
+    for (enemy, position, identity) in &enemies {
+        if identity.kind == EnemyKind::GrandChampion
+            || backgrounds.iter().any(|bar| bar.enemy == enemy)
+        {
             continue;
         }
 
-        let (bar_size, center_y) = enemy_health_bar_layout(&settings, *kind, position.0);
+        let (bar_size, center_y) = enemy_health_bar_layout(&settings, identity.kind, position.0);
         let center = Vec2::new(position.0.x, center_y);
 
         commands.spawn((
@@ -235,7 +239,7 @@ fn ensure_enemy_health_bars(
 fn sync_enemy_health_bars(
     settings: Res<GameSettings>,
     mut commands: Commands,
-    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
+    enemies: Query<(&EnemyPosition, &EnemyHealth, &EnemyIdentity)>,
     mut backgrounds: Query<
         (
             Entity,
@@ -251,24 +255,24 @@ fn sync_enemy_health_bars(
     >,
 ) {
     for (entity, bar, mut sprite, mut transform) in &mut backgrounds {
-        let Ok((position, _, kind)) = enemies.get(bar.enemy) else {
+        let Ok((position, _, identity)) = enemies.get(bar.enemy) else {
             commands.entity(entity).despawn();
             continue;
         };
 
-        let (full_size, center_y) = enemy_health_bar_layout(&settings, *kind, position.0);
+        let (full_size, center_y) = enemy_health_bar_layout(&settings, identity.kind, position.0);
         sprite.color = Color::srgb(0.15, 0.05, 0.05);
         sprite.custom_size = Some(full_size);
         transform.translation = Vec2::new(position.0.x, center_y).extend(ENEMY_HEALTH_BAR_Z);
     }
 
     for (entity, bar, mut sprite, mut transform) in &mut fills {
-        let Ok((position, health, kind)) = enemies.get(bar.enemy) else {
+        let Ok((position, health, identity)) = enemies.get(bar.enemy) else {
             commands.entity(entity).despawn();
             continue;
         };
 
-        let (full_size, center_y) = enemy_health_bar_layout(&settings, *kind, position.0);
+        let (full_size, center_y) = enemy_health_bar_layout(&settings, identity.kind, position.0);
         let health_fraction = if health.maximum == 0 {
             0.0
         } else {

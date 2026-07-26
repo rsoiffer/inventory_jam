@@ -27,13 +27,11 @@ pub(crate) fn fire_equipped_weapons(
         &mut WeaponCooldown,
         &mut ProjectileBuffer,
     )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     app_state: Option<Res<State<ServerState>>>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
 ) {
-    let host_server = !host_server.is_empty();
     let authoritative = app_state
         .as_ref()
         .is_some_and(|state| matches!(state.get(), ServerState::Hosting));
@@ -49,7 +47,7 @@ pub(crate) fn fire_equipped_weapons(
         mut buffer,
     ) in &mut players
     {
-        if (host_server && predicted) || !(authoritative || predicted) {
+        if !(authoritative || predicted) {
             continue;
         }
         if health.current == 0

@@ -3,18 +3,20 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::settings::GameSettings;
+
 pub struct EnemyProtocolPlugin;
 
 impl Plugin for EnemyProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.component::<EnemyPosition>()
             .replicate()
+            .predict()
             .add_linear_interpolation();
-
-        app.component::<EnemyHealth>().replicate();
-        app.component::<EnemyKind>().replicate();
+        app.component::<EnemyHealth>().replicate().predict();
+        app.component::<EnemyIdentity>().replicate().predict();
+        app.component::<EnemyAi>().replicate().predict();
         app.component::<EnemySpawnerPosition>().replicate();
-        app.component::<EnemyTierIndex>().replicate();
     }
 }
 
@@ -35,30 +37,14 @@ pub struct EnemyHealth {
     pub maximum: u32,
 }
 
-impl EnemyHealth {
-    pub const fn new(maximum: u32) -> Self {
-        Self {
-            current: maximum,
-            maximum,
-        }
-    }
-}
-
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnemyKind {
     Regular,
     GrandChampion,
 }
 
 impl EnemyKind {
-    pub fn collision_radius(self, base: f32) -> f32 {
-        match self {
-            Self::Regular => base,
-            Self::GrandChampion => base * 4.0,
-        }
-    }
-
-    pub fn display_size(self, base: f32) -> f32 {
+    pub fn scale(self, base: f32) -> f32 {
         match self {
             Self::Regular => base,
             Self::GrandChampion => base * 4.0,
@@ -66,8 +52,121 @@ impl EnemyKind {
     }
 }
 
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Deref)]
-pub struct EnemyTierIndex(pub u8);
+/// Replicated identity; combat numbers come from settings + this.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnemyIdentity {
+    pub kind: EnemyKind,
+    pub tier_index: u8,
+    pub is_ranged: bool,
+    pub ai_seed: u64,
+}
+
+impl EnemyIdentity {
+    pub fn stats(self, settings: &GameSettings) -> EnemyStats {
+        match self.kind {
+            EnemyKind::Regular => {
+                let tier = settings.spawner.tier(self.tier_index);
+                EnemyStats {
+                    contact_damage: if self.is_ranged {
+                        0
+                    } else {
+                        tier.contact_damage
+                    },
+                    ranged_damage: if self.is_ranged {
+                        tier.ranged_damage
+                    } else {
+                        0
+                    },
+                    attacks_per_second: settings.enemy.attacks_per_second,
+                    fragment_multiplier: tier.fragment_multiplier,
+                    move_speed: tier.move_speed,
+                    personal_aristeia_reward: tier.personal_aristeia_reward,
+                    global_aristeia_reward: tier.global_aristeia_reward,
+                }
+            }
+            EnemyKind::GrandChampion => EnemyStats {
+                contact_damage: settings.global_aristeia.grand_champion_contact_damage,
+                ranged_damage: settings.global_aristeia.grand_champion_ranged_damage,
+                attacks_per_second: 1.0,
+                fragment_multiplier: settings.global_aristeia.grand_champion_fragment_multiplier,
+                move_speed: settings.global_aristeia.grand_champion_move_speed,
+                personal_aristeia_reward: settings
+                    .global_aristeia
+                    .grand_champion_personal_aristeia_reward,
+                global_aristeia_reward: 0,
+            },
+        }
+    }
+
+    pub fn max_health(self, settings: &GameSettings) -> u32 {
+        match self.kind {
+            EnemyKind::Regular => settings.spawner.tier(self.tier_index).health,
+            EnemyKind::GrandChampion => settings.global_aristeia.grand_champion_health,
+        }
+    }
+
+    pub fn projectile_buffer_capacity(self, settings: &GameSettings) -> usize {
+        match self.kind {
+            EnemyKind::Regular => settings.projectile.buffer_capacity,
+            EnemyKind::GrandChampion => {
+                settings
+                    .global_aristeia
+                    .grand_champion_projectile_buffer_capacity
+            }
+        }
+    }
+
+    pub fn projectile_radius(self, settings: &GameSettings) -> f32 {
+        match self.kind {
+            EnemyKind::Regular => settings.enemy.projectile_radius,
+            EnemyKind::GrandChampion => settings.global_aristeia.grand_champion_projectile_radius,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EnemyStats {
+    pub contact_damage: u32,
+    pub ranged_damage: u32,
+    pub attacks_per_second: f32,
+    pub fragment_multiplier: f32,
+    pub move_speed: f32,
+    pub personal_aristeia_reward: u32,
+    pub global_aristeia_reward: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EnemyBehavior {
+    #[default]
+    Wandering,
+    Chasing(PeerId),
+    Returning,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BossPatternKind {
+    Fan,
+    Radial,
+    Spiral,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct BossAttackState {
+    pub pattern: BossPatternKind,
+    pub pattern_elapsed_seconds: f32,
+    pub volley_accumulator: f32,
+    pub spiral_angle_radians: f32,
+    pub radial_offset: bool,
+}
+
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct EnemyAi {
+    pub home: Vec2,
+    pub wander_target: Vec2,
+    pub behavior: EnemyBehavior,
+    pub engage_retarget_seconds: f32,
+    pub boss: Option<BossAttackState>,
+}
 
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Deref, DerefMut)]
 pub struct EnemySpawnerPosition(pub Vec2);

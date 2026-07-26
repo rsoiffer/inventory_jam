@@ -1,7 +1,8 @@
 use crate::app::ClientState;
-use crate::enemy::{EnemyHealth, EnemyKind, EnemyPosition};
+use crate::enemy::{EnemyHealth, EnemyIdentity, EnemyKind, EnemyPosition};
 use crate::persistence::CachedPersistentState;
 use crate::player::protocol::PlayerAristeia;
+use crate::protocol::rooms::{GameRoom, GameRooms};
 use crate::settings::GameSettings;
 use crate::world::GlobalAristeia;
 use bevy::camera::{Camera, Camera2d};
@@ -199,7 +200,7 @@ fn update_hud(
     player_state: Query<&CachedPersistentState, With<Controlled>>,
     local_aristeia: Query<&PlayerAristeia, With<Predicted>>,
     global_aristeia: Query<&GlobalAristeia>,
-    bosses: Query<(&EnemyHealth, &EnemyKind)>,
+    bosses: Query<(&EnemyHealth, &EnemyIdentity)>,
     mut fragment_text: Query<
         &mut Text,
         (
@@ -260,22 +261,19 @@ fn update_hud(
     if let (Ok(mut text), Ok((mut bar, mut color))) =
         (global_text.single_mut(), global_bar.single_mut())
     {
-        if let Some(boss_health) = bosses.iter().find_map(|(health, kind)| {
-            (*kind == EnemyKind::GrandChampion && health.current > 0).then_some(health)
+        if let Some(boss_health) = bosses.iter().find_map(|(health, identity)| {
+            (identity.kind == EnemyKind::GrandChampion && health.current > 0).then_some(health)
         }) {
             let fraction = if boss_health.maximum == 0 {
                 0.0
             } else {
                 (boss_health.current as f32 / boss_health.maximum as f32).clamp(0.0, 1.0)
             };
-            text.0 = format!(
-                "Grand Champion {} / {}",
-                boss_health.current, boss_health.maximum
-            );
+            text.0 = format!("Champion {}/{}", boss_health.current, boss_health.maximum);
             bar.width = Val::Percent(fraction * 100.0);
             *color = BackgroundColor(Color::srgb(0.9, 0.2, 0.25));
         } else if let Ok(global) = global_aristeia.single() {
-            text.0 = format!("Global {} / {}", global.current, global.maximum);
+            text.0 = format!("Global {}/{}", global.current, global.maximum);
             bar.width = Val::Percent(global.fraction() * 100.0);
             *color = BackgroundColor(Color::srgb(0.75, 0.2, 0.95));
         } else {
@@ -290,7 +288,8 @@ fn update_boss_direction_indicator(
     settings: Res<GameSettings>,
     window: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    bosses: Query<(&EnemyPosition, &EnemyHealth, &EnemyKind)>,
+    local_player: Query<&GameRoom, (With<Predicted>, With<Controlled>)>,
+    bosses: Query<(&EnemyPosition, &EnemyHealth, &EnemyIdentity)>,
     mut indicator: Query<
         (&mut Node, &mut UiTransform, &mut Visibility),
         With<BossDirectionIndicator>,
@@ -307,9 +306,13 @@ fn update_boss_direction_indicator(
         *visibility = Visibility::Hidden;
         return;
     };
+    let in_arena = local_player
+        .iter()
+        .any(|room| room.room == GameRooms::Arena);
 
-    let Some(boss_position) = bosses.iter().find_map(|(position, health, kind)| {
-        (*kind == EnemyKind::GrandChampion && health.current > 0).then_some(position.0)
+    let Some(boss_position) = bosses.iter().find_map(|(position, health, identity)| {
+        (in_arena && identity.kind == EnemyKind::GrandChampion && health.current > 0)
+            .then_some(position.0)
     }) else {
         *visibility = Visibility::Hidden;
         return;

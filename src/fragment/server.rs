@@ -15,7 +15,7 @@ use bevy::prelude::*;
 #[cfg(feature = "dev")]
 use leafwing_input_manager::prelude::*;
 use lightyear::prelude::*;
-use lightyear::{core::tick::TickDuration, prediction::Predicted, prelude::LocalTimeline};
+use lightyear::{core::tick::TickDuration, prelude::LocalTimeline};
 use rand::Rng;
 
 #[cfg(feature = "dev")]
@@ -55,22 +55,12 @@ impl Plugin for FragmentServerPlugin {
 
 #[cfg(feature = "dev")]
 fn request_debug_fragment_pool(
-    players: Query<(
-        &PlayerPosition,
-        &GameRoom,
-        &ActionState<PlayerAction>,
-        Has<Predicted>,
-    )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    players: Query<(&PlayerPosition, &GameRoom, &ActionState<PlayerAction>)>,
     mut requests: MessageWriter<SpawnFragmentPool>,
 ) {
-    let is_host_server = !host_server.is_empty();
     let mut rng = rand::rng();
 
-    for (player_position, room, actions, predicted) in &players {
-        if is_host_server && predicted {
-            continue;
-        }
+    for (player_position, room, actions) in &players {
         if room.room != GameRooms::Arena || !actions.just_pressed(&PlayerAction::UseSkill) {
             continue;
         }
@@ -125,21 +115,13 @@ fn spawn_requested_fragment_pools(
 fn simulate_server_fragments(
     mut commands: Commands,
     mut fragments: Query<(Entity, &mut Fragment)>,
-    players: Query<(
-        Entity,
-        &PlayerId,
-        &PlayerPosition,
-        &GameRoom,
-        Has<Predicted>,
-    )>,
+    players: Query<(Entity, &PlayerId, &PlayerPosition, &GameRoom)>,
     ready_players: Query<(&PlayerUsername, &CachedPersistentState), With<PersistenceReady>>,
     mut transactions: MessageWriter<Transaction>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
 ) {
-    let is_host_server = !host_server.is_empty();
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
     let collect_r2 = settings.fragment.player_collection_radius.powi(2);
@@ -151,10 +133,8 @@ fn simulate_server_fragments(
 
             let nearest = players
                 .iter()
-                .filter(|(_, _, _, room, predicted)| {
-                    room.room == GameRooms::Arena && !(is_host_server && *predicted)
-                })
-                .filter_map(|(player, id, position, _, _)| {
+                .filter(|(_, _, _, room)| room.room == GameRooms::Arena)
+                .filter_map(|(player, id, position, _)| {
                     let d2 = position.0.distance_squared(fragment.position);
                     (d2 <= collect_r2).then_some((player, id.0, d2))
                 })
@@ -181,11 +161,9 @@ fn simulate_server_fragments(
         let target = fragment.phase.collector().and_then(|collector| {
             fragment_shared::collector_position(
                 collector,
-                players
-                    .iter()
-                    .filter_map(|(_, id, position, room, predicted)| {
-                        (room.room == GameRooms::Arena).then_some((id.0, position.0, predicted))
-                    }),
+                players.iter().filter_map(|(_, id, position, room)| {
+                    (room.room == GameRooms::Arena).then_some((id.0, position.0, false))
+                }),
             )
         });
 
@@ -198,9 +176,9 @@ fn simulate_server_fragments(
 
         if matches!(previous_phase, FragmentPhase::Moving { .. })
             && let FragmentPhase::CollectingImpact { collector, .. } = fragment.phase
-            && let Some(player) = players.iter().find_map(|(player, id, _, _, predicted)| {
-                (id.0 == collector && !(is_host_server && predicted)).then_some(player)
-            })
+            && let Some(player) = players
+                .iter()
+                .find_map(|(player, id, _, _)| (id.0 == collector).then_some(player))
             && let Ok((username, cache)) = ready_players.get(player)
         {
             transactions.write(Transaction::add_weapon_fragments(

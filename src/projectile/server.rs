@@ -1,13 +1,10 @@
 use bevy::prelude::*;
-use lightyear::{
-    core::{tick::TickDuration, timeline::LocalTimeline},
-    prediction::Predicted,
-};
+use lightyear::core::{tick::TickDuration, timeline::LocalTimeline};
 use rand::Rng;
 
 use crate::{
     app::ServerState,
-    enemy::{EnemyHealth, EnemyKind, EnemyPosition, server::EnemyStats},
+    enemy::{EnemyHealth, EnemyIdentity, EnemyKind, EnemyPosition},
     fragment::api::SpawnFragmentPool,
     persistence::{CachedPersistentState, PersistenceReady, Transaction},
     player::PlayerId,
@@ -44,7 +41,6 @@ impl Plugin for ProjectileServerPlugin {
 fn simulate_player_projectile_buffers(
     mut commands: Commands,
     mut players: Query<(
-        Has<Predicted>,
         &PlayerId,
         &GameRoom,
         &mut ProjectileBuffer,
@@ -54,12 +50,10 @@ fn simulate_player_projectile_buffers(
     mut enemies: Query<(
         Entity,
         &EnemyPosition,
-        &EnemyKind,
         &GameRoom,
         &mut EnemyHealth,
-        &EnemyStats,
+        &EnemyIdentity,
     )>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     mut fragment_drops: MessageWriter<SpawnFragmentPool>,
@@ -68,16 +62,11 @@ fn simulate_player_projectile_buffers(
     mut boss_defeats: MessageWriter<GrandChampionDefeated>,
     settings: Res<GameSettings>,
 ) {
-    let skip_predicted = !host_server.is_empty();
     let tick = local_timeline.tick();
     let tick_secs = tick_duration.0.as_secs_f32();
     let mut rng = rand::rng();
 
-    for (predicted, owner_id, room, mut buffer, aristeia, cache) in &mut players {
-        if skip_predicted && predicted {
-            continue;
-        }
-
+    for (owner_id, room, mut buffer, aristeia, cache) in &mut players {
         let owner = owner_id.0;
         let personal_aristeia = aristeia.current;
         let progress = cache.weapon(cache.equipped_weapon_id);
@@ -95,7 +84,7 @@ fn simulate_player_projectile_buffers(
             }
             let radius = stats.projectile_radius;
 
-            for (entity, enemy, kind, enemy_room, mut health, enemy_stats) in &mut enemies {
+            for (entity, enemy, enemy_room, mut health, identity) in &mut enemies {
                 if enemy_room != room
                     || health.current == 0
                     || entity.to_bits() == last_hit
@@ -103,31 +92,30 @@ fn simulate_player_projectile_buffers(
                         pos,
                         enemy.0,
                         radius,
-                        kind.collision_radius(settings.enemy.collision_radius),
+                        identity.kind.scale(settings.enemy.collision_radius),
                     )
                 {
                     continue;
                 }
                 health.current = health.current.saturating_sub(damage);
                 if health.current == 0 {
+                    let stats = identity.stats(&settings);
                     let bonus = u32::from(settings.fragment.bonus_drops_per_aristeia)
                         .saturating_mul(personal_aristeia);
                     let base = u32::from(settings.fragment.base_drop_count)
                         .saturating_add(bonus)
                         .min(u32::from(settings.fragment.maximum_drop_count));
-                    let total_value =
-                        ((base as f32) * enemy_stats.fragment_multiplier).round() as u32;
+                    let total_value = ((base as f32) * stats.fragment_multiplier).round() as u32;
                     fragment_drops.write(SpawnFragmentPool::new(pos, total_value.max(1)));
                     commands.entity(entity).despawn();
                     aristeia_tracking.write(AddAristeiaPoints::new(
                         owner,
-                        enemy_stats.personal_aristeia_reward,
+                        stats.personal_aristeia_reward,
                     ));
-                    if *kind == EnemyKind::GrandChampion {
+                    if identity.kind == EnemyKind::GrandChampion {
                         boss_defeats.write(GrandChampionDefeated);
-                    } else if enemy_stats.global_aristeia_reward > 0 {
-                        global_aristeia
-                            .write(AddGlobalAristeia(enemy_stats.global_aristeia_reward));
+                    } else if stats.global_aristeia_reward > 0 {
+                        global_aristeia.write(AddGlobalAristeia(stats.global_aristeia_reward));
                     }
                 }
                 return Some(entity.to_bits());
@@ -149,10 +137,7 @@ fn simulate_enemy_projectile_buffers(
         Option<&PlayerUsername>,
         Has<PersistenceReady>,
     )>,
-    mut enemies: Query<
-        (&GameRoom, &mut ProjectileBuffer, &EnemyStats, &EnemyKind),
-        Without<PlayerId>,
-    >,
+    mut enemies: Query<(&GameRoom, &mut ProjectileBuffer, &EnemyIdentity), Without<PlayerId>>,
     local_timeline: Res<LocalTimeline>,
     tick_duration: Res<TickDuration>,
     settings: Res<GameSettings>,
@@ -168,12 +153,9 @@ fn simulate_enemy_projectile_buffers(
         .collect();
     let mut pending_hits: Vec<(Entity, u32)> = Vec::new();
 
-    for (room, mut buffer, stats, kind) in &mut enemies {
-        let damage = stats.ranged_damage;
-        let radius = match *kind {
-            EnemyKind::Regular => settings.enemy.projectile_radius,
-            EnemyKind::GrandChampion => settings.global_aristeia.grand_champion_projectile_radius,
-        };
+    for (room, mut buffer, identity) in &mut enemies {
+        let damage = identity.stats(&settings).ranged_damage;
+        let radius = identity.projectile_radius(&settings);
         if damage == 0 {
             buffer.simulate(room, tick, tick_secs, &settings, |_, _, _| None);
             continue;

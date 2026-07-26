@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use lightyear::prelude::*;
 
 use crate::app::ServerState;
 use crate::player::PlayerId;
@@ -26,16 +25,9 @@ impl Plugin for WeaponServerPlugin {
 
 pub(crate) fn ensure_player_weapon_cooldowns(
     mut commands: Commands,
-    players: Query<(Entity, Has<Predicted>), (With<PlayerId>, Without<WeaponCooldown>)>,
-    host_server: Query<(), With<lightyear::connection::host::HostServer>>,
+    players: Query<Entity, (With<PlayerId>, Without<WeaponCooldown>)>,
 ) {
-    let is_host_server = !host_server.is_empty();
-
-    for (entity, predicted) in &players {
-        if is_host_server && predicted {
-            continue;
-        }
-
+    for entity in &players {
         commands.entity(entity).insert(WeaponCooldown::default());
     }
 }
