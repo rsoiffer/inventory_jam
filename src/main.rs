@@ -1,5 +1,8 @@
 mod app;
+#[cfg(all(feature = "client", not(feature = "gui")))]
+mod bot;
 mod combat;
+mod debug_stats;
 mod enemy;
 mod fragment;
 mod gate;
@@ -25,7 +28,10 @@ use bevy::prelude::*;
 use bevy::window::PresentMode;
 #[cfg(feature = "gui")]
 use bevy::winit::WinitSettings;
+#[cfg(all(feature = "client", not(feature = "gui")))]
+use bot::BotPlugin;
 use combat::CombatPlugin;
+use debug_stats::DebugStatsPlugin;
 use enemy::EnemyPlugin;
 use fragment::FragmentPlugin;
 use gate::GatePlugin;
@@ -97,7 +103,11 @@ fn run() -> Result<(), GameSettingsLoadError> {
         WeaponPlugin,
         FragmentPlugin,
         PersistencePlugin,
+        DebugStatsPlugin,
     ));
+
+    #[cfg(all(feature = "client", not(feature = "gui")))]
+    app.add_plugins(BotPlugin);
 
     networking::configure_networking(&mut app);
 
@@ -165,7 +175,9 @@ fn base_app() -> App {
 fn log_plugin() -> LogPlugin {
     LogPlugin {
         level: Level::INFO,
-        filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn".to_string(),
+        filter: std::env::var("INVENTORY_JAM_LOG").unwrap_or_else(|_| {
+            "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn,naga=warn".into()
+        }),
         ..default()
     }
 }

@@ -1,6 +1,9 @@
 #[cfg(feature = "gui")]
 mod camera;
 
+#[cfg(all(feature = "gui", feature = "dev"))]
+mod debug_panel;
+
 #[cfg(feature = "gui")]
 mod hud;
 
@@ -20,6 +23,9 @@ use crate::app::LaunchMode;
 
 #[cfg(feature = "gui")]
 use camera::CameraPlugin;
+
+#[cfg(all(feature = "gui", feature = "dev"))]
+use debug_panel::DebugPanelPlugin;
 
 #[cfg(feature = "gui")]
 use hud::HudPlugin;
@@ -44,6 +50,9 @@ impl Plugin for UiPlugin {
             app.add_plugins(CameraPlugin);
             app.add_plugins(HudPlugin);
             app.add_plugins(MobileControlsPlugin);
+
+            #[cfg(feature = "dev")]
+            app.add_plugins(DebugPanelPlugin);
 
             let launch_mode = app::config_from_env();
 

@@ -46,12 +46,13 @@ impl Plugin for PlayerClientPlugin {
 
 fn write_local_aim_to_leafwing(
     local_aim: Res<LocalAimInput>,
-    touch_controls: Option<Res<crate::ui::TouchControlsEnabled>>,
+    #[cfg(feature = "gui")] touch_controls: Option<Res<crate::ui::TouchControlsEnabled>>,
     mut input_entities: Query<
         &mut ActionState<PlayerAction>,
         (With<Controlled>, With<InputMap<PlayerAction>>),
     >,
 ) {
+    #[cfg(feature = "gui")]
     if touch_controls.is_some_and(|enabled| enabled.0) {
         return;
     }

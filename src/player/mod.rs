@@ -1,6 +1,9 @@
 #[cfg(feature = "client")]
 mod client;
 
+#[cfg(feature = "client")]
+pub(crate) mod nearest_enemy_aim;
+
 pub mod protocol;
 
 #[cfg(feature = "gui")]

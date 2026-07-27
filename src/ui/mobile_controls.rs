@@ -16,6 +16,7 @@ use virtual_joystick::{
 use crate::app::ClientState;
 use crate::enemy::{EnemyHealth, EnemyPosition};
 use crate::persistence::CachedPersistentState;
+use crate::player::nearest_enemy_aim::aim_and_fire_nearest_enemy;
 use crate::player::protocol::{PlayerHealth, PlayerPosition};
 use crate::protocol::inputs::PlayerAction;
 use crate::protocol::rooms::GameRoom;
@@ -235,45 +236,14 @@ fn write_touch_actions_to_leafwing(
             actions.set_axis_pair(&PlayerAction::Move, move_input.0);
         }
 
-        if health.current == 0 {
-            actions.release(&PlayerAction::Fire);
-            continue;
-        }
-
-        let weapon_id = if settings.weapons.get(cache.equipped_weapon_id).is_some() {
-            cache.equipped_weapon_id
-        } else {
-            settings.weapons.default_id()
-        };
-        let Some(weapon) = settings.weapons.get(weapon_id) else {
-            actions.release(&PlayerAction::Fire);
-            continue;
-        };
-
-        let range_squared = weapon.range * weapon.range;
-        let mut nearest = None::<(f32, Vec2)>;
-
-        for (enemy_position, enemy_health, enemy_room) in &enemies {
-            if enemy_health.current == 0 || enemy_room != player_room {
-                continue;
-            }
-
-            let offset = enemy_position.0 - player_position.0;
-            let distance_squared = offset.length_squared();
-            if distance_squared > range_squared || distance_squared <= f32::EPSILON {
-                continue;
-            }
-
-            if nearest.is_none_or(|(best, _)| distance_squared < best) {
-                nearest = Some((distance_squared, offset));
-            }
-        }
-
-        if let Some((_, offset)) = nearest {
-            actions.set_axis_pair(&PlayerAction::Aim, offset.normalize_or_zero());
-            actions.press(&PlayerAction::Fire);
-        } else {
-            actions.release(&PlayerAction::Fire);
-        }
+        aim_and_fire_nearest_enemy(
+            &mut actions,
+            player_position.0,
+            player_room,
+            health.current,
+            cache,
+            &settings,
+            &enemies,
+        );
     }
 }

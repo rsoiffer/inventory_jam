@@ -30,6 +30,7 @@ pub(crate) struct GameSettings {
     pub progression: ProgressionSettings,
     pub menu: MenuSettings,
     pub mobile_controls: MobileControlsSettings,
+    pub bot: BotSettings,
     pub global_aristeia: GlobalAristeiaSettings,
 }
 
@@ -576,8 +577,22 @@ pub struct MobileControlsSettings {
     pub movement_dead_zone: f32,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct BotSettings {
+    pub arena_portal_seek_chance: f32,
+    pub safezone_portal_seek_chance: f32,
+    pub move_re_roll_min_seconds: f32,
+    pub move_re_roll_max_seconds: f32,
+}
+
 impl GameSettings {
-    const SETTINGS_FILES: &[&str] = &["world.json", "player.json", "enemies.json", "graphics.json"];
+    const SETTINGS_FILES: &[&str] = &[
+        "world.json",
+        "player.json",
+        "enemies.json",
+        "graphics.json",
+        "bots.json",
+    ];
 
     pub fn load(path: impl AsRef<Path>) -> Result<Self, GameSettingsLoadError> {
         let directory = path.as_ref();
@@ -631,6 +646,7 @@ impl GameSettings {
                 "player.json" => include_str!("../../assets/settings/player.json"),
                 "enemies.json" => include_str!("../../assets/settings/enemies.json"),
                 "graphics.json" => include_str!("../../assets/settings/graphics.json"),
+                "bots.json" => include_str!("../../assets/settings/bots.json"),
                 _ => {
                     return Err(GameSettingsLoadError::Invalid(format!(
                         "unknown embedded settings file {file_name}"
@@ -947,6 +963,15 @@ impl GameSettings {
         {
             return Err(GameSettingsLoadError::Invalid(
                 "mobile controls joystick_size, knob_size, screen_inset, and movement_dead_zone are invalid".into(),
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.bot.arena_portal_seek_chance)
+            || !(0.0..=1.0).contains(&self.bot.safezone_portal_seek_chance)
+            || self.bot.move_re_roll_min_seconds <= 0.0
+            || self.bot.move_re_roll_max_seconds <= self.bot.move_re_roll_min_seconds
+        {
+            return Err(GameSettingsLoadError::Invalid(
+                "bot portal_seek_chance and move_re_roll_*_seconds are invalid".into(),
             ));
         }
         for station in &self.weapon_stations.stations {

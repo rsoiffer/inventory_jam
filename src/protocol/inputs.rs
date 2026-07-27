@@ -4,7 +4,10 @@
 
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
-use lightyear::input::leafwing::prelude::InputPlugin as LightyearLeafwingInputPlugin;
+use lightyear::input::leafwing::prelude::{
+    InputPlugin as LightyearLeafwingInputPlugin, LeafwingSequence,
+};
+use lightyear::input::plugin::InputPlugin as LightyearInputMessagePlugin;
 use serde::{Deserialize, Serialize};
 
 #[derive(Actionlike, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy, Reflect)]
@@ -45,5 +48,10 @@ impl PlayerAction {
 }
 
 pub fn register(app: &mut App) {
+    // Register InputMessage during ProtocolPlugin::build on every peer.
+    // Leafwing only adds this via ServerInputPlugin (needs `server`) or
+    // ClientInputPlugin (finish-time), so client-only builds otherwise get a
+    // different message protocol than the dedicated server.
+    app.add_plugins(LightyearInputMessagePlugin::<LeafwingSequence<PlayerAction>>::default());
     app.add_plugins(LightyearLeafwingInputPlugin::<PlayerAction>::default());
 }
