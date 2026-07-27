@@ -39,15 +39,11 @@ New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 Copy-Item -Path $BuiltExe -Destination $Exe -Force
 Write-Host "Copied bot binary to $Exe"
 
-$Suffix = "{0:x4}" -f (Get-Random -Maximum 0x10000)
 $Processes = @()
 
 try {
     for ($i = 1; $i -le $Count; $i++) {
-        $User = "Bot$i-$Suffix"
-        if ($User.Length -gt 16) {
-            $User = $User.Substring(0, 16)
-        }
+        $User = "Bot$i"
 
         Write-Host "Starting bot $i/$Count as '$User'..."
         # UseShellExecute=$false inherits this console (no new window; shared stdout/stderr).
