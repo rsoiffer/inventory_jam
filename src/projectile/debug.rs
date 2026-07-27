@@ -1,9 +1,12 @@
 use bevy::prelude::*;
 use lightyear::core::{tick::TickDuration, timeline::LocalTimeline};
-use lightyear::prelude::{PeerId, Tick};
+use lightyear::prelude::{PeerId, PreSpawned, Tick};
 
 #[cfg(feature = "server")]
-use lightyear::prelude::{RemoteId, server::ClientOf};
+use lightyear::prelude::{MessageReceiver, RemoteId, server::ClientOf};
+
+#[cfg(all(feature = "client", feature = "gui"))]
+use lightyear::prelude::{Client, MessageSender};
 
 #[cfg(feature = "client")]
 use crate::app::LocalUsername;
@@ -13,9 +16,15 @@ use crate::{
     projectile::shared::SpawnProjectile,
 };
 
+#[cfg(any(feature = "server", all(feature = "client", feature = "gui")))]
+use crate::projectile::protocol::DebugFireProjectileAt;
+
+#[cfg(all(feature = "client", feature = "gui"))]
+use crate::projectile::protocol::DebugFireChannel;
+
 const DEBUG_FIRE_PERIOD_SECS: f32 = 2.0;
 const DEBUG_FIRE_ORIGIN_X: f32 = -500.0;
-const DEBUG_FIRE_SPEED_PER_TICK: f32 = 14.0;
+const DEBUG_FIRE_SPEED_PER_TICK: f32 = 4.0;
 const DEBUG_FIRE_MAX_RANGE: f32 = 1000.0;
 const DEBUG_FIRE_RADIUS: f32 = 8.0;
 
@@ -40,9 +49,8 @@ fn debug_fire_tick(local_timeline: &LocalTimeline, tick_duration: &TickDuration)
         .then_some(current_tick)
 }
 
-fn build_projectile(owner: PeerId, spawn_y: f32, current_tick: &Tick) -> (PlayerProjectile, Vec2) {
-    let origin = Vec2::new(DEBUG_FIRE_ORIGIN_X, spawn_y);
-    let projectile = PlayerProjectile {
+fn build_projectile_at(owner: PeerId, origin: Vec2, current_tick: &Tick) -> PlayerProjectile {
+    PlayerProjectile {
         owner,
         origin,
         direction: Vec2::X,
@@ -55,8 +63,34 @@ fn build_projectile(owner: PeerId, spawn_y: f32, current_tick: &Tick) -> (Player
             DEBUG_FIRE_MAX_RANGE,
             DEBUG_FIRE_SPEED_PER_TICK,
         ),
-    };
-    (projectile, origin)
+    }
+}
+
+fn build_projectile(owner: PeerId, spawn_y: f32, current_tick: &Tick) -> (PlayerProjectile, Vec2) {
+    let origin = Vec2::new(DEBUG_FIRE_ORIGIN_X, spawn_y);
+    (build_projectile_at(owner, origin, current_tick), origin)
+}
+
+/// Hash used to match a client-prespawned debug-fire projectile with the
+/// server's authoritative spawn for the same request.
+///
+/// The default `PreSpawned` hash is derived from whichever tick is current
+/// on the *local* machine when the entity is inserted. That works for the
+/// periodic debug fire because both sides independently decide to fire on
+/// the same deterministic schedule without any message crossing the
+/// network. It does not work here: the server only spawns in reaction to a
+/// message that has already taken some (variable) amount of network time to
+/// arrive, so its own current tick at that point routinely differs from the
+/// client's tick at send time. Hashing the client-chosen `request_id`
+/// (salted with the owner, so two players' shots can't collide) instead
+/// gives both sides a value that's identical regardless of latency.
+#[cfg(any(feature = "server", all(feature = "client", feature = "gui")))]
+fn debug_fire_hash(owner: PeerId, request_id: u64) -> u64 {
+    use core::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    owner.hash(&mut hasher);
+    request_id.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Client-side prediction of this client's own debug projectile.
@@ -87,6 +121,7 @@ pub(crate) fn fire_debug_projectile_client(
         projectile,
         spawn_position: origin,
         is_authoritative: false,
+        prespawn: PreSpawned::default(),
     });
 }
 
@@ -120,6 +155,113 @@ pub(crate) fn fire_debug_projectiles_server(
             projectile,
             spawn_position: origin,
             is_authoritative: true,
+            prespawn: PreSpawned::default(),
         });
+    }
+}
+
+/// Cursor-fire requests captured in `Update` and drained in `FixedUpdate`.
+///
+/// `ButtonInput::just_pressed` is only true for the single frame the press
+/// happened. Reading it directly in `FixedUpdate` drops presses whenever a
+/// rendered frame runs zero fixed ticks (routinely the case here: 64Hz fixed
+/// tick vs. an AutoVsync'd display), so we capture it every frame in
+/// `Update` instead, where a press can never be missed.
+#[cfg(all(feature = "client", feature = "gui"))]
+#[derive(Resource, Default)]
+pub(crate) struct PendingDebugFireRequests(Vec<Vec2>);
+
+#[cfg(all(feature = "client", feature = "gui"))]
+pub(crate) fn queue_debug_fire_at_cursor_client(
+    keys: Res<ButtonInput<KeyCode>>,
+    camera: Single<(&Camera, &GlobalTransform)>,
+    window: Single<&Window>,
+    mut pending: ResMut<PendingDebugFireRequests>,
+) {
+    if !keys.pressed(KeyCode::KeyA) {
+        return;
+    }
+
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
+    let (camera, camera_transform) = *camera;
+    let Ok(origin) = camera.viewport_to_world_2d(camera_transform, cursor_position) else {
+        return;
+    };
+
+    pending.0.push(origin);
+}
+
+/// Manual debug fire: pressing A pre-spawns a projectile under the mouse
+/// cursor and asks the server to spawn the authoritative copy at the same
+/// position, so the two reconcile via `PreSpawned` like any other shot.
+#[cfg(all(feature = "client", feature = "gui"))]
+pub(crate) fn fire_debug_projectile_at_cursor_client(
+    mut commands: Commands,
+    mut pending: ResMut<PendingDebugFireRequests>,
+    local_timeline: Res<LocalTimeline>,
+    username: Res<LocalUsername>,
+    mut sender: Single<&mut MessageSender<DebugFireProjectileAt>, With<Client>>,
+    mut next_request_id: Local<u64>,
+) {
+    if pending.0.is_empty() {
+        return;
+    }
+
+    let current_tick = local_timeline.tick();
+    let owner = PeerId::Netcode(client_id_from_username(&username.0));
+
+    for origin in pending.0.drain(..) {
+        let projectile = build_projectile_at(owner, origin, &current_tick);
+        let request_id = *next_request_id;
+        *next_request_id += 1;
+        let hash = debug_fire_hash(owner, request_id);
+
+        commands.queue(SpawnProjectile {
+            projectile,
+            spawn_position: origin,
+            is_authoritative: false,
+            prespawn: PreSpawned::new(hash),
+        });
+
+        info!(
+            ?origin,
+            ?owner,
+            request_id,
+            "sending debug fire request to server"
+        );
+        sender.send::<DebugFireChannel>(DebugFireProjectileAt { origin, request_id });
+    }
+}
+
+/// Server-side handler for manual debug fire requests: spawns one
+/// authoritative projectile per request, owned by the requesting client.
+#[cfg(feature = "server")]
+pub(crate) fn handle_debug_fire_at_requests_server(
+    mut commands: Commands,
+    mut requests: Query<(&RemoteId, &mut MessageReceiver<DebugFireProjectileAt>), With<ClientOf>>,
+    local_timeline: Res<LocalTimeline>,
+) {
+    let current_tick = local_timeline.tick();
+
+    for (remote_id, mut receiver) in &mut requests {
+        for request in receiver.receive() {
+            info!(
+                owner = ?remote_id.0,
+                origin = ?request.origin,
+                request_id = request.request_id,
+                "received debug fire request from client"
+            );
+            let projectile = build_projectile_at(remote_id.0, request.origin, &current_tick);
+            let hash = debug_fire_hash(remote_id.0, request.request_id);
+
+            commands.queue(SpawnProjectile {
+                projectile,
+                spawn_position: request.origin,
+                is_authoritative: true,
+                prespawn: PreSpawned::new(hash),
+            });
+        }
     }
 }

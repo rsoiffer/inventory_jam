@@ -15,6 +15,14 @@ pub struct SpawnProjectile {
     pub projectile: PlayerProjectile,
     pub spawn_position: Vec2,
     pub is_authoritative: bool,
+    /// Determines how this entity is matched with its authoritative/predicted
+    /// counterpart. Callers that fire independently on both sides from a
+    /// shared deterministic schedule can rely on `PreSpawned::default()`
+    /// (hashed from the spawn tick); callers that cross the network for a
+    /// single asynchronous event (e.g. a client-triggered message) need an
+    /// explicit hash that doesn't depend on either side's live tick, since
+    /// those aren't guaranteed to line up once network latency is involved.
+    pub prespawn: PreSpawned,
 }
 
 impl Command for SpawnProjectile {
@@ -26,7 +34,7 @@ impl Command for SpawnProjectile {
         let mut entity = binding.spawn((
             self.projectile,
             ProjectilePosition(self.spawn_position),
-            PreSpawned::default(),
+            self.prespawn,
             Name::new("Projectile"),
         ));
 
@@ -65,7 +73,7 @@ pub fn simulate_server_projectiles(
             || projectile_reached_max_range(&position, projectile)
             || projectile_is_outside_world(position.0)
         {
-            info!("Despawning projectile: lifetime expired");
+            // info!("Despawning projectile: lifetime expired");
             commands.entity(projectile_entity).prediction_despawn();
         }
     }

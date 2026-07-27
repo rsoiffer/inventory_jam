@@ -2,7 +2,9 @@ use bevy::prelude::{
     App, Component, Curve, Deref, DerefMut, Ease, FunctionCurve, Interval, Plugin, Vec2,
 };
 use lightyear::prelude::{
-    AppComponentExt, InterpolationRegistrationExt, PeerId, PredictionBuilderExt, Tick,
+    AppChannelExt, AppComponentExt, AppMessageExt, ChannelMode, ChannelSettings,
+    InterpolationRegistrationExt, NetworkDirection, PeerId, PredictionBuilderExt, ReliableSettings,
+    Tick,
 };
 use serde::{Deserialize, Serialize};
 
@@ -13,10 +15,38 @@ impl Plugin for ProjectileProtocolPlugin {
         app.component::<PlayerProjectile>().replicate();
         app.component::<ProjectilePosition>()
             .replicate()
-            .predict()
-            .add_linear_interpolation();
+            // .predict()
+            // .add_linear_interpolation()
+            ;
+
+        // Reliable: this is a single, low-frequency, user-triggered event
+        // rather than continuous state, so we want it to always eventually
+        // arrive instead of silently vanishing under simulated latency/loss.
+        app.add_channel::<DebugFireChannel>(ChannelSettings {
+            mode: ChannelMode::UnorderedReliable(ReliableSettings::default()),
+            ..Default::default()
+        })
+        .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<DebugFireProjectileAt>()
+            .add_direction(NetworkDirection::ClientToServer);
     }
 }
+
+/// Client -> server request to fire a debug projectile at a world position.
+///
+/// The server does not trust `origin` for anything but this debug tool.
+/// `request_id` is chosen by the client and echoed back verbatim so both
+/// sides can build the exact same `PreSpawned` hash from it (see
+/// `debug::debug_fire_hash`) — the default tick-based `PreSpawned` hash
+/// assumes both sides spawn on the "same" tick, which only holds when
+/// neither side is reacting to a message that just crossed the network.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+pub struct DebugFireProjectileAt {
+    pub origin: Vec2,
+    pub request_id: u64,
+}
+
+pub struct DebugFireChannel;
 
 /// Authoritative attack snapshot carried by a projectile.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
