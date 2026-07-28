@@ -3,7 +3,7 @@ use crate::combat::HitFlash;
 use crate::enemy::protocol::{
     EnemyHealth, EnemyIdentity, EnemyKind, EnemyPosition, EnemySpawnerPosition,
 };
-use crate::settings::GameSettings;
+use crate::settings::{EnemySpriteVariantSettings, GameSettings, WeaponSpriteSheetSettings};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
@@ -11,7 +11,7 @@ const ENEMY_SPRITE_Z: f32 = 6.0;
 const ENEMY_HEALTH_BAR_Z: f32 = 11.0;
 const SPAWNER_SPRITE_Z: f32 = 4.0;
 const SPAWNER_FRAME_PIXELS: UVec2 = UVec2::new(48, 32);
-const IDLE_FRAME_SECONDS: f32 = 0.12;
+const SPAWNER_FRAME_SECONDS: f32 = 0.12;
 const FACING_MOVE_THRESHOLD: f32 = 0.01;
 
 pub struct EnemyRenderPlugin;
@@ -43,18 +43,35 @@ struct IdleSheet {
     image: Handle<Image>,
     layout: Handle<TextureAtlasLayout>,
     frame_count: usize,
+    frame_seconds: f32,
+}
+
+#[derive(Clone)]
+struct EnemySpriteVariant {
+    idle: IdleSheet,
+    flash: Option<IdleSheet>,
 }
 
 #[derive(Resource)]
 struct EnemyVisualAssets {
-    regular: IdleSheet,
-    regular_flash: IdleSheet,
-    champion: IdleSheet,
+    regular: Vec<EnemySpriteVariant>,
+    champion: Vec<EnemySpriteVariant>,
     spawner: IdleSheet,
+}
+
+impl EnemyVisualAssets {
+    fn variant(&self, kind: EnemyKind, sprite_index: u8) -> &EnemySpriteVariant {
+        let variants = match kind {
+            EnemyKind::Regular => &self.regular,
+            EnemyKind::GrandChampion => &self.champion,
+        };
+        &variants[sprite_index as usize % variants.len()]
+    }
 }
 
 #[derive(Component)]
 struct EnemySpriteVisual {
+    sprite_index: u8,
     kind: EnemyKind,
     previous_position: Option<Vec2>,
     frame_count: usize,
@@ -83,40 +100,58 @@ struct SpawnerSpriteVisual {
 #[derive(Component)]
 struct SpawnerSpriteAnimation(Timer);
 
+fn load_sheet(
+    asset_server: &AssetServer,
+    layouts: &mut Assets<TextureAtlasLayout>,
+    sheet: &WeaponSpriteSheetSettings,
+) -> IdleSheet {
+    IdleSheet {
+        image: asset_server.load(sheet.path.clone()),
+        layout: layouts.add(TextureAtlasLayout::from_grid(
+            sheet.cell,
+            sheet.frames,
+            1,
+            None,
+            None,
+        )),
+        frame_count: sheet.frames as usize,
+        frame_seconds: sheet.frame_seconds,
+    }
+}
+
+fn load_variant(
+    asset_server: &AssetServer,
+    layouts: &mut Assets<TextureAtlasLayout>,
+    variant: &EnemySpriteVariantSettings,
+) -> EnemySpriteVariant {
+    EnemySpriteVariant {
+        idle: load_sheet(asset_server, layouts, &variant.idle),
+        flash: variant
+            .flash
+            .as_ref()
+            .map(|flash| load_sheet(asset_server, layouts, flash)),
+    }
+}
+
 fn load_enemy_visual_assets(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
+    settings: Res<GameSettings>,
 ) {
-    let regular_layout = layouts.add(TextureAtlasLayout::from_grid(
-        UVec2::splat(16),
-        4,
-        1,
-        None,
-        None,
-    ));
     commands.insert_resource(EnemyVisualAssets {
-        regular: IdleSheet {
-            image: asset_server.load("enemy/spr_enemy_placeholder_idle.png"),
-            layout: regular_layout.clone(),
-            frame_count: 4,
-        },
-        regular_flash: IdleSheet {
-            image: asset_server.load("enemy/spr_enemy_placeholder_idle_flash.png"),
-            layout: regular_layout,
-            frame_count: 4,
-        },
-        champion: IdleSheet {
-            image: asset_server.load("enemy/spr_champion_idle.png"),
-            layout: layouts.add(TextureAtlasLayout::from_grid(
-                UVec2::splat(64),
-                4,
-                1,
-                None,
-                None,
-            )),
-            frame_count: 4,
-        },
+        regular: settings
+            .enemy
+            .sprites
+            .iter()
+            .map(|variant| load_variant(&asset_server, &mut layouts, variant))
+            .collect(),
+        champion: settings
+            .enemy
+            .champion_sprites
+            .iter()
+            .map(|variant| load_variant(&asset_server, &mut layouts, variant))
+            .collect(),
         spawner: IdleSheet {
             image: asset_server.load("world_tiles/spr_altar_active.png"),
             layout: layouts.add(TextureAtlasLayout::from_grid(
@@ -127,6 +162,7 @@ fn load_enemy_visual_assets(
                 None,
             )),
             frame_count: 4,
+            frame_seconds: SPAWNER_FRAME_SECONDS,
         },
     });
 }
@@ -137,10 +173,7 @@ fn ensure_enemy_sprites(
     enemies: Query<(Entity, &EnemyIdentity), (With<EnemyPosition>, Without<EnemySpriteVisual>)>,
 ) {
     for (entity, identity) in &enemies {
-        let sheet = match identity.kind {
-            EnemyKind::Regular => &assets.regular,
-            EnemyKind::GrandChampion => &assets.champion,
-        };
+        let sheet = &assets.variant(identity.kind, identity.sprite_index).idle;
 
         commands.entity(entity).insert((
             Sprite::from_atlas_image(
@@ -156,6 +189,7 @@ fn ensure_enemy_sprites(
                 ..default()
             },
             EnemySpriteVisual {
+                sprite_index: identity.sprite_index,
                 kind: identity.kind,
                 previous_position: None,
                 frame_count: sheet.frame_count,
@@ -163,7 +197,7 @@ fn ensure_enemy_sprites(
                 flash_remaining: 0.0,
             },
             EnemySpriteAnimation(Timer::from_seconds(
-                IDLE_FRAME_SECONDS,
+                sheet.frame_seconds,
                 TimerMode::Repeating,
             )),
         ));
@@ -227,12 +261,17 @@ fn sync_enemy_hit_flashes(
         }
 
         let flashing = visual.flash_remaining > 0.0;
-        let sheet = match (visual.kind, flashing) {
-            (EnemyKind::Regular, true) => &assets.regular_flash,
-            (EnemyKind::Regular, false) => &assets.regular,
-            (EnemyKind::GrandChampion, _) => &assets.champion,
+        let variant = assets.variant(visual.kind, visual.sprite_index);
+        let sheet = if flashing {
+            variant.flash.as_ref().unwrap_or(&variant.idle)
+        } else {
+            &variant.idle
         };
         sprite.image = sheet.image.clone();
+        if let Some(atlas) = sprite.texture_atlas.as_mut() {
+            atlas.layout = sheet.layout.clone();
+            atlas.index %= sheet.frame_count.max(1);
+        }
         sprite.color = if flashing { flash_color } else { Color::WHITE };
     }
 }
@@ -355,7 +394,7 @@ fn ensure_spawner_sprites(
                 frame_count: sheet.frame_count,
             },
             SpawnerSpriteAnimation(Timer::from_seconds(
-                IDLE_FRAME_SECONDS,
+                sheet.frame_seconds,
                 TimerMode::Repeating,
             )),
         ));

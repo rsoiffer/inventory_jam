@@ -69,6 +69,19 @@ pub struct NetworkSettings {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct EnemySpriteVariantSettings {
+    pub idle: WeaponSpriteSheetSettings,
+    #[serde(default)]
+    pub flash: Option<WeaponSpriteSheetSettings>,
+}
+
+impl EnemySpriteVariantSettings {
+    fn is_valid(&self) -> bool {
+        self.idle.is_valid() && self.flash.as_ref().is_none_or(WeaponSpriteSheetSettings::is_valid)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct EnemySettings {
     pub size: f32,
     pub collision_radius: f32,
@@ -86,6 +99,8 @@ pub struct EnemySettings {
     pub projectile_range: f32,
     pub projectile: WeaponSpriteSheetSettings,
     pub impact: WeaponSpriteSheetSettings,
+    pub sprites: Vec<EnemySpriteVariantSettings>,
+    pub champion_sprites: Vec<EnemySpriteVariantSettings>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -691,9 +706,17 @@ impl GameSettings {
             || self.enemy.projectile_range <= 0.0
             || !self.enemy.projectile.is_valid()
             || !self.enemy.impact.is_valid()
+            || self.enemy.sprites.is_empty()
+            || self.enemy.sprites.iter().any(|sprite| !sprite.is_valid())
+            || self.enemy.champion_sprites.is_empty()
+            || self
+                .enemy
+                .champion_sprites
+                .iter()
+                .any(|sprite| !sprite.is_valid())
         {
             return Err(GameSettingsLoadError::Invalid(
-                "enemy movement or attack settings are invalid".into(),
+                "enemy movement, attack, or sprite settings are invalid".into(),
             ));
         }
         if self.spawner.count == 0

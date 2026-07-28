@@ -16,16 +16,77 @@
     "projectile_range": 220.0,
     "projectile": {
       "path": "enemy/spr_vfx_projectile_enemy.png",
-      "cell": [16, 16],
+      "cell": [
+        16,
+        16
+      ],
       "frames": 1,
       "frame_seconds": 0.1
     },
     "impact": {
       "path": "enemy/spr_vfx_impact_generic.png",
-      "cell": [16, 16],
+      "cell": [
+        16,
+        16
+      ],
       "frames": 6,
       "frame_seconds": 0.05
-    }
+    },
+    "sprites": [
+      {
+        "idle": {
+          "path": "enemy/spr_enemy_placeholder_idle.png",
+          "cell": [
+            16,
+            16
+          ],
+          "frames": 4,
+          "frame_seconds": 0.12
+        },
+        "flash": {
+          "path": "enemy/spr_enemy_placeholder_idle_flash.png",
+          "cell": [
+            16,
+            16
+          ],
+          "frames": 4,
+          "frame_seconds": 0.12
+        }
+      },
+      {
+        "idle": {
+          "path": "enemy/spr_enemy_blob.png",
+          "cell": [
+            16,
+            16
+          ],
+          "frames": 1,
+          "frame_seconds": 0.1
+        },
+        "flash": {
+          "path": "enemy/spr_enemy_blob_flash.png",
+          "cell": [
+            16,
+            16
+          ],
+          "frames": 1,
+          "frame_seconds": 0.1
+        }
+      }
+    ],
+    "champion_sprites": [
+      {
+        "idle": {
+          "path": "enemy/spr_champion_idle.png",
+          "cell": [
+            64,
+            64
+          ],
+          "frames": 4,
+          "frame_seconds": 0.12
+        }
+      }
+    ]
   },
   "spawner": {
     "count": 256,
@@ -94,25 +155,37 @@
     "drop_entity_count": 6,
     "on_ground": {
       "path": "fragments/spr_fragment.png",
-      "cell": [8, 8],
+      "cell": [
+        8,
+        8
+      ],
       "frames": 4,
       "frame_seconds": 0.1
     },
     "starting_pull": {
       "path": "fragments/spr_vfx_part_pull.png",
-      "cell": [16, 16],
+      "cell": [
+        16,
+        16
+      ],
       "frames": 8,
       "frame_seconds": 0.07
     },
     "moving": {
       "path": "fragments/spr_vfx_trail_pickup.png",
-      "cell": [16, 8],
+      "cell": [
+        16,
+        8
+      ],
       "frames": 4,
       "frame_seconds": 0.01
     },
     "collecting_impact": {
       "path": "fragments/spr_vfx_part_collect.png",
-      "cell": [8, 8],
+      "cell": [
+        8,
+        8
+      ],
       "frames": 4,
       "frame_seconds": 0.05
     }

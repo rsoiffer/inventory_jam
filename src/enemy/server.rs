@@ -294,6 +294,7 @@ pub(crate) fn spawn_requested_enemy(
                     tier_index,
                     is_ranged: rng.random::<f32>()
                         < settings.spawner.tier(tier_index).ranged_chance,
+                    sprite_index: rng.random_range(0..settings.enemy.sprites.len()) as u8,
                     ai_seed,
                 }
             }
@@ -301,6 +302,7 @@ pub(crate) fn spawn_requested_enemy(
                 kind: EnemyKind::GrandChampion,
                 tier_index: 0,
                 is_ranged: true,
+                sprite_index: rng.random_range(0..settings.enemy.champion_sprites.len()) as u8,
                 ai_seed,
             },
         };

@@ -58,6 +58,7 @@ pub struct EnemyIdentity {
     pub kind: EnemyKind,
     pub tier_index: u8,
     pub is_ranged: bool,
+    pub sprite_index: u8,
     pub ai_seed: u64,
 }
 
