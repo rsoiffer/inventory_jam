@@ -15,14 +15,22 @@ pub struct ProjectileServerPlugin;
 
 impl Plugin for ProjectileServerPlugin {
     fn build(&self, app: &mut App) {
+        // Must run in `Update`, not `FixedUpdate`: lightyear's `MessageReceiver<T>`
+        // is unconditionally cleared once per real Update frame (in the `Last`
+        // schedule) regardless of whether anything read it. `FixedUpdate` only
+        // runs 0+ times per Update frame depending on the fixed-timestep
+        // accumulator, so a message that arrives on a frame with zero fixed
+        // ticks - routine whenever the render frame rate exceeds the fixed tick
+        // rate, which is what made this drop messages on a GUI-hosted server
+        // but not a headless one - gets wiped before this system ever sees it.
+        app.add_systems(
+            Update,
+            handle_debug_fire_at_requests_server.run_if(in_state(AppState::Hosting)),
+        );
         app.add_systems(
             FixedUpdate,
             // Automatic periodic debug fire disabled for now.
-            (
-                handle_debug_fire_at_requests_server,
-                simulate_server_projectiles,
-            )
-                .chain()
+            simulate_server_projectiles
                 .in_set(FixedGameplaySet::Projectile)
                 .run_if(in_state(AppState::Hosting)),
         );
