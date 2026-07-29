@@ -2,9 +2,8 @@ use bevy::prelude::{
     App, Component, Curve, Deref, DerefMut, Ease, FunctionCurve, Interval, Plugin, Vec2,
 };
 use lightyear::prelude::{
-    AppChannelExt, AppComponentExt, AppMessageExt, ChannelMode, ChannelSettings,
-    InterpolationRegistrationExt, NetworkDirection, PeerId, PredictionBuilderExt, ReliableSettings,
-    Tick,
+    AppChannelExt, AppComponentExt, AppMessageExt, ChannelMode, ChannelSettings, NetworkDirection,
+    PeerId, ReliableSettings, Tick,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +22,7 @@ impl Plugin for ProjectileProtocolPlugin {
         // rather than continuous state, so we want it to always eventually
         // arrive instead of silently vanishing under simulated latency/loss.
         app.add_channel::<DebugFireChannel>(ChannelSettings {
-            mode: ChannelMode::UnorderedReliable(ReliableSettings::default()),
+            mode: ChannelMode::OrderedReliable(ReliableSettings::default()),
             ..Default::default()
         })
         .add_direction(NetworkDirection::ClientToServer);
@@ -37,9 +36,10 @@ impl Plugin for ProjectileProtocolPlugin {
 /// The server does not trust `origin` for anything but this debug tool.
 /// `request_id` is chosen by the client and echoed back verbatim so both
 /// sides can build the exact same `PreSpawned` hash from it (see
-/// `debug::debug_fire_hash`) — the default tick-based `PreSpawned` hash
-/// assumes both sides spawn on the "same" tick, which only holds when
-/// neither side is reacting to a message that just crossed the network.
+/// `client::debug_fire_hash` / `server::debug_fire_hash`) — the default
+/// tick-based `PreSpawned` hash assumes both sides spawn on the "same" tick
+/// and that no two projectiles share a tick, neither of which holds for a
+/// client-triggered request that crosses the network.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct DebugFireProjectileAt {
     pub origin: Vec2,

@@ -1,7 +1,5 @@
 #[cfg(feature = "client")]
 mod client;
-#[cfg(any(feature = "client", feature = "server"))]
-mod debug;
 mod protocol;
 #[cfg(feature = "gui")]
 mod render;
