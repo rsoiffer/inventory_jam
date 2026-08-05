@@ -16,13 +16,24 @@ crate-type = ["cdylib"]
 
 # Update your dependencies section with:
 [dependencies]
-gdenv-lib = "1.1.0"
-godot = "0.4"
+core = { path = "../core", default-features = false }
+bevy.workspace = true
+lightyear.workspace = true
+gdenv-lib.workspace = true
+godot.workspace = true
+godot-bevy = { git = "https://github.com/bytemeadow/godot-bevy.git", rev = "c2213a7" }
 # Add godot-bevy-test if you want to also set up integration tests
 # godot-bevy-test = { version = "0.11", optional = true }
 
 # Update or add your features section with:
 [features]
+default = ["client", "server", "netcode", "udp", "webtransport", "dev"]
+dev = ["core/dev", "bevy/dynamic_linking"]
+client = ["core/client", "lightyear/client"]
+server = ["core/server", "lightyear/client", "lightyear/server"]
+netcode = ["core/netcode"]
+udp = ["core/udp"]
+webtransport = ["core/webtransport"]
 # Add godot-bevy-test if you want to also set up integration tests
 itest = [
     # "dep:godot-bevy-test"

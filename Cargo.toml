@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/core", "crates/main-bevy", "crates/main-godot"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
@@ -115,6 +115,8 @@ web-sys = { version = "0.3", features = [
     "Window",
 ] }
 embed-resource = "3.0.11"
+gdenv-lib = { package = "gdenv-lib", path = "../../gdenv/gdenv-lib" }
+godot = "0.4"
 
 [patch.crates-io]
 xwt-web = { path = "vendor/xwt-web" }
